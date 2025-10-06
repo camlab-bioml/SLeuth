@@ -141,7 +141,7 @@ dmypy.json
 
 # Model checkpoints
 checkpoints/
-models/
+saved_models/
 *.pt
 *.pth
 *.ckpt
