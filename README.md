@@ -1,59 +1,23 @@
 # SL_GNN
 
-A Graph Neural Network (GNN) framework for Synthetic Lethality (SL) prediction.
+## Graph Neural Network for Synthetic Lethality Prediction
 
-## Overview
+### Project Structure
 
-This repository contains the implementation of graph neural network models for predicting synthetic lethal interactions. The code will be added after successful validation. The sl-benchmarking-2025 repository will be forked from this one.
+- **Code**: Located in the `code/` directory
+- **Code Sync**: Use `sync_to_adamson.sh` to duplicate code for Adamson data
+- **Slurm Scripts**: Available in the `slurm_scripts/` directory
 
-## Project Structure
+### Pipeline Execution
 
-```
-SL_GNN/
-├── data/           # Data files and preprocessing scripts
-├── models/         # GNN model implementations
-├── utils/          # Utility functions and helpers
-├── experiments/    # Experiment configurations and scripts
-└── tests/          # Unit tests
-```
+Run `tmux_pipeline.sh` in a tmux window to execute the following workflow:
 
-## Installation
+1. Download Amino Acid information with corrected names
+2. Generate protein embeddings for each gene using mean pooling with ESM embeddings
+3. Fit SLMGAE model (with or without ESM embeddings)
 
-1. Clone the repository:
-```bash
-git clone https://github.com/camlab-bioml/SL_GNN.git
-cd SL_GNN
-```
+### Training Details
 
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+The main SLMGAE model is trained on the **SLDB**. 
 
-## Usage
-
-*Coming soon - detailed usage instructions will be added after code implementation.*
-
-## Requirements
-
-- Python >= 3.8
-- PyTorch >= 2.0.0
-- PyTorch Geometric >= 2.3.0
-
-See `requirements.txt` for full list of dependencies.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Citation
-
-*Citation information will be added upon publication.*
-
-## Contact
-
-For questions and feedback, please open an issue on GitHub. 
+> **Note**: BC and case study datasets are not currently of interest.

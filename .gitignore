@@ -133,18 +133,101 @@ dmypy.json
 # macOS
 .DS_Store
 
-# Data files
+# Data files - binary formats
 *.h5
 *.hdf5
 *.pkl
 *.pickle
+*.npy
+*.npz
+*.parquet
+*.feather
+*.arrow
+
+# Data files - text formats
+*.csv
+*.tsv
+*.dat
+*.tab
+# Exclude large data .txt files but allow config/doc .txt in root
+data/*.txt
+BC_data/*.txt
+ESM_embedding/*.txt
+outputs/*.txt
+outputs_Adamson/*.txt
+protein_seq/*.txt
+external\ data/*.txt
+
+# Data files - spreadsheets
+*.xlsx
+*.xls
+*.xlsm
+*.ods
+
+# Data files - compressed
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.gz
+*.bz2
+*.xz
+*.7z
+*.rar
+
+# Large data directories
+BC_data/
+ESM_embedding/
+data/
+external data/
+protein_seq/
+outputs/
+outputs_Adamson/
+
+# Bioinformatics formats
+*.fasta
+*.fa
+*.fastq
+*.fq
+*.bam
+*.sam
+*.vcf
+*.vcf.gz
+*.bed
+*.gff
+*.gtf
+*.maf
+*.wig
+*.bigwig
+*.bw
+
+# Protein/sequence files
+*.pdb
+*.cif
+*.sdf
+*.mol2
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
 
 # Model checkpoints
 checkpoints/
 saved_models/
+models/
 *.pt
 *.pth
 *.ckpt
+*.weights
+*.safetensors
+
+# TensorFlow files
+*.pb
+*.meta
+*.index
+*.data-*
+events.out.tfevents.*
 
 # Results and logs
 results/
@@ -152,7 +235,44 @@ logs/
 runs/
 wandb/
 mlruns/
+tensorboard/
+lightning_logs/
+
+# Figures and plots
+*.png
+*.jpg
+*.jpeg
+*.pdf
+*.svg
+*.eps
+figures/
+plots/
+
+# SLURM output files
+*.out
+*.err
+slurm-*.out
+slurm_scripts/logs/*
+slurm_scripts_Adamson/logs/*
+
+# R data files
+*.RData
+*.Rds
+*.rda
+
+# JSON data files (keep config JSONs)
+data/*.json
+outputs/*.json
+results/*.json
 
 # Temporary files
 tmp/
 temp/
+cache/
+.cache/
+
+# Exceptions - keep these files
+!README.md
+!requirements.txt
+!setup.py
+!LICENSE.txt
