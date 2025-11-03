@@ -1,0 +1,2171 @@
+---
+title: "Synthetic Lethality Predictions Analysis"
+author: "SLMGAE Analysis Pipeline"
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    theme: cosmo
+execute:
+  warning: false
+  message: false
+---
+
+# Synthetic Lethality Model Predictions Analysis
+
+This analysis compares SLMGAE model predictions (with and without ESM embeddings) against experimental validation datasets from three major CRISPR screening studies: Corn et al., Adamson et al., and Gilbert et al.
+
+```{python}
+#| label: setup
+#| echo: true
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score, roc_auc_score
+from sklearn.linear_model import LogisticRegression
+from scipy import stats
+from scipy.stats import pearsonr, spearmanr, ttest_ind
+from pandas.plotting import scatter_matrix
+from tqdm import tqdm
+from joblib import Parallel, delayed
+import warnings
+import sys
+import os
+import urllib.request
+import glob
+
+# Import helper modules for gene expansion
+from gene_expansion_utils import load_human_genes_cached
+from fetch_human_genes_uniprot import fetch_uniprot_human_genes
+
+warnings.filterwarnings('ignore')
+sns.set_style("whitegrid")
+plt.rcParams['figure.figsize'] = (10, 6)
+
+# Add code directory to path for imports
+sys.path.append('../code')
+
+# Set random seed for reproducibility
+np.random.seed(42)
+
+# ============================================================================
+# CONFIGURATION PARAMETERS
+# ============================================================================
+
+# Bootstrap iterations for confidence intervals
+# Set to 20 for computational efficiency (can be increased for publication)
+n_bootstrap = 20
+
+# Cross-validation parameters
+N_CV_FOLDS = 5  # Number of folds in cross-validation
+
+# SL status threshold (any score > 0 is considered SL-positive)
+SL_THRESHOLD = 0
+
+# Threshold percentiles for external dataset binarization
+THRESHOLD_PERCENTILES = (99, 1)  # Top 1% or bottom 1%
+
+# File paths
+DATA_DIR = '../data'
+OUTPUT_DIR = '../outputs'
+EXTERNAL_DATA_DIR = '../external data'
+
+print("Libraries loaded successfully")
+print(f"Working directory: {os.getcwd()}")
+print(f"Configuration:")
+print(f"  Bootstrap iterations: {n_bootstrap}")
+print(f"  CV folds: {N_CV_FOLDS}")
+print(f"  SL threshold: > {SL_THRESHOLD}")
+```
+
+## Steps 1-8: Data Import and Processing
+
+```{python}
+#| label: check-cache
+#| echo: true
+
+# Check if cached dataframe exists
+cache_file = 'gene_pairs_df_cached.pkl'
+use_cache = False
+gene_pairs_df = None
+
+if os.path.exists(cache_file):
+    print(f"Found cached file: {cache_file}")
+    try:
+        gene_pairs_df = pd.read_pickle(cache_file)
+        print(f"Loaded cached dataframe: {len(gene_pairs_df):,} rows × {gene_pairs_df.shape[1]} columns")
+        print(f"Columns: {list(gene_pairs_df.columns)}")
+        use_cache = True
+        print("\n✓ Using cached data - skipping Steps 1-8")
+    except Exception as e:
+        print(f"Error loading cache: {e}")
+        print("Will regenerate from source files...")
+        use_cache = False
+        gene_pairs_df = None
+else:
+    print(f"No cached file found at {cache_file}")
+    print("Will process from source files...")
+    use_cache = False
+```
+
+## Steps 1-4: Import and Process Main Predictions
+
+### Step 1: Import Main Prediction Data
+### Step 2: Average Across Folds  
+### Step 3: Force Symmetry
+### Step 4: Convert to Long Format
+
+```{python}
+#| label: steps-1-4-predictions
+#| echo: true
+
+if 'use_cache' in locals() and use_cache:
+    print("✓ Using cached data - skipping Steps 1-4")
+else:
+    # Step 1: Import Main Prediction Data
+    # Load CSV files from 3 CV splits
+    print("Step 1: Importing main prediction data from 3 CV splits...")
+
+    # Import gene corrections for later use
+    from gene_corrections_config import GENE_CORRECTIONS
+
+    # Create case-insensitive lookup dictionary (uppercase keys)
+    GENE_CORRECTIONS_UPPER = {k.upper(): v.upper() for k, v in GENE_CORRECTIONS.items()}
+
+    def apply_gene_correction(gene):
+        """Apply gene name correction from GENE_CORRECTIONS dictionary
+        Uses case-insensitive lookup and returns uppercase result"""
+        if pd.isna(gene):
+            return gene
+        gene_upper = str(gene).upper()
+        # Lookup in uppercase version of corrections
+        return GENE_CORRECTIONS_UPPER.get(gene_upper, gene_upper)
+
+    def load_cv_folds(directory, model_name, cv_label, verify_genes=None):
+        """Load cross-validation folds for a single model.
+
+        Args:
+            directory: Directory containing fold predictions
+            model_name: Name for error messages
+            cv_label: Label in filename (e.g., 'cv1', 'cv2', 'cv3')
+            verify_genes: Expected gene list to verify against (None for first model)
+
+        Returns:
+            tuple: (stacked numpy array, gene_names list)
+        """
+        files = []
+        current_genes = None
+
+        for i in range(N_CV_FOLDS):
+            df = pd.read_csv(f'{OUTPUT_DIR}/{directory}/fold_{i}_{cv_label}_predictions.csv', index_col=0)
+            files.append(df.values)
+
+            if i == 0:
+                current_genes = df.index.tolist()
+                # Verify row and column names match (critical for symmetric matrix interpretation)
+                assert df.columns.tolist() == current_genes, f"{model_name}: Row and column names don't match!"
+
+                # Verify consistency with previously loaded gene names if provided
+                if verify_genes is not None:
+                    assert current_genes == verify_genes, f"{model_name}: Gene order inconsistent with previous models!"
+
+        return np.stack(files), current_genes
+
+    # Load all CV splits using the helper function
+    main_with_ESM_CV1, gene_names = load_cv_folds('main_with_ESM', 'CV1 ESM', 'cv1')
+    main_without_ESM_CV1, _ = load_cv_folds('main_without_ESM', 'CV1 Non-ESM', 'cv1', gene_names)
+    main_CV2, _ = load_cv_folds('CV2', 'CV2', 'cv2', gene_names)
+    main_CV3, _ = load_cv_folds('CV3', 'CV3', 'cv3', gene_names)
+
+    # Verify shapes match (ensures all folds have same dimensions)
+    expected_shape = (N_CV_FOLDS, len(gene_names), len(gene_names))
+    assert main_with_ESM_CV1.shape == expected_shape, f"CV1 with ESM shape mismatch: {main_with_ESM_CV1.shape}"
+    assert main_without_ESM_CV1.shape == expected_shape, f"CV1 without ESM shape mismatch: {main_without_ESM_CV1.shape}"
+    assert main_CV2.shape == expected_shape, f"CV2 shape mismatch: {main_CV2.shape}"
+    assert main_CV3.shape == expected_shape, f"CV3 shape mismatch: {main_CV3.shape}"
+
+    # Step 2: Average Across Folds
+    print("Step 2: Averaging across 5 folds for each CV split...")
+    main_with_ESM_CV1_avg = np.mean(main_with_ESM_CV1, axis=0)
+    main_without_ESM_CV1_avg = np.mean(main_without_ESM_CV1, axis=0)
+    main_CV2_avg = np.mean(main_CV2, axis=0)
+    main_CV3_avg = np.mean(main_CV3, axis=0)
+
+    # Step 3: Force Symmetry by averaging with transpose
+    print("Step 3: Forcing symmetry...")
+    main_with_ESM_CV1_sym = (main_with_ESM_CV1_avg + main_with_ESM_CV1_avg.T) / 2
+    main_without_ESM_CV1_sym = (main_without_ESM_CV1_avg + main_without_ESM_CV1_avg.T) / 2
+    main_CV2_sym = (main_CV2_avg + main_CV2_avg.T) / 2
+    main_CV3_sym = (main_CV3_avg + main_CV3_avg.T) / 2
+
+    # Verify symmetry
+    assert np.allclose(main_with_ESM_CV1_sym, main_with_ESM_CV1_sym.T), "CV1 with ESM matrix not symmetric!"
+    assert np.allclose(main_without_ESM_CV1_sym, main_without_ESM_CV1_sym.T), "CV1 without ESM matrix not symmetric!"
+    assert np.allclose(main_CV2_sym, main_CV2_sym.T), "CV2 matrix not symmetric!"
+    assert np.allclose(main_CV3_sym, main_CV3_sym.T), "CV3 matrix not symmetric!"
+
+    # Step 3b: Load SL Reference Data and Create SL Matrices
+    print("Step 3b: Loading SL reference data and creating SL matrices...")
+
+    # Load SL reference data (may contain old/uncorrected gene names)
+    sl_data = pd.read_csv(f'{DATA_DIR}/SL_Human_Approved.txt', sep='\t', header=None)
+    sl_data.columns = ['gene1', 'gene2', 'score']
+
+    # Normalize gene names to uppercase for consistent matching
+    sl_data['gene1'] = sl_data['gene1'].str.upper()
+    sl_data['gene2'] = sl_data['gene2'].str.upper()
+
+    # Create uppercase version of gene names for matching
+    gene_names_upper = [gene.upper() for gene in gene_names]
+
+    # Create gene name to index mapping for current genes
+    gene_to_idx = {gene: idx for idx, gene in enumerate(gene_names_upper)}
+
+    # Create SL_score matrix (NxN, initialized to 0 for non-SL pairs)
+    # Known SL pairs from reference data will have positive scores
+    # This matches the training approach where all non-SL pairs are treated as negatives
+    n_genes = len(gene_names)
+    SL_score_matrix = np.full((n_genes, n_genes), 0.0)
+
+    # Fill in SL scores from reference data
+    sl_pairs_matched = 0
+    sl_pairs_unmatched = 0
+    unmatched_genes = set()
+    for _, row in sl_data.iterrows():
+        g1, g2, score = row['gene1'], row['gene2'], row['score']
+
+        # Check if both genes exist in our gene list (case-insensitive)
+        if g1 in gene_to_idx and g2 in gene_to_idx:
+            idx1, idx2 = gene_to_idx[g1], gene_to_idx[g2]
+            # Set both (i,j) and (j,i) for symmetry
+            SL_score_matrix[idx1, idx2] = score
+            SL_score_matrix[idx2, idx1] = score
+            sl_pairs_matched += 1
+        else:
+            sl_pairs_unmatched += 1
+            if g1 not in gene_to_idx:
+                unmatched_genes.add(g1)
+            if g2 not in gene_to_idx:
+                unmatched_genes.add(g2)
+
+    print(f"  SL pairs matched: {sl_pairs_matched:,}")
+    print(f"  SL pairs unmatched (genes not in matrix): {sl_pairs_unmatched:,}")
+    if unmatched_genes:
+        unmatched_list = sorted(list(unmatched_genes))[:10]
+        print(f"  Unmatched genes (first 10): {unmatched_list}")
+        if len(unmatched_genes) > 10:
+            print(f"    ... and {len(unmatched_genes) - 10} more")
+
+    # Create binary SL_status matrix (1 if SL_score > SL_THRESHOLD, 0 otherwise)
+    # For the genes in the prediction matrix: 0 = non-SL (negative), 1 = SL (positive)
+    # NaN values will only appear later when matrix is expanded to include additional genes
+    SL_status_matrix = (SL_score_matrix > SL_THRESHOLD).astype(float)
+
+    # Verify symmetry (critical for pairwise interaction interpretation)
+    assert np.allclose(SL_score_matrix, SL_score_matrix.T, equal_nan=True), "SL_score matrix not symmetric!"
+    assert np.allclose(SL_status_matrix, SL_status_matrix.T, equal_nan=True), "SL_status matrix not symmetric!"
+    print(f"  Created symmetric SL matrices: {n_genes}x{n_genes}")
+    upper_triangle = np.triu(SL_status_matrix, k=1)
+    n_positive = int(np.sum(upper_triangle == 1))
+    n_negative = int(np.sum(upper_triangle == 0))
+    print(f"  Total SL positive pairs (upper triangle): {n_positive:,}")
+    print(f"  Total SL negative pairs (upper triangle): {n_negative:,}")
+    print(f"  Total labeled pairs (upper triangle): {n_positive + n_negative:,}")
+
+    # Calculate naive edge probability estimate using vectorized NumPy operations
+    # For each gene, calculate probability = (# of SL connections) / (# of valid genes)
+    # This properly handles NaN values by excluding them from both numerator and denominator
+    print("\n  Calculating naive edge probability estimate...")
+
+    # Create working copy and set diagonal to NaN to exclude self-connections
+    SL_status_no_diag = SL_status_matrix.copy()
+    np.fill_diagonal(SL_status_no_diag, np.nan)
+
+    # Vectorized calculation: for each row, sum non-NaN values / count non-NaN values
+    # nansum: sum ignoring NaN (numerator = # of SL connections)
+    # count_nonzero(~isnan): count of valid (non-NaN) entries (denominator = # of valid genes)
+    row_sums = np.nansum(SL_status_no_diag, axis=1)
+    row_counts = np.count_nonzero(~np.isnan(SL_status_no_diag), axis=1)
+
+    # Calculate probability vector: avoid division by zero
+    prob_vector = np.where(row_counts > 0, row_sums / row_counts, 0)
+
+    # Create naive edge probability matrix via outer product
+    naive_edge_est_matrix = np.outer(prob_vector, prob_vector)
+
+    # Verify symmetry (outer product of vector with itself is always symmetric)
+    assert np.allclose(naive_edge_est_matrix, naive_edge_est_matrix.T), "Naive edge estimate matrix not symmetric!"
+    print(f"  Created naive edge probability matrix: {naive_edge_est_matrix.shape}")
+    # Use nan-safe functions in case there are any NaN values
+    print(f"  Probability range: [{np.nanmin(naive_edge_est_matrix):.6f}, {np.nanmax(naive_edge_est_matrix):.6f}]")
+    print(f"  Mean probability: {np.nanmean(naive_edge_est_matrix):.6f}")
+
+    # Transform to logit scale for logistic regression
+    # Add small epsilon to avoid log(0) or log(1)
+    epsilon = 1e-10
+    naive_edge_est_matrix_clipped = np.clip(naive_edge_est_matrix, epsilon, 1 - epsilon)
+    naive_edge_est_logit_matrix = np.log(naive_edge_est_matrix_clipped / (1 - naive_edge_est_matrix_clipped))
+
+    # Verify symmetry of logit-transformed matrix
+    assert np.allclose(naive_edge_est_logit_matrix, naive_edge_est_logit_matrix.T), "Naive edge logit matrix not symmetric!"
+    print(f"  Created naive edge logit matrix: {naive_edge_est_logit_matrix.shape}")
+    print(f"  Logit range: [{np.nanmin(naive_edge_est_logit_matrix):.6f}, {np.nanmax(naive_edge_est_logit_matrix):.6f}]")
+    print(f"  Mean logit: {np.nanmean(naive_edge_est_logit_matrix):.6f}")
+
+    # Load support view matrices
+    print("\n  Loading support view matrices...")
+
+    # Import data loader utilities
+    from slmgae_pytorch import DataLoader
+    loader = DataLoader(DATA_DIR, gene_names)
+
+    # Load GO BP similarity (with KNN preprocessing)
+    GO_BP_matrix = loader.load_dense_feature(f"{DATA_DIR}/Human_GOsim.txt", knn=True).toarray()
+    print(f"  Loaded GO_BP: {GO_BP_matrix.shape}")
+    # Verify matrix dimensions match gene count
+    assert GO_BP_matrix.shape == (n_genes, n_genes), f"GO_BP shape mismatch: {GO_BP_matrix.shape}"
+    # Symmetrize by averaging with transpose (handles any asymmetry in preprocessing)
+    GO_BP_matrix = (GO_BP_matrix + GO_BP_matrix.T) / 2
+
+    # Load GO CC similarity (with KNN preprocessing)
+    GO_CC_matrix = loader.load_dense_feature(f"{DATA_DIR}/Human_GOsim_CC.txt", knn=True).toarray()
+    print(f"  Loaded GO_CC: {GO_CC_matrix.shape}")
+    # Verify matrix dimensions match gene count
+    assert GO_CC_matrix.shape == (n_genes, n_genes), f"GO_CC shape mismatch: {GO_CC_matrix.shape}"
+    # Symmetrize by averaging with transpose (handles any asymmetry in preprocessing)
+    GO_CC_matrix = (GO_CC_matrix + GO_CC_matrix.T) / 2
+
+    # Load PPI network (sparse edge list)
+    PPI_matrix = loader.load_sparse_feature(f"{DATA_DIR}/biogrid_ppi_sparse.txt").toarray()
+    print(f"  Loaded PPI: {PPI_matrix.shape}")
+    # Verify matrix dimensions match gene count
+    assert PPI_matrix.shape == (n_genes, n_genes), f"PPI shape mismatch: {PPI_matrix.shape}"
+    # Symmetrize by averaging with transpose (PPI networks should be undirected)
+    PPI_matrix = (PPI_matrix + PPI_matrix.T) / 2
+
+    # Step 3c: Correct Gene Names and Expand Matrix
+    print("\nStep 3c: Correcting gene names and expanding matrix...")
+
+    # Apply gene corrections to the gene names
+    corrected_gene_names = [apply_gene_correction(gene) for gene in gene_names]
+    print(f"  Applied gene corrections to {len(gene_names)} genes")
+    
+    # Load human gene names using helper function
+    print("  Loading all human gene names...")
+    cached_file = f'{DATA_DIR}/all_human_genes_uniprot.txt'
+
+    # Use helper function to load cached genes
+    all_human_genes_raw = load_human_genes_cached(cached_file)
+
+    if all_human_genes_raw:
+        # Normalize to uppercase for consistent matching
+        all_human_genes = {gene.upper() for gene in all_human_genes_raw}
+        print(f"  Loaded {len(all_human_genes):,} human genes from cache")
+    else:
+        # Cache doesn't exist - try to fetch from UniProt
+        print("  Cache not found. Fetching human genes from UniProt (this may take a moment)...")
+        try:
+            fetched_genes = fetch_uniprot_human_genes()
+            if fetched_genes:
+                # Normalize to uppercase and save
+                all_human_genes = {gene.upper() for gene in fetched_genes}
+                print(f"  Retrieved {len(all_human_genes):,} human genes from UniProt")
+
+                # Save for future use
+                with open(cached_file, 'w') as f:
+                    f.write(f"# Human genes from UniProt (cached)\n")
+                    f.write(f"# Total: {len(all_human_genes)} genes\n\n")
+                    for gene in sorted(all_human_genes):
+                        f.write(f"{gene}\n")
+                print(f"  Cached genes to: {cached_file}")
+            else:
+                print("  Failed to fetch genes from UniProt")
+                all_human_genes = set()
+        except Exception as e:
+            print(f"  Error fetching from UniProt: {e}")
+            print(f"  To generate cached file manually, run: python qmd/fetch_human_genes_uniprot.py")
+            all_human_genes = set()
+
+    # If we still don't have genes, use the corrected gene names as fallback
+    if not all_human_genes:
+        print("  Proceeding without expansion (using only SL network genes)")
+        all_human_genes = set([g.upper() for g in corrected_gene_names])
+    
+    # Find new genes not in the corrected list (compare uppercase versions)
+    corrected_gene_names_upper = set([g.upper() for g in corrected_gene_names])
+    new_genes = sorted(list(all_human_genes - corrected_gene_names_upper))
+    print(f"  New genes to add: {len(new_genes):,}")
+    
+    if len(new_genes) > 0:
+        # Create expanded gene list (preserve original order, append new genes)
+        expanded_gene_names = corrected_gene_names + new_genes
+        n_original = len(corrected_gene_names)
+        n_expanded = len(expanded_gene_names)
+
+        # Create expanded matrices with NaN for new entries (predictions, SL data, and support views)
+        main_with_ESM_CV1_expanded = np.full((n_expanded, n_expanded), np.nan)
+        main_without_ESM_CV1_expanded = np.full((n_expanded, n_expanded), np.nan)
+        main_CV2_expanded = np.full((n_expanded, n_expanded), np.nan)
+        main_CV3_expanded = np.full((n_expanded, n_expanded), np.nan)
+        SL_score_expanded = np.full((n_expanded, n_expanded), np.nan)
+        SL_status_expanded = np.full((n_expanded, n_expanded), np.nan)
+        naive_edge_est_expanded = np.full((n_expanded, n_expanded), np.nan)
+        naive_edge_est_logit_expanded = np.full((n_expanded, n_expanded), np.nan)
+        GO_BP_expanded = np.full((n_expanded, n_expanded), np.nan)
+        GO_CC_expanded = np.full((n_expanded, n_expanded), np.nan)
+        PPI_expanded = np.full((n_expanded, n_expanded), np.nan)
+
+        # Copy original prediction data
+        main_with_ESM_CV1_expanded[:n_original, :n_original] = main_with_ESM_CV1_sym
+        main_without_ESM_CV1_expanded[:n_original, :n_original] = main_without_ESM_CV1_sym
+        main_CV2_expanded[:n_original, :n_original] = main_CV2_sym
+        main_CV3_expanded[:n_original, :n_original] = main_CV3_sym
+
+        # Copy original SL data
+        SL_score_expanded[:n_original, :n_original] = SL_score_matrix
+        SL_status_expanded[:n_original, :n_original] = SL_status_matrix
+
+        # Copy naive edge estimates and support views
+        naive_edge_est_expanded[:n_original, :n_original] = naive_edge_est_matrix
+        naive_edge_est_logit_expanded[:n_original, :n_original] = naive_edge_est_logit_matrix
+        GO_BP_expanded[:n_original, :n_original] = GO_BP_matrix
+        GO_CC_expanded[:n_original, :n_original] = GO_CC_matrix
+        PPI_expanded[:n_original, :n_original] = PPI_matrix
+
+        # Update variables for Step 4
+        gene_names = expanded_gene_names
+        main_with_ESM_CV1_sym = main_with_ESM_CV1_expanded
+        main_without_ESM_CV1_sym = main_without_ESM_CV1_expanded
+        main_CV2_sym = main_CV2_expanded
+        main_CV3_sym = main_CV3_expanded
+        SL_score_matrix = SL_score_expanded
+        SL_status_matrix = SL_status_expanded
+        naive_edge_est_matrix = naive_edge_est_expanded
+        naive_edge_est_logit_matrix = naive_edge_est_logit_expanded
+        GO_BP_matrix = GO_BP_expanded
+        GO_CC_matrix = GO_CC_expanded
+        PPI_matrix = PPI_expanded
+        
+        print(f"  Matrix expanded from {n_original}x{n_original} to {n_expanded}x{n_expanded}")
+        
+        # Save expanded gene list temporarily
+        temp_gene_list = 'temp_expanded_gene_list.txt'
+        with open(temp_gene_list, 'w') as f:
+            f.write("# Original SL genes (corrected names)\n")
+            for i, gene in enumerate(corrected_gene_names):
+                f.write(f"{gene}\n")
+            f.write("\n# Additional human genes from UniProt\n")
+            for gene in new_genes:
+                f.write(f"{gene}\n")
+        print(f"  Saved expanded gene list to '{temp_gene_list}'")
+    else:
+        # Just update gene names with corrections
+        gene_names = corrected_gene_names
+        print("  No new genes to add - using corrected gene names only")
+    
+    # Step 4: Convert to Long Format
+    print("Step 4: Converting to long format (upper triangle only)...")
+    upper_tri_indices = np.triu_indices(len(gene_names), k=1)
+    gene_pairs_df = pd.DataFrame({
+        'gene1': [gene_names[i] for i in upper_tri_indices[0]],
+        'gene2': [gene_names[j] for j in upper_tri_indices[1]],
+        'SL_score': SL_score_matrix[upper_tri_indices],
+        'SL_status': SL_status_matrix[upper_tri_indices],
+        'naive_edge_est': naive_edge_est_matrix[upper_tri_indices],
+        'naive_edge_est_logit': naive_edge_est_logit_matrix[upper_tri_indices],
+        'GO_BP': GO_BP_matrix[upper_tri_indices],
+        'GO_CC': GO_CC_matrix[upper_tri_indices],
+        'PPI': PPI_matrix[upper_tri_indices],
+        'main_without_ESM_CV1': main_without_ESM_CV1_sym[upper_tri_indices],
+        'main_with_ESM_CV1': main_with_ESM_CV1_sym[upper_tri_indices],
+        'main_CV2': main_CV2_sym[upper_tri_indices],
+        'main_CV3': main_CV3_sym[upper_tri_indices]
+    })
+
+    # Add backward-compatible aliases for CV1 data (for existing analysis code)
+    gene_pairs_df['main_with_ESM'] = gene_pairs_df['main_with_ESM_CV1']
+    gene_pairs_df['main_without_ESM'] = gene_pairs_df['main_without_ESM_CV1']
+
+    print(f"Created dataframe with {len(gene_pairs_df):,} gene pairs (upper triangle only, no self-pairs)")
+    print(f"  SL positive pairs (labeled): {(gene_pairs_df['SL_status'] == 1).sum():,}")
+    print(f"  SL negative pairs (labeled): {(gene_pairs_df['SL_status'] == 0).sum():,}")
+    print(f"  Unlabeled pairs (NaN): {gene_pairs_df['SL_status'].isna().sum():,}")
+    print(f"  Naive edge estimates with data: {gene_pairs_df['naive_edge_est'].notna().sum():,}")
+    print(f"  Naive edge logit estimates with data: {gene_pairs_df['naive_edge_est_logit'].notna().sum():,}")
+    print(f"  GO_BP entries with data: {gene_pairs_df['GO_BP'].notna().sum():,}")
+    print(f"  GO_CC entries with data: {gene_pairs_df['GO_CC'].notna().sum():,}")
+    print(f"  PPI entries with data: {gene_pairs_df['PPI'].notna().sum():,}")
+    print(f"Columns: {', '.join(gene_pairs_df.columns)}")
+
+    # Create pair_key column once for efficient merging with external datasets
+    print("\nCreating pair_key column for external dataset matching...")
+    gene1_upper = gene_pairs_df['gene1'].str.upper()
+    gene2_upper = gene_pairs_df['gene2'].str.upper()
+    first_gene = np.where(gene1_upper < gene2_upper, gene1_upper, gene2_upper)
+    second_gene = np.where(gene1_upper < gene2_upper, gene2_upper, gene1_upper)
+    gene_pairs_df['pair_key'] = list(zip(first_gene, second_gene))
+    print(f"  Created pair_key for {len(gene_pairs_df):,} gene pairs")
+```
+
+## Step 5: Verify Data Alignment
+
+```{python}
+#| label: verify-alignment
+#| echo: true
+
+if 'use_cache' in locals() and use_cache:
+    print("✓ Using cached data - skipping alignment verification")
+elif 'gene_pairs_df' in locals() and gene_pairs_df is not None:
+    # Verify expected columns exist
+    required_sl_cols = ['SL_score', 'SL_status']
+    required_support_cols = ['naive_edge_est', 'naive_edge_est_logit', 'GO_BP', 'GO_CC', 'PPI']
+    required_cv_cols = ['main_without_ESM_CV1', 'main_with_ESM_CV1', 'main_CV2', 'main_CV3']
+    required_alias_cols = ['main_with_ESM', 'main_without_ESM']
+
+    for col in required_sl_cols + required_support_cols + required_cv_cols + required_alias_cols:
+        assert col in gene_pairs_df.columns, f"Missing expected column: {col}"
+
+    print("✓ Data alignment verified:")
+    print(f"  SL columns: {', '.join(required_sl_cols)}")
+    print(f"  Support view columns: {', '.join(required_support_cols)}")
+    print(f"  CV-specific columns: {', '.join(required_cv_cols)}")
+    print(f"  Backward-compatible aliases: {', '.join(required_alias_cols)} (→ CV1 data)")
+    print(f"  Total columns: {len(gene_pairs_df.columns)}")
+else:
+    print("⚠ Warning: gene_pairs_df not found - may need to run Steps 1-4 first")
+```
+
+## Step 5b: Fit Support View Logistic Regression Model
+
+```{python}
+#| label: support-view-logistic-model
+#| echo: true
+
+if 'use_cache' in locals() and use_cache:
+    print("✓ Using cached data - support_view_logistic_pred already included")
+elif 'gene_pairs_df' in locals() and gene_pairs_df is not None:
+    print("\nStep 5b: Fitting logistic regression model with support view features...")
+
+    # Define support view features (using logit-transformed naive estimate)
+    support_features = ['naive_edge_est_logit', 'GO_BP', 'GO_CC', 'PPI']
+
+    # Diagnostic: Check availability of each component
+    print(f"\n  Diagnostic breakdown:")
+    print(f"    Total pairs in dataframe: {len(gene_pairs_df):,}")
+    print(f"    Pairs with SL_status: {gene_pairs_df['SL_status'].notna().sum():,}")
+    print(f"      SL-positive (before filtering): {(gene_pairs_df['SL_status'] == 1).sum():,}")
+    print(f"      SL-negative (before filtering): {(gene_pairs_df['SL_status'] == 0).sum():,}")
+
+    # Check each support view separately
+    for feat in support_features:
+        n_avail = gene_pairs_df[feat].notna().sum()
+        print(f"    Pairs with {feat}: {n_avail:,}")
+
+    # Check overlap between SL-positive and each support view
+    sl_positive_mask = gene_pairs_df['SL_status'] == 1
+    sl_negative_mask = gene_pairs_df['SL_status'] == 0
+    print(f"\n  SL-positive pairs with each support view:")
+    for feat in support_features:
+        n_pos_overlap = (sl_positive_mask & gene_pairs_df[feat].notna()).sum()
+        n_neg_overlap = (sl_negative_mask & gene_pairs_df[feat].notna()).sum()
+        print(f"    {feat}: {n_pos_overlap:,} positive, {n_neg_overlap:,} negative")
+
+    # Get complete cases: drop rows with any NaN in support features or SL_status
+    training_data = gene_pairs_df[support_features + ['SL_status']].dropna()
+
+    print(f"\n  Training samples with complete data: {len(training_data):,}")
+    n_positive = (training_data['SL_status'] == 1).sum()
+    n_negative = (training_data['SL_status'] == 0).sum()
+    print(f"    SL-positive: {n_positive:,}")
+    print(f"    SL-negative: {n_negative:,}")
+
+    # Check if we have both classes
+    if len(training_data) > 0 and n_positive > 0 and n_negative > 0:
+        # Prepare features and labels
+        X_train = training_data[support_features].values
+        y_train = training_data['SL_status'].values
+
+        # Fit logistic regression with intercept
+        print(f"\n  Fitting logistic regression: SL_status ~ {' + '.join(support_features)} + intercept")
+        lr_model = LogisticRegression(max_iter=1000, random_state=42, fit_intercept=True)
+        lr_model.fit(X_train, y_train)
+
+        # Report model coefficients
+        print(f"\n  Model coefficients:")
+        for feat, coef in zip(support_features, lr_model.coef_[0]):
+            print(f"    {feat}: {coef:.6f}")
+        print(f"    Intercept: {lr_model.intercept_[0]:.6f}")
+
+        # Predict probabilities only for pairs with complete support view data
+        prediction_data = gene_pairs_df.dropna(subset=support_features)
+        print(f"\n  Predicting for {len(prediction_data):,} pairs with complete support view data...")
+        X_pred = prediction_data[support_features].values
+        y_pred_proba = lr_model.predict_proba(X_pred)[:, 1]  # Probability of SL=1
+
+        # Add predictions to dataframe (NaN for pairs with missing support features)
+        gene_pairs_df['support_view_logistic_pred'] = np.nan
+        gene_pairs_df.loc[prediction_data.index, 'support_view_logistic_pred'] = y_pred_proba
+
+        print(f"  ✓ Added 'support_view_logistic_pred' column")
+        print(f"    Non-null predictions: {gene_pairs_df['support_view_logistic_pred'].notna().sum():,}")
+        print(f"    Prediction range: [{gene_pairs_df['support_view_logistic_pred'].min():.6f}, {gene_pairs_df['support_view_logistic_pred'].max():.6f}]")
+        print(f"    Mean prediction: {gene_pairs_df['support_view_logistic_pred'].mean():.6f}")
+
+        # Evaluate on training data (for reference)
+        train_predictions = gene_pairs_df.loc[training_data.index, 'support_view_logistic_pred']
+        train_labels = y_train
+
+        train_auroc = roc_auc_score(train_labels, train_predictions)
+        train_aupr = average_precision_score(train_labels, train_predictions)
+
+        print(f"\n  Training set performance:")
+        print(f"    AUROC: {train_auroc:.4f}")
+        print(f"    AUPR: {train_aupr:.4f}")
+    else:
+        # Handle case where we don't have both classes
+        if len(training_data) == 0:
+            print("  ⚠ No training data available - cannot fit model")
+        elif n_positive == 0:
+            print("  ⚠ No SL-positive pairs with complete support view data - cannot fit model")
+        elif n_negative == 0:
+            print("  ⚠ No SL-negative pairs with complete support view data - cannot fit model")
+        gene_pairs_df['support_view_logistic_pred'] = np.nan
+else:
+    print("⚠ Warning: gene_pairs_df not found - cannot fit support view model")
+```
+
+## Step 6: Import Adamson Data
+
+```{python}
+#| label: step-6-import-adamson
+#| echo: true
+
+if 'use_cache' in locals() and use_cache:
+    print("✓ Using cached data - skipping Adamson data import")
+else:
+    # Step 6: Import Adamson data and calculate mean values for Tau, Gamma, Rho
+    print("Step 6: Importing Adamson data...")
+    adamson_data = pd.read_csv(f'{EXTERNAL_DATA_DIR}/pair_sgRNA_phenotypes.txt', sep='\t')
+    print(f"  Loaded {adamson_data.shape[0]:,} rows × {adamson_data.shape[1]} columns")
+    print(f"  Columns: {list(adamson_data.columns)}")
+
+    # Normalize gene names to uppercase for consistent matching
+    adamson_data['FirstGene'] = adamson_data['FirstGene'].str.upper()
+    adamson_data['SecondGene'] = adamson_data['SecondGene'].str.upper()
+
+    # Verify required columns exist (critical for downstream analysis)
+    assert all(col in adamson_data.columns for col in ['FirstGene', 'SecondGene', 'Tau', 'Gamma', 'Rho']), \
+        f"Missing required Adamson columns! Found: {list(adamson_data.columns)}"
+
+    # Check for duplicate gene pairs - Adamson has multiple measurements per pair that need averaging
+    print("\n  Checking for duplicate gene pairs (will be averaged):")
+    # Vectorized pair_key creation using np.where for sorting
+    first_gene = np.where(adamson_data['FirstGene'] < adamson_data['SecondGene'],
+                          adamson_data['FirstGene'], adamson_data['SecondGene'])
+    second_gene = np.where(adamson_data['FirstGene'] < adamson_data['SecondGene'],
+                           adamson_data['SecondGene'], adamson_data['FirstGene'])
+    adamson_data['pair_key'] = list(zip(first_gene, second_gene))
+    duplicate_counts = adamson_data['pair_key'].value_counts()
+    print(f"  Total rows: {len(adamson_data):,}")
+    print(f"  Unique gene pairs: {len(duplicate_counts):,}")
+    print(f"  Max measurements per pair: {duplicate_counts.max()}")
+    print(f"  Pairs with >1 measurement: {(duplicate_counts > 1).sum():,}")
+    
+    # Process each metric WITH STRICT DROPNA and AVERAGING
+    adamson_metrics = {}
+    for metric_name in ['Tau', 'Gamma', 'Rho']:
+        if metric_name in adamson_data.columns:
+            # STRICT: Drop NA for gene1, gene2, AND metric
+            clean_data = adamson_data[['FirstGene', 'SecondGene', metric_name]].dropna()
+            print(f"\n  {metric_name}: {len(clean_data):,} rows with complete data")
+            assert len(clean_data) > 0, f"No valid data for {metric_name}!"
+            
+            # Aggregate by unique gene pairs (AVERAGING multiple measurements)
+            # Using vectorized operations for performance
+            print(f"    Aggregating {metric_name} measurements by gene pair...")
+
+            # Apply gene corrections
+            clean_data['gene1_corrected'] = clean_data['FirstGene'].apply(apply_gene_correction)
+            clean_data['gene2_corrected'] = clean_data['SecondGene'].apply(apply_gene_correction)
+
+            # Create sorted gene pair key (vectorized using np.where for sorting)
+            first_gene = np.where(clean_data['gene1_corrected'] < clean_data['gene2_corrected'],
+                                  clean_data['gene1_corrected'], clean_data['gene2_corrected'])
+            second_gene = np.where(clean_data['gene1_corrected'] < clean_data['gene2_corrected'],
+                                   clean_data['gene2_corrected'], clean_data['gene1_corrected'])
+            clean_data['pair_key'] = list(zip(first_gene, second_gene))
+
+            # Group by pair_key and calculate mean (vectorized aggregation)
+            grouped = clean_data.groupby('pair_key')[metric_name].agg(['mean', 'count'])
+            adamson_means = grouped['mean'].to_dict()
+            adamson_grouped = clean_data.groupby('pair_key')[metric_name].apply(list).to_dict()
+
+            adamson_metrics[metric_name] = adamson_means
+            print(f"    → {len(adamson_means):,} unique gene pairs after averaging")
+            
+            # Show example of averaging
+            example_pairs = [k for k, v in adamson_grouped.items() if len(v) > 10]
+            if example_pairs:
+                example = example_pairs[0]
+                print(f"    Example: {example} had {len(adamson_grouped[example])} measurements")
+                print(f"      Values: {adamson_grouped[example][:5]}...")
+                print(f"      Mean: {adamson_means[example]:.4f}")
+    
+    # Add Adamson metrics to main dataframe using efficient vectorized merge
+    print("\nAssigning Adamson metrics to gene pairs...")
+    for metric_name in ['Tau', 'Gamma', 'Rho']:
+        if metric_name in adamson_metrics:
+            print(f"  Adding Adamson_{metric_name}...")
+            # Convert dict to Series for efficient vectorized mapping (orders of magnitude faster than apply)
+            metric_series = pd.Series(adamson_metrics[metric_name])
+            gene_pairs_df[f'Adamson_{metric_name}'] = gene_pairs_df['pair_key'].map(metric_series)
+            non_null = gene_pairs_df[f'Adamson_{metric_name}'].notna().sum()
+            print(f"    → {non_null:,} matches in main data")
+    
+    # Check for unmatched Adamson genes (normalized to uppercase)
+    adamson_genes = set()
+    for pair in adamson_metrics.get('Tau', {}).keys():
+        adamson_genes.update(pair)
+    # Normalize main genes to uppercase for comparison
+    main_genes = set([g.upper() for g in gene_pairs_df['gene1'].unique()] +
+                     [g.upper() for g in gene_pairs_df['gene2'].unique()])
+    unmatched_adamson = adamson_genes - main_genes
+    if unmatched_adamson:
+        unmatched_list = sorted(list(unmatched_adamson))[:10]
+        print(f"\n  Adamson genes not in main data ({len(unmatched_adamson)}): {unmatched_list}")
+        if len(unmatched_adamson) > 10:
+            print(f"    ... and {len(unmatched_adamson) - 10} more")
+        # Save to file for correction
+        with open('genes_to_be_corrected_adamson.txt', 'w') as f:
+            for gene in sorted(unmatched_adamson):
+                f.write(f"{gene}\n")
+    
+    print("✓ Adamson data import complete")
+```
+
+## Step 7: Import Corn Data
+
+```{python}
+#| label: step-7-import-corn
+#| echo: true
+
+if 'use_cache' in locals() and use_cache:
+    print("✓ Using cached data - skipping Corn data import")
+else:
+    # Step 7: Import Corn data and remove "_mis" suffixes
+    print("Step 7: Importing Corn data...")
+    corn_data = pd.read_csv(f'{EXTERNAL_DATA_DIR}/41586_2025_8815_MOESM5_ESM.csv')
+    print(f"  Loaded {corn_data.shape[0]:,} rows × {corn_data.shape[1]} columns")
+
+    # Verify required columns exist (critical for downstream processing)
+    assert 'gene_combination' in corn_data.columns, "Missing gene_combination column!"
+    assert 'sens.score' in corn_data.columns, "Missing sens.score column!"
+
+    # Drop rows with missing values in required columns
+    clean_corn = corn_data[['gene_combination', 'sens.score']].dropna()
+    print(f"  Valid data after dropna: {len(clean_corn):,} rows")
+    # Ensure data exists after filtering
+    assert len(clean_corn) > 0, "No valid Corn data after dropna!"
+
+    # Parse gene pairs (semicolon-separated format) into separate columns
+    print("Parsing Corn gene pairs...")
+    gene_splits = clean_corn['gene_combination'].str.split(';', expand=True)
+    clean_corn['gene1_raw'] = gene_splits[0].str.replace('_mis', '', regex=False)
+    clean_corn['gene2_raw'] = gene_splits[1].str.replace('_mis', '', regex=False)
+
+    # Normalize to uppercase for consistent matching
+    clean_corn['gene1_raw'] = clean_corn['gene1_raw'].str.upper()
+    clean_corn['gene2_raw'] = clean_corn['gene2_raw'].str.upper()
+
+    # Filter out rows where genes don't split into exactly 2
+    clean_corn = clean_corn.dropna(subset=['gene1_raw', 'gene2_raw'])
+
+    # Apply gene corrections
+    clean_corn['gene1_corrected'] = clean_corn['gene1_raw'].apply(apply_gene_correction)
+    clean_corn['gene2_corrected'] = clean_corn['gene2_raw'].apply(apply_gene_correction)
+
+    # Create sorted gene pair key (vectorized using np.where for sorting)
+    first_gene = np.where(clean_corn['gene1_corrected'] < clean_corn['gene2_corrected'],
+                          clean_corn['gene1_corrected'], clean_corn['gene2_corrected'])
+    second_gene = np.where(clean_corn['gene1_corrected'] < clean_corn['gene2_corrected'],
+                           clean_corn['gene2_corrected'], clean_corn['gene1_corrected'])
+    clean_corn['pair_key'] = list(zip(first_gene, second_gene))
+
+    # Check for duplicates and average them (consistent with Adamson processing)
+    duplicate_counts = clean_corn['pair_key'].value_counts()
+    print(f"\n  Checking for duplicate gene pairs (will be averaged):")
+    print(f"  Total rows: {len(clean_corn):,}")
+    print(f"  Unique gene pairs: {len(duplicate_counts):,}")
+    if (duplicate_counts > 1).any():
+        print(f"  Max measurements per pair: {duplicate_counts.max()}")
+        print(f"  Pairs with >1 measurement: {(duplicate_counts > 1).sum():,}")
+
+    # Group by pair_key and calculate mean (consistent with Adamson)
+    corn_dict = clean_corn.groupby('pair_key')['sens.score'].mean().to_dict()
+
+    print(f"  → Parsed {len(corn_dict):,} unique gene pairs (duplicates averaged)")
+    
+    # Add Corn scores to main dataframe using efficient vectorized merge
+    print("Assigning Corn scores to gene pairs...")
+    # Convert dict to Series for efficient vectorized mapping (orders of magnitude faster than apply)
+    corn_series = pd.Series(corn_dict)
+    gene_pairs_df['Corn_score'] = gene_pairs_df['pair_key'].map(corn_series)
+    non_null = gene_pairs_df['Corn_score'].notna().sum()
+    print(f"  → {non_null:,} matches in main data")
+    
+    # Check for unmatched Corn genes (normalized to uppercase)
+    corn_genes = set()
+    for pair in corn_dict.keys():
+        corn_genes.update(pair)
+    # Normalize main genes to uppercase for comparison
+    main_genes = set([g.upper() for g in gene_pairs_df['gene1'].unique()] +
+                     [g.upper() for g in gene_pairs_df['gene2'].unique()])
+    unmatched_corn = corn_genes - main_genes
+    if unmatched_corn:
+        unmatched_list = sorted(list(unmatched_corn))[:10]
+        print(f"  Corn genes not in main data ({len(unmatched_corn)}): {unmatched_list}")
+        if len(unmatched_corn) > 10:
+            print(f"    ... and {len(unmatched_corn) - 10} more")
+        # Save to file for correction
+        with open('genes_to_be_corrected_corn.txt', 'w') as f:
+            for gene in sorted(unmatched_corn):
+                f.write(f"{gene}\n")
+
+    print("✓ Corn data import complete")
+```
+
+## Step 8: Import Gilbert Data
+
+```{python}
+#| label: step-8-import-gilbert
+#| echo: true
+if 'use_cache' in locals() and use_cache:
+    print("✓ Using cached data - skipping Gilbert data import")
+else:
+    # Step 8: Import Gilbert data and extract K562 Replicate Average GI scores
+    print("Step 8: Importing Gilbert data...")
+    print("  Sheet: 'gene GI scores and correlations' (gene-level interactions)")
+
+    # Load Excel file with multi-level header for robust column extraction
+    # Headers: Row 0 = Cell line (K562/Jurkat), Row 1 = Replicate, Row 2 = Metric type
+    gilbert_data = pd.read_excel(f'{EXTERNAL_DATA_DIR}/mmc5.xlsx',
+                                 sheet_name='gene GI scores and correlations',
+                                 header=[0, 1, 2],  # Use 3 header rows
+                                 skiprows=[3])       # Skip empty row 4
+    print(f"  Loaded {gilbert_data.shape[0]:,} rows × {gilbert_data.shape[1]} columns")
+
+    # Find the K562 Replicate Average GI score column by matching multi-level header
+    k562_col = None
+    for col in gilbert_data.columns:
+        if (col[0] == 'K562' and
+            col[1] == 'Replicate Average' and
+            col[2] == 'GI score'):
+            k562_col = col
+            print(f"  Found K562 column: {col}")
+            break
+
+    # Verify K562 column was found (critical for correct cell line data)
+    assert k562_col is not None, "Could not find K562 Replicate Average GI score column!"
+
+    # Extract gene columns (first two unnamed columns) and K562 scores
+    gilbert_data = pd.DataFrame({
+        'gene1': gilbert_data[gilbert_data.columns[0]],
+        'gene2': gilbert_data[gilbert_data.columns[1]],
+        'K562_avg': pd.to_numeric(gilbert_data[k562_col], errors='coerce')
+    })
+
+    # Normalize gene names to uppercase for consistent matching
+    gilbert_data['gene1'] = gilbert_data['gene1'].str.upper()
+    gilbert_data['gene2'] = gilbert_data['gene2'].str.upper()
+
+    # Remove rows with missing gene names
+    gilbert_data = gilbert_data.dropna(subset=['gene1', 'gene2'])
+    print(f"  Valid gene pairs: {len(gilbert_data):,} rows")
+    # Ensure data exists after filtering
+    assert len(gilbert_data) > 0, "No valid Gilbert data after dropping NA genes!"
+
+    # Keep only rows with valid K562 scores
+    clean_gilbert = gilbert_data[['gene1', 'gene2', 'K562_avg']].dropna()
+    print(f"  Complete data: {len(clean_gilbert):,} rows")
+    # Ensure data exists after filtering
+    assert len(clean_gilbert) > 0, "No valid K562 data after dropna!"
+
+    # Apply gene corrections
+    print("Parsing Gilbert gene pairs...")
+    clean_gilbert['gene1_corrected'] = clean_gilbert['gene1'].apply(apply_gene_correction)
+    clean_gilbert['gene2_corrected'] = clean_gilbert['gene2'].apply(apply_gene_correction)
+
+    # Create sorted gene pair key (vectorized using np.where for sorting)
+    first_gene = np.where(clean_gilbert['gene1_corrected'] < clean_gilbert['gene2_corrected'],
+                          clean_gilbert['gene1_corrected'], clean_gilbert['gene2_corrected'])
+    second_gene = np.where(clean_gilbert['gene1_corrected'] < clean_gilbert['gene2_corrected'],
+                           clean_gilbert['gene2_corrected'], clean_gilbert['gene1_corrected'])
+    clean_gilbert['pair_key'] = list(zip(first_gene, second_gene))
+
+    # Check for duplicates and average them (consistent with Adamson processing)
+    duplicate_counts = clean_gilbert['pair_key'].value_counts()
+    print(f"\n  Checking for duplicate gene pairs (will be averaged):")
+    print(f"  Total rows: {len(clean_gilbert):,}")
+    print(f"  Unique gene pairs: {len(duplicate_counts):,}")
+    if (duplicate_counts > 1).any():
+        print(f"  Max measurements per pair: {duplicate_counts.max()}")
+        print(f"  Pairs with >1 measurement: {(duplicate_counts > 1).sum():,}")
+
+    # Group by pair_key and calculate mean (consistent with Adamson)
+    gilbert_dict = clean_gilbert.groupby('pair_key')['K562_avg'].mean().to_dict()
+
+    print(f"  → {len(gilbert_dict):,} unique gene pairs (duplicates averaged)")
+
+    # Add to main dataframe using efficient vectorized merge
+    print("Assigning Gilbert scores to gene pairs...")
+    # Convert dict to Series for efficient vectorized mapping (orders of magnitude faster than apply)
+    gilbert_series = pd.Series(gilbert_dict)
+    gene_pairs_df['Gilbert_score'] = gene_pairs_df['pair_key'].map(gilbert_series)
+    non_null = gene_pairs_df['Gilbert_score'].notna().sum()
+    print(f"  → {non_null:,} matches in main data")
+
+    # Check for unmatched Gilbert genes (normalized to uppercase)
+    gilbert_genes = set()
+    for pair in gilbert_dict.keys():
+        gilbert_genes.update(pair)
+    # Normalize main genes to uppercase for comparison
+    main_genes = set([g.upper() for g in gene_pairs_df['gene1'].unique()] +
+                     [g.upper() for g in gene_pairs_df['gene2'].unique()])
+    unmatched_gilbert = gilbert_genes - main_genes
+    if unmatched_gilbert:
+        unmatched_list = sorted(list(unmatched_gilbert))[:10]
+        print(f"  Gilbert genes not in main data ({len(unmatched_gilbert)}): {unmatched_list}")
+        if len(unmatched_gilbert) > 10:
+            print(f"    ... and {len(unmatched_gilbert) - 10} more")
+        # Save to file for correction
+        with open('genes_to_be_corrected_gilbert.txt', 'w') as f:
+            for gene in sorted(unmatched_gilbert):
+                f.write(f"{gene}\n")
+
+    print("✓ Gilbert data import complete")
+```
+
+## Comprehensive Data Import Verification
+
+```{python}
+#| label: verify-all-imports
+#| echo: true
+
+print("="*80)
+print("DATA IMPORT SUMMARY")
+print("="*80)
+
+print("\n1. MAIN DATASETS:")
+print(f"  SL scores (SLDB): {gene_pairs_df['SL_score'].notna().sum():,} pairs")
+print(f"  SLMGAE with ESM (CV1): {gene_pairs_df['main_with_ESM_CV1'].notna().sum():,} predictions")
+print(f"  SLMGAE without ESM (CV1): {gene_pairs_df['main_without_ESM_CV1'].notna().sum():,} predictions")
+print(f"  SLMGAE CV2: {gene_pairs_df['main_CV2'].notna().sum():,} predictions")
+print(f"  SLMGAE CV3: {gene_pairs_df['main_CV3'].notna().sum():,} predictions")
+
+print("\n1b. SUPPORT VIEWS:")
+print(f"  Naive edge estimates: {gene_pairs_df['naive_edge_est'].notna().sum():,} pairs")
+print(f"  Naive edge estimates (logit): {gene_pairs_df['naive_edge_est_logit'].notna().sum():,} pairs")
+print(f"  GO Biological Process: {gene_pairs_df['GO_BP'].notna().sum():,} pairs")
+print(f"  GO Cellular Component: {gene_pairs_df['GO_CC'].notna().sum():,} pairs")
+print(f"  PPI network: {gene_pairs_df['PPI'].notna().sum():,} pairs")
+if 'support_view_logistic_pred' in gene_pairs_df.columns:
+    print(f"  Support view logistic predictions: {gene_pairs_df['support_view_logistic_pred'].notna().sum():,} pairs")
+
+print("\n2. EXTERNAL VALIDATION DATASETS:")
+if 'Adamson_Tau' in gene_pairs_df.columns:
+    print(f"  Adamson Tau: {gene_pairs_df['Adamson_Tau'].notna().sum():,} pairs")
+if 'Adamson_Gamma' in gene_pairs_df.columns:
+    print(f"  Adamson Gamma: {gene_pairs_df['Adamson_Gamma'].notna().sum():,} pairs")
+if 'Adamson_Rho' in gene_pairs_df.columns:
+    print(f"  Adamson Rho: {gene_pairs_df['Adamson_Rho'].notna().sum():,} pairs")
+if 'Corn_score' in gene_pairs_df.columns:
+    print(f"  Corn: {gene_pairs_df['Corn_score'].notna().sum():,} pairs")
+if 'Gilbert_score' in gene_pairs_df.columns:
+    print(f"  Gilbert: {gene_pairs_df['Gilbert_score'].notna().sum():,} pairs")
+print("\n3. DATASET COVERAGE:")
+print(f"  Total gene pairs in dataframe: {len(gene_pairs_df):,}")
+
+print("\n" + "="*80)
+```
+
+## Step 8b: Baseline Model Performance Evaluation
+
+```{python}
+#| label: step-8b-baseline-evaluation
+#| echo: true
+#| fig-width: 12
+#| fig-height: 5
+
+print("\n" + "="*80)
+print("BASELINE MODEL PERFORMANCE")
+print("="*80)
+
+# Get data with SL_status for baseline evaluation
+sl_status_data = gene_pairs_df[gene_pairs_df['SL_status'].notna()]
+print(f"\nTotal gene pairs with SL status: {len(sl_status_data):,}")
+print(f"  Positive SL pairs: {(sl_status_data['SL_status'] == 1).sum():,}")
+print(f"  Negative SL pairs: {(sl_status_data['SL_status'] == 0).sum():,}")
+
+# Define baseline models to evaluate
+baseline_models = []
+if 'naive_edge_est' in gene_pairs_df.columns:
+    baseline_models.append(('Naive Edge Estimate', 'naive_edge_est'))
+if 'support_view_logistic_pred' in gene_pairs_df.columns:
+    baseline_models.append(('Support View Logistic', 'support_view_logistic_pred'))
+
+if len(baseline_models) == 0:
+    print("\n⚠ No baseline models available for evaluation")
+else:
+    baseline_results = {}
+
+    for model_name, pred_col in baseline_models:
+        print(f"\n{'='*60}")
+        print(f"{model_name}")
+        print(f"{'='*60}")
+
+        # Get complete cases
+        model_data = sl_status_data[['SL_status', pred_col]].dropna()
+        print(f"Pairs with complete data: {len(model_data):,}")
+
+        if len(model_data) > 0:
+            y_true = model_data['SL_status']
+            y_pred = model_data[pred_col]
+
+            # Calculate AUROC
+            fpr, tpr, _ = roc_curve(y_true, y_pred)
+            auroc = auc(fpr, tpr)
+
+            # Calculate AUPR
+            aupr = average_precision_score(y_true, y_pred)
+
+            # Calculate baseline (proportion of positives)
+            baseline_rate = y_true.mean()
+
+            baseline_results[model_name] = {
+                'auroc': auroc,
+                'aupr': aupr,
+                'baseline': baseline_rate,
+                'fpr': fpr,
+                'tpr': tpr,
+                'n_samples': len(model_data)
+            }
+
+            print(f"  AUROC: {auroc:.4f}")
+            print(f"  AUPR:  {aupr:.4f}")
+            print(f"  Baseline (% positive): {baseline_rate:.4f}")
+        else:
+            print(f"  ⚠ No complete data available for {model_name}")
+
+    # Plot baseline model performance
+    if len(baseline_results) > 0:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+        # Define colors for baseline models
+        baseline_colors = {
+            'Naive Edge Estimate': 'purple',
+            'Support View Logistic': 'green'
+        }
+
+        # ROC Curves
+        for model_name, res in baseline_results.items():
+            color = baseline_colors.get(model_name, 'gray')
+            label = f"{model_name}: {res['auroc']:.3f}"
+            ax1.plot(res['fpr'], res['tpr'], color=color, lw=2, label=label)
+
+        ax1.plot([0, 1], [0, 1], 'k--', lw=1, label='Random')
+        ax1.set_xlabel('False Positive Rate')
+        ax1.set_ylabel('True Positive Rate')
+        ax1.set_title('ROC Curves - Baseline Models')
+        ax1.legend(loc='lower right')
+        ax1.grid(True, alpha=0.3)
+
+        # Precision-Recall Curves
+        for model_name, (_, pred_col) in zip(baseline_results.keys(), baseline_models):
+            res = baseline_results[model_name]
+            color = baseline_colors.get(model_name, 'gray')
+
+            # Recalculate precision-recall for plotting
+            model_data = sl_status_data[['SL_status', pred_col]].dropna()
+            precision, recall, _ = precision_recall_curve(model_data['SL_status'], model_data[pred_col])
+
+            label = f"{model_name}: {res['aupr']:.3f}"
+            ax2.plot(recall, precision, color=color, lw=2, label=label)
+
+        # Add baseline
+        baseline_val = list(baseline_results.values())[0]['baseline']
+        ax2.axhline(y=baseline_val, color='k', linestyle='--', lw=1,
+                   label=f'Random: {baseline_val:.3f}')
+        ax2.set_xlabel('Recall')
+        ax2.set_ylabel('Precision')
+        ax2.set_title('Precision-Recall Curves - Baseline Models')
+        ax2.legend(loc='upper right')
+        ax2.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+        plt.show()
+
+        print("\n" + "="*80)
+        print("BASELINE MODEL SUMMARY")
+        print("="*80)
+        for model_name, res in baseline_results.items():
+            print(f"\n{model_name}:")
+            print(f"  Samples: {res['n_samples']:,}")
+            print(f"  AUROC: {res['auroc']:.4f}")
+            print(f"  AUPR:  {res['aupr']:.4f}")
+```
+
+## Step 9: Statistical Analyses
+
+### A. SLDB Analysis - Classification Performance and Ranking Correlations
+
+```{python}
+#| label: step-9a-sldb-analysis
+#| echo: true
+#| fig-width: 12
+#| fig-height: 5
+
+# A. SLDB Analysis: Generate ROC and PR curves for predictions vs SL_status
+print("\nA. SLDB Analysis (Predictions vs SL Labels)")
+print("-" * 50)
+
+# Get data with SL_status for analysis
+sl_status_data = gene_pairs_df[gene_pairs_df['SL_status'].notna()]
+print(f"  Total gene pairs with SL status: {len(sl_status_data):,}")
+print(f"  Positive SL pairs: {(sl_status_data['SL_status'] == 1).sum():,}")
+print(f"  Negative SL pairs: {(sl_status_data['SL_status'] == 0).sum():,}")
+
+# Bootstrap function for confidence intervals
+def bootstrap_auc(y_true, y_pred, n_bootstraps=None, metric='roc'):
+    """Calculate bootstrap confidence intervals for AUC metrics
+    Uses global n_bootstrap parameter if not specified"""
+    if n_bootstraps is None:
+        n_bootstraps = n_bootstrap
+    rng = np.random.RandomState(42)
+    aucs = []
+    n = len(y_true)
+
+    for _ in range(n_bootstraps):
+        # Sample with replacement
+        indices = rng.choice(n, n, replace=True)
+        y_true_boot = y_true.iloc[indices]
+        y_pred_boot = y_pred.iloc[indices]
+
+        if metric == 'roc':
+            fpr, tpr, _ = roc_curve(y_true_boot, y_pred_boot)
+            aucs.append(auc(fpr, tpr))
+        elif metric == 'pr':
+            aucs.append(average_precision_score(y_true_boot, y_pred_boot))
+
+    return np.percentile(aucs, [2.5, 97.5])
+
+# Calculate metrics with bootstrap confidence intervals
+results = {}
+for model_name, pred_col in [('With ESM', 'main_with_ESM'),
+                             ('Without ESM', 'main_without_ESM')]:
+    # Get complete cases for THIS specific model only
+    model_data = sl_status_data[['SL_status', pred_col]].dropna()
+    print(f"\n{model_name}: {len(model_data):,} pairs with complete data")
+
+    if len(model_data) == 0:
+        print(f"  ⚠ Warning: No complete data for {model_name} - skipping")
+        continue
+
+    # AUROC with CI
+    fpr, tpr, _ = roc_curve(model_data['SL_status'], model_data[pred_col])
+    roc_auc = auc(fpr, tpr)
+    roc_ci = bootstrap_auc(model_data['SL_status'], model_data[pred_col],
+                          metric='roc')
+
+    # AUPR with CI
+    pr_auc = average_precision_score(model_data['SL_status'], model_data[pred_col])
+    pr_ci = bootstrap_auc(model_data['SL_status'], model_data[pred_col],
+                         metric='pr')
+
+    results[model_name] = {
+        'roc_auc': roc_auc,
+        'roc_ci': roc_ci,
+        'pr_auc': pr_auc,
+        'pr_ci': pr_ci,
+        'fpr': fpr,
+        'tpr': tpr
+    }
+
+    print(f"  AUROC: {roc_auc:.4f} (95% CI: [{roc_ci[0]:.4f}, {roc_ci[1]:.4f}])")
+    print(f"  AUPR: {pr_auc:.4f} (95% CI: [{pr_ci[0]:.4f}, {pr_ci[1]:.4f}])")
+
+# Plot ROC and PR curves with CIs in legend
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+# ROC Curves with CI in legend
+for model_name, color in [('With ESM', 'blue'), ('Without ESM', 'orange')]:
+    res = results[model_name]
+    label = f"{model_name}: {res['roc_auc']:.3f} [{res['roc_ci'][0]:.3f}, {res['roc_ci'][1]:.3f}]"
+    ax1.plot(res['fpr'], res['tpr'], color=color, lw=2, label=label)
+
+ax1.plot([0, 1], [0, 1], 'k--', lw=1)
+ax1.set_xlabel('False Positive Rate')
+ax1.set_ylabel('True Positive Rate')
+ax1.set_title('ROC Curves - SL Prediction')
+ax1.legend(loc='lower right')
+ax1.grid(True, alpha=0.3)
+
+# Precision-Recall Curves with CI in legend
+for model_name, color in [('With ESM', 'blue'), ('Without ESM', 'orange')]:
+    res = results[model_name]
+    pred_col = 'main_with_ESM' if 'With' in model_name else 'main_without_ESM'
+    model_data = sl_status_data[['SL_status', pred_col]].dropna()
+
+    precision, recall, _ = precision_recall_curve(model_data['SL_status'], model_data[pred_col])
+    label = f"{model_name}: {res['pr_auc']:.3f} [{res['pr_ci'][0]:.3f}, {res['pr_ci'][1]:.3f}]"
+    ax2.plot(recall, precision, color=color, lw=2, label=label)
+
+# Calculate baseline from SL_status data (not requiring predictions)
+baseline = sl_status_data['SL_status'].mean()
+ax2.axhline(y=baseline, color='k', linestyle='--', lw=1, label=f'Baseline: {baseline:.3f}')
+ax2.set_xlabel('Recall')
+ax2.set_ylabel('Precision')
+ax2.set_title('Precision-Recall Curves - SL Prediction')
+ax2.legend(loc='upper right')
+ax2.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# Ranking Correlation Analysis
+print("\n" + "="*60)
+print("Ranking Correlation Analysis (Spearman)")
+print("="*60)
+
+# First, analyze correlation between the two prediction models
+print("\nCorrelation Between Model Predictions:")
+print("-" * 40)
+pred_data = gene_pairs_df[['main_with_ESM', 'main_without_ESM']].dropna()
+spearman_pred, p_pred = spearmanr(pred_data['main_with_ESM'], pred_data['main_without_ESM'])
+pearson_pred, p_pred_pearson = pearsonr(pred_data['main_with_ESM'], pred_data['main_without_ESM'])
+print(f"ESM vs Non-ESM Models (n={len(pred_data):,}):")
+print(f"  Spearman ρ: {spearman_pred:.4f} (p={p_pred:.2e})")
+print(f"  Pearson r:  {pearson_pred:.4f} (p={p_pred_pearson:.2e})")
+
+# Calculate Spearman correlations between predictions and SL scores
+print("\n1. Predictions vs SL Scores:")
+print("-" * 40)
+
+for pred_name, pred_col in [('With ESM', 'main_with_ESM'), ('Without ESM', 'main_without_ESM')]:
+    # Get complete cases for THIS specific prediction and SL_score only
+    ranking_data = gene_pairs_df[['SL_score', pred_col]].dropna()
+
+    if len(ranking_data) == 0:
+        print(f"\n{pred_name}: No complete data available - skipping")
+        continue
+
+    # Spearman (rank) correlation
+    spearman_corr, spearman_p = spearmanr(ranking_data['SL_score'], ranking_data[pred_col])
+    # Pearson (linear) correlation for comparison
+    pearson_corr, pearson_p = pearsonr(ranking_data['SL_score'], ranking_data[pred_col])
+
+    print(f"\n{pred_name} (n={len(ranking_data):,}):")
+    print(f"  Spearman ρ: {spearman_corr:.4f} (p={spearman_p:.2e})")
+    print(f"  Pearson r:  {pearson_corr:.4f} (p={pearson_p:.2e})")
+
+# Now test ranking correlations with all external datasets
+print("\n2. Predictions vs External Validation Data:")
+print("-" * 40)
+
+# Collect all available scores
+external_cols = []
+if 'Adamson_Tau' in gene_pairs_df.columns:
+    external_cols.extend(['Adamson_Tau', 'Adamson_Gamma', 'Adamson_Rho'])
+if 'Corn_score' in gene_pairs_df.columns:
+    external_cols.append('Corn_score')
+if 'Gilbert_score' in gene_pairs_df.columns:
+    external_cols.append('Gilbert_score')
+
+# Create correlation matrix
+corr_results = {}
+for ext_col in external_cols:
+    corr_results[ext_col] = {}
+    for pred_col in ['main_with_ESM', 'main_without_ESM']:
+        # Get non-null pairs
+        valid_data = gene_pairs_df[[ext_col, pred_col]].dropna()
+        if len(valid_data) > 10:  # Only compute if enough data
+            spearman_corr, spearman_p = spearmanr(valid_data[ext_col], valid_data[pred_col])
+            pearson_corr, pearson_p = pearsonr(valid_data[ext_col], valid_data[pred_col])
+            corr_results[ext_col][pred_col] = {
+                'spearman': spearman_corr,
+                'spearman_p': spearman_p,
+                'pearson': pearson_corr,
+                'pearson_p': pearson_p,
+                'n': len(valid_data)
+            }
+
+# Display results in table format
+print("\nSpearman Rank Correlations:")
+print(f"{'Dataset':<15} {'n pairs':<10} {'With ESM':<20} {'Without ESM':<20}")
+print("-" * 65)
+
+for ext_col in external_cols:
+    if ext_col in corr_results and 'main_with_ESM' in corr_results[ext_col]:
+        n = corr_results[ext_col]['main_with_ESM']['n']
+        rho_esm = corr_results[ext_col]['main_with_ESM']['spearman']
+        p_esm = corr_results[ext_col]['main_with_ESM']['spearman_p']
+        rho_no_esm = corr_results[ext_col]['main_without_ESM']['spearman']
+        p_no_esm = corr_results[ext_col]['main_without_ESM']['spearman_p']
+        
+        # Format with significance markers
+        esm_str = f"{rho_esm:6.4f}" + ("***" if p_esm < 0.001 else "**" if p_esm < 0.01 else "*" if p_esm < 0.05 else "")
+        no_esm_str = f"{rho_no_esm:6.4f}" + ("***" if p_no_esm < 0.001 else "**" if p_no_esm < 0.01 else "*" if p_no_esm < 0.05 else "")
+        
+        print(f"{ext_col:<15} {n:<10,} {esm_str:<20} {no_esm_str:<20}")
+
+print("\n* p<0.05, ** p<0.01, *** p<0.001")
+
+# Create a heatmap of all ranking correlations
+all_scores = ['SL_score'] + external_cols
+pred_cols = ['main_with_ESM', 'main_without_ESM']
+
+# Build correlation matrix
+n_scores = len(all_scores)
+n_preds = len(pred_cols)
+corr_matrix = np.zeros((n_scores, n_preds))
+sample_sizes = np.zeros((n_scores, n_preds))
+
+for i, score_col in enumerate(all_scores):
+    for j, pred_col in enumerate(pred_cols):
+        valid_data = gene_pairs_df[[score_col, pred_col]].dropna()
+        if len(valid_data) > 10:
+            corr_matrix[i, j], _ = spearmanr(valid_data[score_col], valid_data[pred_col])
+            sample_sizes[i, j] = len(valid_data)
+        else:
+            corr_matrix[i, j] = np.nan
+            sample_sizes[i, j] = 0
+
+# Plot heatmap
+fig, ax = plt.subplots(figsize=(6, 6))
+mask = np.isnan(corr_matrix)
+sns.heatmap(corr_matrix, 
+            xticklabels=['With ESM', 'Without ESM'],
+            yticklabels=all_scores,
+            annot=True, 
+            fmt='.3f',
+            cmap='coolwarm',
+            center=0,
+            vmin=-0.5, vmax=0.5,
+            mask=mask,
+            cbar_kws={'label': 'Spearman ρ'},
+            ax=ax)
+ax.set_title('Ranking Correlations: Predictions vs All Scores')
+ax.set_xlabel('Model Predictions')
+ax.set_ylabel('Reference Scores')
+plt.tight_layout()
+plt.show()
+
+print(f"\nNote: Heatmap shows Spearman rank correlations between model predictions")
+print(f"and reference scores (SL database + external validation datasets)")
+```
+
+### B. Adamson Analysis - Correlations and Statistical Tests
+
+```{python}
+#| label: step-9b-adamson-analysis
+#| echo: true
+
+# Bootstrap function for correlation confidence intervals
+def bootstrap_correlation(x, y, n_bootstraps=None, method='pearson'):
+    """Calculate bootstrap confidence intervals for correlations
+    Uses global n_bootstrap parameter if not specified"""
+    if n_bootstraps is None:
+        n_bootstraps = n_bootstrap
+    rng = np.random.RandomState(42)
+    correlations = []
+    n = len(x)
+
+    for _ in range(n_bootstraps):
+        indices = rng.choice(n, n, replace=True)
+        x_boot = x.iloc[indices]
+        y_boot = y.iloc[indices]
+
+        if method == 'pearson':
+            corr, _ = pearsonr(x_boot, y_boot)
+        elif method == 'spearman':
+            corr, _ = spearmanr(x_boot, y_boot)
+        correlations.append(corr)
+
+    return np.percentile(correlations, [2.5, 97.5])
+
+def analyze_metric_strict(df, metric_col, metric_name):
+    """Analysis with strict dropna for each test"""
+    
+    print(f"\n{'='*60}")
+    print(f"ANALYSIS: {metric_name}")
+    print(f"{'='*60}")
+    
+    # Check if column exists
+    if metric_col not in df.columns:
+        print(f"Column {metric_col} not found")
+        return
+    
+    # 1. Correlation with SL_score - STRICT DROPNA
+    corr_cols = ['SL_score', metric_col]
+    corr_data = df[corr_cols].dropna()
+    
+    if len(corr_data) > 3:
+        print(f"\n1. Correlation with SL_score (n={len(corr_data):,}):")
+
+        pearson_r, pearson_p = pearsonr(corr_data['SL_score'], corr_data[metric_col])
+        pearson_ci = bootstrap_correlation(corr_data['SL_score'], corr_data[metric_col],
+                                          method='pearson')
+
+        spearman_r, spearman_p = spearmanr(corr_data['SL_score'], corr_data[metric_col])
+        spearman_ci = bootstrap_correlation(corr_data['SL_score'], corr_data[metric_col],
+                                           method='spearman')
+        
+        print(f"  Pearson:  r={pearson_r:.4f} (95% CI: [{pearson_ci[0]:.4f}, {pearson_ci[1]:.4f}]), p={pearson_p:.4e}")
+        print(f"  Spearman: r={spearman_r:.4f} (95% CI: [{spearman_ci[0]:.4f}, {spearman_ci[1]:.4f}]), p={spearman_p:.4e}")
+    else:
+        print(f"\n1. Insufficient data for correlation with SL_score (n={len(corr_data)})")
+    
+    # 2. Two-sample t-test by SL_status - STRICT DROPNA
+    ttest_cols = ['SL_status', metric_col]
+    ttest_data = df[ttest_cols].dropna()
+    
+    if len(ttest_data) > 0:
+        group0 = ttest_data[ttest_data['SL_status'] == 0][metric_col]
+        group1 = ttest_data[ttest_data['SL_status'] == 1][metric_col]
+        
+        if len(group0) > 1 and len(group1) > 1:
+            print(f"\n2. Two-sample t-test by SL_status:")
+            print(f"  SL=0: n={len(group0):,}, mean={group0.mean():.4f}, std={group0.std():.4f}")
+            print(f"  SL=1: n={len(group1):,}, mean={group1.mean():.4f}, std={group1.std():.4f}")
+            
+            t_stat, t_pvalue = ttest_ind(group0, group1)
+            print(f"  t-statistic={t_stat:.4f}, p-value={t_pvalue:.4e}")
+        else:
+            print(f"\n2. Insufficient data for t-test (SL=0: n={len(group0)}, SL=1: n={len(group1)})")
+    
+    # 3. Correlation between the two model predictions (for this subset)
+    pred_both_cols = ['main_with_ESM', 'main_without_ESM', metric_col]
+    pred_both_data = df[pred_both_cols].dropna()
+    
+    if len(pred_both_data) > 3:
+        print(f"\n3. Correlation between model predictions (n={len(pred_both_data):,}):")
+        spearman_models, p_models = spearmanr(pred_both_data['main_with_ESM'], pred_both_data['main_without_ESM'])
+        pearson_models, p_models_pearson = pearsonr(pred_both_data['main_with_ESM'], pred_both_data['main_without_ESM'])
+        print(f"  ESM vs Non-ESM:")
+        print(f"    Spearman: ρ={spearman_models:.4f} (p={p_models:.4e})")
+        print(f"    Pearson:  r={pearson_models:.4f} (p={p_models_pearson:.4e})")
+    
+    # 4. Correlation with predictions - STRICT DROPNA for each
+    print(f"\n4. Correlation of {metric_name} with model predictions:")
+    
+    for pred_col, pred_name in [('main_with_ESM', 'With ESM'), ('main_without_ESM', 'Without ESM')]:
+        pred_corr_cols = [pred_col, metric_col]
+        pred_data = df[pred_corr_cols].dropna()
+        
+        if len(pred_data) > 3:
+            pearson_r, pearson_p = pearsonr(pred_data[pred_col], pred_data[metric_col])
+            pearson_ci = bootstrap_correlation(pred_data[pred_col], pred_data[metric_col],
+                                              method='pearson')
+
+            spearman_r, spearman_p = spearmanr(pred_data[pred_col], pred_data[metric_col])
+            spearman_ci = bootstrap_correlation(pred_data[pred_col], pred_data[metric_col],
+                                               method='spearman')
+            
+            print(f"  {pred_name} (n={len(pred_data):,}):")
+            print(f"    Pearson:  r={pearson_r:.4f} (95% CI: [{pearson_ci[0]:.4f}, {pearson_ci[1]:.4f}]), p={pearson_p:.4e}")
+            print(f"    Spearman: r={spearman_r:.4f} (95% CI: [{spearman_ci[0]:.4f}, {spearman_ci[1]:.4f}]), p={spearman_p:.4e}")
+        else:
+            print(f"  {pred_name}: Insufficient data (n={len(pred_data)})")
+
+# Analyze each Adamson metric
+for metric in ['Tau', 'Gamma', 'Rho']:
+    col_name = f'Adamson_{metric}'
+    if col_name in gene_pairs_df.columns:
+        analyze_metric_strict(gene_pairs_df, col_name, f'Adamson {metric}')
+```
+
+### C. Corn Analysis - Correlations and Statistical Tests
+
+```{python}
+#| label: step-9c-corn-analysis
+#| echo: true
+
+if 'Corn_score' in gene_pairs_df.columns:
+    analyze_metric_strict(gene_pairs_df, 'Corn_score', 'Corn Score')
+```
+
+### D. Gilbert Analysis - Correlations and Statistical Tests
+
+```{python}
+#| label: step-9d-gilbert-analysis
+#| echo: true
+
+if 'Gilbert_score' in gene_pairs_df.columns:
+    analyze_metric_strict(gene_pairs_df, 'Gilbert_score', 'Gilbert GI Score')
+```
+
+## Visual Outputs
+
+### Pairwise Scatter Plots
+
+### Scatter Plots: SL Score vs Predictions and External Data
+
+```{python}
+#| label: visual-output-sl-vs-all
+#| echo: true
+#| fig-width: 15
+#| fig-height: 10
+
+# Prepare data for scatter plots
+metrics_to_plot = ['main_with_ESM', 'main_without_ESM']
+external_metrics = []
+
+# Add external metrics if they exist
+for metric in ['Adamson_Tau', 'Adamson_Gamma', 'Adamson_Rho', 'Corn_score', 'Gilbert_score']:
+    if metric in gene_pairs_df.columns:
+        external_metrics.append(metric)
+        metrics_to_plot.append(metric)
+
+# Create figure with subplots
+n_metrics = len(metrics_to_plot)
+fig, axes = plt.subplots(2, (n_metrics + 1) // 2, figsize=(15, 10))
+axes = axes.flatten()
+
+# Plot SL score vs each metric
+for idx, metric in enumerate(metrics_to_plot):
+    ax = axes[idx]
+    
+    # Get data with both SL_score and metric (strict dropna)
+    plot_data = gene_pairs_df[['SL_score', metric]].dropna()
+    
+    if len(plot_data) > 0:
+        # Create hexbin plot for large datasets
+        if len(plot_data) > 10000:
+            hb = ax.hexbin(plot_data['SL_score'], plot_data[metric], 
+                          gridsize=50, cmap='YlOrRd', mincnt=1)
+            plt.colorbar(hb, ax=ax, label='Count')
+        else:
+            ax.scatter(plot_data['SL_score'], plot_data[metric], 
+                      alpha=0.3, s=1, rasterized=True)
+        
+        # Calculate correlation
+        corr, pval = pearsonr(plot_data['SL_score'], plot_data[metric])
+        
+        # Add regression line
+        z = np.polyfit(plot_data['SL_score'], plot_data[metric], 1)
+        p = np.poly1d(z)
+        x_line = np.linspace(plot_data['SL_score'].min(), plot_data['SL_score'].max(), 100)
+        ax.plot(x_line, p(x_line), "r-", alpha=0.8, linewidth=2)
+        
+        ax.set_xlabel('SL Score')
+        ax.set_ylabel(metric.replace('_', ' '))
+        ax.set_title(f'SL Score vs {metric.replace("_", " ")}\nn={len(plot_data):,}, r={corr:.3f}, p={pval:.2e}')
+        ax.grid(True, alpha=0.3)
+    else:
+        ax.text(0.5, 0.5, 'No overlapping data', ha='center', va='center')
+        ax.set_title(f'SL Score vs {metric.replace("_", " ")}')
+
+# Remove extra subplots
+for idx in range(n_metrics, len(axes)):
+    fig.delaxes(axes[idx])
+
+plt.suptitle('SL Score vs All Metrics', fontsize=14, y=1.02)
+plt.tight_layout()
+plt.show()
+
+print(f"\nPlotted {n_metrics} metrics against SL Score")
+```
+
+### Scatter Plots: Predictions vs External Data
+
+```{python}
+#| label: visual-output-predictions-vs-external
+#| echo: true
+#| fig-width: 15
+#| fig-height: 12
+
+if len(external_metrics) > 0:
+    # Create figure for predictions vs external data
+    n_external = len(external_metrics)
+    fig, axes = plt.subplots(n_external, 2, figsize=(15, 4*n_external))
+    
+    if n_external == 1:
+        axes = axes.reshape(1, 2)
+    
+    for row_idx, ext_metric in enumerate(external_metrics):
+        # Plot with ESM
+        ax1 = axes[row_idx, 0]
+        plot_data = gene_pairs_df[['main_with_ESM', ext_metric]].dropna()
+        
+        if len(plot_data) > 0:
+            if len(plot_data) > 10000:
+                hb = ax1.hexbin(plot_data['main_with_ESM'], plot_data[ext_metric], 
+                               gridsize=50, cmap='Blues', mincnt=1)
+                plt.colorbar(hb, ax=ax1, label='Count')
+            else:
+                ax1.scatter(plot_data['main_with_ESM'], plot_data[ext_metric], 
+                           alpha=0.3, s=1, color='blue', rasterized=True)
+            
+            corr, pval = pearsonr(plot_data['main_with_ESM'], plot_data[ext_metric])
+            
+            # Add regression line
+            z = np.polyfit(plot_data['main_with_ESM'], plot_data[ext_metric], 1)
+            p = np.poly1d(z)
+            x_line = np.linspace(plot_data['main_with_ESM'].min(), plot_data['main_with_ESM'].max(), 100)
+            ax1.plot(x_line, p(x_line), "r-", alpha=0.8, linewidth=2)
+            
+            ax1.set_xlabel('Prediction (with ESM)')
+            ax1.set_ylabel(ext_metric.replace('_', ' '))
+            ax1.set_title(f'With ESM vs {ext_metric.replace("_", " ")}\nn={len(plot_data):,}, r={corr:.3f}, p={pval:.2e}')
+            ax1.grid(True, alpha=0.3)
+        
+        # Plot without ESM
+        ax2 = axes[row_idx, 1]
+        plot_data = gene_pairs_df[['main_without_ESM', ext_metric]].dropna()
+        
+        if len(plot_data) > 0:
+            if len(plot_data) > 10000:
+                hb = ax2.hexbin(plot_data['main_without_ESM'], plot_data[ext_metric], 
+                               gridsize=50, cmap='Oranges', mincnt=1)
+                plt.colorbar(hb, ax=ax2, label='Count')
+            else:
+                ax2.scatter(plot_data['main_without_ESM'], plot_data[ext_metric], 
+                           alpha=0.3, s=1, color='orange', rasterized=True)
+            
+            corr, pval = pearsonr(plot_data['main_without_ESM'], plot_data[ext_metric])
+            
+            # Add regression line
+            z = np.polyfit(plot_data['main_without_ESM'], plot_data[ext_metric], 1)
+            p = np.poly1d(z)
+            x_line = np.linspace(plot_data['main_without_ESM'].min(), plot_data['main_without_ESM'].max(), 100)
+            ax2.plot(x_line, p(x_line), "r-", alpha=0.8, linewidth=2)
+            
+            ax2.set_xlabel('Prediction (without ESM)')
+            ax2.set_ylabel(ext_metric.replace('_', ' '))
+            ax2.set_title(f'Without ESM vs {ext_metric.replace("_", " ")}\nn={len(plot_data):,}, r={corr:.3f}, p={pval:.2e}')
+            ax2.grid(True, alpha=0.3)
+    
+    plt.suptitle('Model Predictions vs External Validation Data', fontsize=14, y=1.001)
+    plt.tight_layout()
+    plt.show()
+    
+    print(f"\nPlotted predictions against {n_external} external metrics")
+else:
+    print("No external metrics available for plotting")
+```
+
+### Scatter Plot Matrix: All Pairwise Comparisons
+
+```{python}
+#| label: visual-output-scatter-matrix
+#| echo: true
+#| fig-width: 18
+#| fig-height: 18
+
+# Create a subset of data for scatter matrix with sampling if too large
+scatter_cols = ['SL_score', 'main_with_ESM', 'main_without_ESM']
+for metric in external_metrics:
+    scatter_cols.append(metric)
+
+# Get data with at least some non-null values
+scatter_data = gene_pairs_df[scatter_cols].copy()
+
+# Rename columns for better display
+rename_dict = {
+    'main_with_ESM': 'Pred (ESM)',
+    'main_without_ESM': 'Pred (no ESM)',
+    'SL_score': 'SL Score',
+    'Adamson_Tau': 'Adamson τ',
+    'Adamson_Gamma': 'Adamson γ',
+    'Adamson_Rho': 'Adamson ρ',
+    'Corn_score': 'Corn Score',
+    'Gilbert_score': 'Gilbert GI'
+}
+scatter_data.rename(columns=rename_dict, inplace=True)
+
+# Create scatter matrix
+scatter_matrix(scatter_data, alpha=0.2, figsize=(18, 18), 
+               diagonal='hist', grid=True, s=1, rasterized=True)
+
+# Add title
+plt.suptitle('Pairwise Scatter Plot Matrix', fontsize=16, y=1.001)
+plt.tight_layout()
+plt.show()
+
+# Calculate and display correlation matrices
+print("\nPearson Correlation Matrix:")
+pearson_corr_matrix = scatter_data.corr(method='pearson')
+print(pearson_corr_matrix.round(3))
+
+print("\nSpearman Correlation Matrix:")
+spearman_corr_matrix = scatter_data.corr(method='spearman')
+print(spearman_corr_matrix.round(3))
+
+# Count pairwise complete observations
+print("\n\nPairwise Complete Observations:")
+n_matrix = pd.DataFrame(index=scatter_data.columns, columns=scatter_data.columns)
+for col1 in scatter_data.columns:
+    for col2 in scatter_data.columns:
+        n = scatter_data[[col1, col2]].dropna().shape[0]
+        n_matrix.loc[col1, col2] = n
+print(n_matrix)
+
+```
+
+## Statistical Summary
+
+```{python}
+#| label: summary-stats
+#| echo: true
+
+print("\nComprehensive Correlation Summary:")
+print("=" * 60)
+
+# Create a comprehensive correlation table
+all_vars = ['main_with_ESM', 'main_without_ESM', 'SL_score']
+external_vars = []
+if 'Adamson_Tau' in gene_pairs_df.columns:
+    external_vars.extend(['Adamson_Tau', 'Adamson_Gamma', 'Adamson_Rho'])
+if 'Corn_score' in gene_pairs_df.columns:
+    external_vars.append('Corn_score')
+if 'Gilbert_score' in gene_pairs_df.columns:
+    external_vars.append('Gilbert_score')
+
+all_vars.extend(external_vars)
+
+# Calculate comprehensive Spearman correlations using pairwise complete observations
+print("\nSpearman Rank Correlations (Pairwise Complete Observations):")
+print("-" * 40)
+# Note: pandas .corr() uses pairwise complete by default, so each correlation only uses the two variables involved
+corr_df = gene_pairs_df[all_vars].corr(method='spearman')
+
+# Display correlation between predictions
+print(f"\n1. Model Predictions Correlation:")
+if 'main_with_ESM' in corr_df.columns and 'main_without_ESM' in corr_df.columns:
+    corr_val = corr_df.loc['main_with_ESM', 'main_without_ESM']
+    if pd.notna(corr_val):
+        print(f"   ESM vs Non-ESM: ρ = {corr_val:.4f}")
+    else:
+        print(f"   ESM vs Non-ESM: ρ = N/A (insufficient data)")
+
+# Display correlations with SL scores
+print(f"\n2. Predictions vs SL Scores:")
+if 'SL_score' in corr_df.columns:
+    esm_sl_corr = corr_df.loc['main_with_ESM', 'SL_score']
+    noesm_sl_corr = corr_df.loc['main_without_ESM', 'SL_score']
+
+    if pd.notna(esm_sl_corr):
+        print(f"   With ESM:    ρ = {esm_sl_corr:.4f}")
+    else:
+        print(f"   With ESM:    ρ = N/A (insufficient data)")
+
+    if pd.notna(noesm_sl_corr):
+        print(f"   Without ESM: ρ = {noesm_sl_corr:.4f}")
+    else:
+        print(f"   Without ESM: ρ = N/A (insufficient data)")
+
+# Display correlations with external data
+if external_vars:
+    print(f"\n3. Predictions vs External Validation:")
+    for ext_var in external_vars:
+        if ext_var in corr_df.columns:
+            esm_corr = corr_df.loc['main_with_ESM', ext_var]
+            no_esm_corr = corr_df.loc['main_without_ESM', ext_var]
+
+            esm_str = f"{esm_corr:6.4f}" if pd.notna(esm_corr) else "   N/A"
+            noesm_str = f"{no_esm_corr:6.4f}" if pd.notna(no_esm_corr) else "   N/A"
+            print(f"   {ext_var:<15} - With ESM: {esm_str}, Without ESM: {noesm_str}")
+
+# Create summary table
+summary_data = {
+    'Total gene pairs': len(gene_pairs_df),
+    'Pairs with SL labels': gene_pairs_df['SL_score'].notna().sum(),
+    'Positive SL pairs (labeled)': (gene_pairs_df['SL_status'] == 1).sum(),
+    'Negative SL pairs (labeled)': (gene_pairs_df['SL_status'] == 0).sum(),
+    'Unlabeled pairs': gene_pairs_df['SL_status'].isna().sum(),
+    'Pairs with Adamson Tau': gene_pairs_df['Adamson_Tau'].notna().sum() if 'Adamson_Tau' in gene_pairs_df else 0,
+    'Pairs with Adamson Gamma': gene_pairs_df['Adamson_Gamma'].notna().sum() if 'Adamson_Gamma' in gene_pairs_df else 0,
+    'Pairs with Adamson Rho': gene_pairs_df['Adamson_Rho'].notna().sum() if 'Adamson_Rho' in gene_pairs_df else 0,
+    'Pairs with Corn scores': gene_pairs_df['Corn_score'].notna().sum() if 'Corn_score' in gene_pairs_df else 0,
+    'Pairs with Gilbert scores': gene_pairs_df['Gilbert_score'].notna().sum() if 'Gilbert_score' in gene_pairs_df else 0,
+}
+
+summary_df = pd.DataFrame(list(summary_data.items()), columns=['Metric', 'Count'])
+print("\nData Summary:")
+print(summary_df.to_string(index=False))
+
+# Correlation matrix - WITH STRICT PAIRWISE COMPLETE
+print("\n\nCorrelation Matrix (Pearson, pairwise complete):")
+metrics_cols = ['SL_score', 'main_without_ESM', 'main_with_ESM']
+for col in ['Adamson_Tau', 'Adamson_Gamma', 'Adamson_Rho', 'Corn_score', 'Gilbert_score']:
+    if col in gene_pairs_df.columns:
+        metrics_cols.append(col)
+
+# Calculate correlations with pairwise complete observations
+existing_cols = [col for col in metrics_cols if col in gene_pairs_df.columns]
+if len(existing_cols) > 1:
+    corr_matrix = gene_pairs_df[existing_cols].corr(method='pearson')
+    # Replace NaN with a placeholder string for better readability
+    corr_matrix_display = corr_matrix.round(3)
+    print(corr_matrix_display.fillna('N/A'))
+
+    # Show sample sizes for each pair
+    print("\n\nSample sizes for correlations:")
+    n_matrix = pd.DataFrame(index=existing_cols, columns=existing_cols, dtype=int)
+    for col1 in existing_cols:
+        for col2 in existing_cols:
+            n = gene_pairs_df[[col1, col2]].dropna().shape[0]
+            n_matrix.loc[col1, col2] = n
+    print(n_matrix)
+```
+
+## Cleanup
+
+```{python}
+#| label: cleanup-temp-files
+#| echo: true
+
+# Clean up temporary files
+temp_files = glob.glob('temp_*.txt') + glob.glob('*.tmp')
+if temp_files:
+    print(f"\nCleaning up {len(temp_files)} temporary files...")
+    for temp_file in temp_files:
+        try:
+            os.remove(temp_file)
+            print(f"  Removed: {temp_file}")
+        except Exception as e:
+            print(f"  Could not remove {temp_file}: {e}")
+```
+
+## Analysis Summary
+
+This comprehensive analysis evaluated SLMGAE model predictions against experimental validation datasets:
+
+1. **Data Processing (Steps 1-3)**:
+   - Processed prediction matrices from 5-fold cross-validation for 3 CV splits
+   - Averaged predictions and enforced matrix symmetry
+   - Created SL_score and SL_status matrices from reference data (Step 3b)
+   - **Calculated naive edge probability estimates** using dropna() for proper handling of missing data
+   - **Loaded support view matrices**: GO_BP, GO_CC, PPI network views
+   - **Expanded from ~6,375 SL genes to ~20,187 total human genes from UniProt** (Step 3c)
+   - Gene nomenclature corrections and matrix expansion
+   - All expanded genes have NaN values (no information available)
+
+2. **Long Format Conversion (Step 4)**:
+   - Extracted upper triangle for over 200 million potential gene pairs
+   - Included SL_score and SL_status columns
+   - **Added naive_edge_est column** (pairwise probability estimates via outer product)
+   - **Added support view columns**: GO_BP, GO_CC, PPI
+   - Added CV-specific predictions (CV1, CV2, CV3) with proper suffixes
+   - No self-pairs included (verified by k=1 in triu_indices)
+   - Expanded genes have NaN for all support views and naive edge estimates
+
+3. **External Validation Data (Steps 6-8)**:
+   - **Step 6 - Adamson et al.**: Averaged multiple measurements per gene pair, excluded self-pairs
+   - **Step 7 - Corn et al.**: Averaged multiple measurements per gene pair, excluded self-pairs
+   - **Step 8 - Gilbert et al.**: Averaged multiple measurements per gene pair, excluded self-pairs
+   - All external datasets use consistent groupby().mean() aggregation for duplicate pairs
+
+4. **Statistical Validation (Step 9)**:
+   - Complete case analysis with strict NA handling
+   - Bootstrap confidence intervals (20 iterations, seed=42)
+   - ROC and Precision-Recall curves with 95% CIs
+   - **Spearman rank correlations** between all predictions and scores
+   - **Model comparison**: Correlation between ESM and non-ESM predictions
+
+**Note**: The analysis now includes ALL reviewed human genes from UniProt, enabling discovery of novel synthetic lethal interactions beyond the original SL network. All external datasets are filtered to exclude self-gene pairs.
+
+## CIHR Grant Analysis
+
+```{python}
+#| label: cihr-grant-analysis
+#| echo: true
+#| fig-width: 8
+#| fig-height: 5
+
+plt.style.use('ggplot')  # Use ggplot style for cleaner aesthetics
+
+def compute_metrics_with_ci(y_true, y_pred, n_bootstrap_iters=None):
+    """Compute AUROC and AUPR with bootstrap confidence intervals.
+    Uses global n_bootstrap parameter if not specified."""
+    if n_bootstrap_iters is None:
+        n_bootstrap_iters = n_bootstrap
+
+    # Convert to numpy arrays for consistent indexing
+    y_true_arr = np.asarray(y_true)
+    y_pred_arr = np.asarray(y_pred)
+
+    auroc = roc_auc_score(y_true_arr, y_pred_arr)
+    aupr = average_precision_score(y_true_arr, y_pred_arr)
+    print(f"    Computing metrics on {len(y_true_arr)} complete cases: AUROC={auroc:.4f}, AUPR={aupr:.4f}")
+
+    def bootstrap_iteration(seed):
+        np.random.seed(seed)
+        idx = np.random.choice(len(y_true_arr), len(y_true_arr), replace=True)
+        y_boot = y_true_arr[idx]
+        p_boot = y_pred_arr[idx]
+        return roc_auc_score(y_boot, p_boot), average_precision_score(y_boot, p_boot)
+
+    results = Parallel(n_jobs=-1)(delayed(bootstrap_iteration)(i)
+                                  for i in tqdm(range(n_bootstrap_iters), leave=False))
+    auroc_scores, aupr_scores = zip(*results)
+
+    auroc_ci = np.percentile(auroc_scores, [2.5, 97.5])
+    aupr_ci = np.percentile(aupr_scores, [2.5, 97.5])
+
+    return {'AUROC': auroc, 'AUROC_CI': auroc_ci,
+            'AUPR': aupr, 'AUPR_CI': aupr_ci}
+
+def determine_threshold(data, pred_col, value_col):
+    """Determine optimal threshold direction using configured percentiles."""
+    top_percentile, bot_percentile = THRESHOLD_PERCENTILES
+    top_val = np.percentile(data[value_col], top_percentile)
+    bot_val = np.percentile(data[value_col], bot_percentile)
+    
+    auroc_top = roc_auc_score((data[value_col] >= top_val).astype(int), data[pred_col])
+    auroc_bot = roc_auc_score((data[value_col] <= bot_val).astype(int), data[pred_col])
+    
+    if auroc_top > auroc_bot:
+        return 'top', top_val, (data[value_col] >= top_val).astype(int)
+    return 'bottom', bot_val, (data[value_col] <= bot_val).astype(int)
+
+# Process datasets
+pred_col = 'main_without_ESM'
+results = []
+thresholds = []
+datasets = []  # Track which datasets actually have data
+
+# SLDB - Use existing SL_status column
+data = gene_pairs_df[['SL_status', pred_col]].dropna()
+if len(data) == 0:
+    print("⚠ Warning: No SLDB data available - cannot compute metrics")
+else:
+    labels = data['SL_status']  # Already 0/1 from Step 3b
+    sl_proportion = labels.mean()  # Proportion of SL pairs in SLDB
+    print(f"SLDB SL proportion: {sl_proportion:.4f} ({sl_proportion*100:.2f}%)")
+
+    results.append(compute_metrics_with_ci(labels, data[pred_col]))
+    thresholds.append('nonzero=1')
+    datasets.append('SLDB')
+
+# External datasets - Use 1% thresholding
+for name, col in [('Adamson', 'Adamson_Gamma'),
+                   ('Corn', 'Corn_score'),
+                   ('Gilbert', 'Gilbert_score')]:
+    data = gene_pairs_df[[col, pred_col]].dropna()
+    if len(data) > 0:
+        dir, thr, labels = determine_threshold(data, pred_col, col)
+        results.append(compute_metrics_with_ci(labels, data[pred_col]))
+        thresholds.append(f'{dir} 1%')
+        datasets.append(name)  # Add dataset name only if data exists
+
+        # Add SL status column - initialize with NaN to preserve structure, then set labels
+        sl_status_col = f'{col}_SL_status'
+        gene_pairs_df[sl_status_col] = np.nan
+        gene_pairs_df.loc[data.index, sl_status_col] = labels
+
+        sl_count = labels.sum()
+        print(f"  Added {sl_status_col}: {sl_count} SL pairs ({dir} 1% threshold={thr:.4f})")
+
+# Create plot only if we have results
+if len(results) == 0:
+    print("⚠ Warning: No datasets available for CIHR grant analysis")
+else:
+    fig, ax = plt.subplots(figsize=(10, 5), dpi=300)
+    x = np.arange(len(datasets))
+    width = 0.35
+
+    # Extract values and errors
+    auroc_vals = [r['AUROC'] for r in results]
+    aupr_vals = [r['AUPR'] for r in results]
+    auroc_err = [[r['AUROC'] - r['AUROC_CI'][0] for r in results],
+                  [r['AUROC_CI'][1] - r['AUROC'] for r in results]]
+    aupr_err = [[r['AUPR'] - r['AUPR_CI'][0] for r in results],
+                 [r['AUPR_CI'][1] - r['AUPR'] for r in results]]
+
+    # Plot bars with colors and patterns
+    colors = ['#4C72B0', '#DD8452']  # Professional blue and orange
+    patterns = ['///', '...']  # Different patterns for each metric
+
+    bars1 = ax.bar(x - width/2, auroc_vals, width, yerr=auroc_err,
+                   capsize=4, color=colors[0], alpha=0.8, label='AUROC',
+                   hatch=patterns[0], edgecolor='black', linewidth=0.5)
+    bars2 = ax.bar(x + width/2, aupr_vals, width, yerr=aupr_err,
+                   capsize=4, color=colors[1], alpha=0.8, label='AUPR',
+                   hatch=patterns[1], edgecolor='black', linewidth=0.5)
+
+    # Add baselines
+    ax.axhline(0.5, color=colors[0], linestyle=':', alpha=0.5, linewidth=1.5)
+    ax.axhline(0.01, color=colors[1], linestyle=':', alpha=0.5, linewidth=1.5)  # 1% baseline for AUPR
+
+    # Formatting
+    ax.set_xlabel('Dataset', fontsize=20)
+    ax.set_ylabel('Performance', fontsize=20)
+    ax.set_xticks(x)
+    ax.set_xticklabels(datasets, fontsize=20)
+    ax.tick_params(axis='y', labelsize=20)  # Set y-axis tick label size to 20
+    ax.set_ylim([0, 1.02])
+    ax.legend(fontsize=20, framealpha=0.9)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    # Add value labels
+    for bars in [bars1, bars2]:
+        for bar, val in zip(bars, auroc_vals if bars == bars1 else aupr_vals):
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                    f'{val:.4f}', ha='center', va='bottom', fontsize=20)
+
+    plt.tight_layout()
+    plt.savefig('cihr_grant_analysis.eps', format='eps', dpi=300, bbox_inches='tight')
+    plt.show()
+
+    # Print summary
+    print("\nResults Summary:")
+    for d, r, t in zip(datasets, results, thresholds):
+        print(f"{d} ({t}):")
+        print(f"  AUROC: {r['AUROC']:.4f} [{r['AUROC_CI'][0]:.4f}, {r['AUROC_CI'][1]:.4f}]")
+        print(f"  AUPR: {r['AUPR']:.4f} [{r['AUPR_CI'][0]:.4f}, {r['AUPR_CI'][1]:.4f}]")
+
+# Save the processed dataframe with all analysis columns for faster reruns
+cache_file = 'gene_pairs_df_cached.pkl'
+print(f"\nSaving processed dataframe to {cache_file}...")
+gene_pairs_df.to_pickle(cache_file)
+print(f"Saved {len(gene_pairs_df):,} rows with {len(gene_pairs_df.columns)} columns")
+```
+
+## Correlation Heatmap Visualization
+
+```{python}
+#| label: correlation-heatmap
+#| echo: true
+#| fig-width: 12
+#| fig-height: 10
+
+# Define metrics columns for correlation analysis
+metrics_cols = ['SL_score', 'main_without_ESM', 'main_with_ESM']
+external_cols = ['Adamson_Tau', 'Adamson_Gamma', 'Adamson_Rho', 'Corn_score', 'Gilbert_score']
+
+# Add external columns if they exist
+for col in external_cols:
+    if col in gene_pairs_df.columns:
+        metrics_cols.append(col)
+
+# Filter to existing columns
+existing_cols = [col for col in metrics_cols if col in gene_pairs_df.columns]
+
+if len(existing_cols) > 1:
+    # Create figure with two subplots for Pearson and Spearman
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    
+    # Calculate Pearson correlation (no sampling, using all available data)
+    pearson_corr = gene_pairs_df[existing_cols].corr(method='pearson')
+    
+    # Calculate Spearman correlation (no sampling, using all available data)
+    spearman_corr = gene_pairs_df[existing_cols].corr(method='spearman')
+    
+    # Create better labels for display
+    display_labels = {
+        'SL_score': 'SL Score',
+        'main_without_ESM': 'SLMGAE',
+        'main_with_ESM': 'SLMGAE+ESM',
+        'Adamson_Tau': 'Adamson Tau',
+        'Adamson_Gamma': 'Adamson Gamma',
+        'Adamson_Rho': 'Adamson Rho',
+        'Corn_score': 'Corn Score',
+        'Gilbert_score': 'Gilbert Score'
+    }
+    
+    # Rename columns and index for better display
+    pearson_corr_display = pearson_corr.rename(columns=display_labels, index=display_labels)
+    spearman_corr_display = spearman_corr.rename(columns=display_labels, index=display_labels)
+
+    # Create masks for NaN values (to avoid plotting issues)
+    pearson_mask = np.isnan(pearson_corr_display)
+    spearman_mask = np.isnan(spearman_corr_display)
+
+    # Plot Pearson correlation heatmap
+    sns.heatmap(pearson_corr_display, annot=True, fmt='.3f', cmap='coolwarm',
+                center=0, vmin=-1, vmax=1, square=True, ax=axes[0],
+                mask=pearson_mask,
+                cbar_kws={'label': 'Pearson Correlation'})
+    axes[0].set_title('Pearson Correlation Matrix', fontsize=14, fontweight='bold')
+    axes[0].set_xticklabels(axes[0].get_xticklabels(), rotation=45, ha='right')
+    axes[0].set_yticklabels(axes[0].get_yticklabels(), rotation=0)
+
+    # Plot Spearman correlation heatmap
+    sns.heatmap(spearman_corr_display, annot=True, fmt='.3f', cmap='coolwarm',
+                center=0, vmin=-1, vmax=1, square=True, ax=axes[1],
+                mask=spearman_mask,
+                cbar_kws={'label': 'Spearman Correlation'})
+    axes[1].set_title('Spearman Correlation Matrix', fontsize=14, fontweight='bold')
+    axes[1].set_xticklabels(axes[1].get_xticklabels(), rotation=45, ha='right')
+    axes[1].set_yticklabels(axes[1].get_yticklabels(), rotation=0)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Print sample sizes for each pairwise correlation
+    print("\nSample sizes for pairwise correlations:")
+    print("=" * 60)
+    
+    # Create a sample size matrix
+    n_matrix = pd.DataFrame(index=existing_cols, columns=existing_cols, dtype=int)
+    
+    for i, col1 in enumerate(existing_cols):
+        for j, col2 in enumerate(existing_cols):
+            if i <= j:  # Only compute upper triangle (since it's symmetric)
+                n_samples = gene_pairs_df[[col1, col2]].dropna().shape[0]
+                n_matrix.loc[col1, col2] = n_samples
+                n_matrix.loc[col2, col1] = n_samples  # Fill lower triangle
+                
+                if col1 != col2:  # Don't print diagonal
+                    print(f"{display_labels.get(col1, col1)} vs {display_labels.get(col2, col2)}: {n_samples:,} pairs")
+    
+    print("\n" + "=" * 60)
+    print("Note: All correlations computed using pairwise complete observations (no sampling)")
+    
+    # Additional statistics
+    print("\nCorrelation Statistics:")
+    print("-" * 40)
+    
+    # Focus on model predictions vs external validations
+    for model in ['main_without_ESM', 'main_with_ESM']:
+        if model in existing_cols:
+            print(f"\n{display_labels[model]} correlations with external datasets:")
+            for ext_col in external_cols:
+                if ext_col in existing_cols:
+                    pearson_val = pearson_corr.loc[model, ext_col]
+                    spearman_val = spearman_corr.loc[model, ext_col]
+                    n_pairs = gene_pairs_df[[model, ext_col]].dropna().shape[0]
+                    print(f"  {display_labels[ext_col]}: Pearson={pearson_val:.3f}, Spearman={spearman_val:.3f} (n={n_pairs:,})")
+    
+    # Compare the two models
+    if 'main_without_ESM' in existing_cols and 'main_with_ESM' in existing_cols:
+        model_corr_pearson = pearson_corr.loc['main_without_ESM', 'main_with_ESM']
+        model_corr_spearman = spearman_corr.loc['main_without_ESM', 'main_with_ESM']
+        n_model_pairs = gene_pairs_df[['main_without_ESM', 'main_with_ESM']].dropna().shape[0]
+        print(f"\nModel Agreement:")
+        print(f"  SLMGAE vs SLMGAE+ESM: Pearson={model_corr_pearson:.3f}, Spearman={model_corr_spearman:.3f} (n={n_model_pairs:,})")
+
+else:
+    print("Not enough columns available for correlation analysis")
+```
+
+## Save Final Results
+
+```{python}
+#| label: file-output-save-csv
+#| echo: true
+
+# Save final merged dataframe as pickle for fast loading
+output_file = 'SL_predictions_merged_analysis.pkl'
+gene_pairs_df.to_pickle(output_file)
+
+print(f"\nFile Output Summary:")
+print(f"  Saved to: {output_file} (pickle format)")
+print(f"  Total rows: {gene_pairs_df.shape[0]:,}")
+print(f"  Total columns: {gene_pairs_df.shape[1]}")
+print(f"  Columns included: {', '.join(gene_pairs_df.columns)}")
+```
