@@ -268,9 +268,11 @@ else:
     assert np.allclose(SL_score_matrix, SL_score_matrix.T, equal_nan=True), "SL_score matrix not symmetric!"
     assert np.allclose(SL_status_matrix, SL_status_matrix.T, equal_nan=True), "SL_status matrix not symmetric!"
     print(f"  Created symmetric SL matrices: {n_genes}x{n_genes}")
-    upper_triangle = np.triu(SL_status_matrix, k=1)
-    n_positive = int(np.sum(upper_triangle == 1))
-    n_negative = int(np.sum(upper_triangle == 0))
+    # Get strictly upper triangle indices (k=1 excludes diagonal, since genes are not SL to themselves)
+    upper_tri_indices = np.triu_indices(n_genes, k=1)
+    upper_tri_values = SL_status_matrix[upper_tri_indices]
+    n_positive = int(np.sum(upper_tri_values == 1))
+    n_negative = int(np.sum(upper_tri_values == 0))
     print(f"  Total SL positive pairs (upper triangle): {n_positive:,}")
     print(f"  Total SL negative pairs (upper triangle): {n_negative:,}")
     print(f"  Total labeled pairs (upper triangle): {n_positive + n_negative:,}")
@@ -1050,7 +1052,8 @@ else:
                 'baseline': baseline_rate,
                 'fpr': fpr,
                 'tpr': tpr,
-                'n_samples': len(model_data)
+                'n_samples': len(model_data),
+                'pred_col': pred_col
             }
 
             print(f"  AUROC: {auroc:.4f}")
@@ -1083,8 +1086,8 @@ else:
         ax1.grid(True, alpha=0.3)
 
         # Precision-Recall Curves
-        for model_name, (_, pred_col) in zip(baseline_results.keys(), baseline_models):
-            res = baseline_results[model_name]
+        for model_name, res in baseline_results.items():
+            pred_col = res['pred_col']
             color = baseline_colors.get(model_name, 'gray')
 
             # Recalculate precision-recall for plotting
