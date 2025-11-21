@@ -179,6 +179,8 @@ else:
     main_without_ESM_CV1, _ = load_cv_folds('main_without_ESM', 'CV1 Non-ESM', 'cv1', gene_names)
     main_CV2, _ = load_cv_folds('CV2', 'CV2', 'cv2', gene_names)
     main_CV3, _ = load_cv_folds('CV3', 'CV3', 'cv3', gene_names)
+    main_CV2_with_ESM, _ = load_cv_folds('CV2_with_ESM', 'CV2 ESM', 'cv2', gene_names)
+    main_CV3_with_ESM, _ = load_cv_folds('CV3_with_ESM', 'CV3 ESM', 'cv3', gene_names)
 
     # Verify shapes match (ensures all folds have same dimensions)
     expected_shape = (N_CV_FOLDS, len(gene_names), len(gene_names))
@@ -186,6 +188,8 @@ else:
     assert main_without_ESM_CV1.shape == expected_shape, f"CV1 without ESM shape mismatch: {main_without_ESM_CV1.shape}"
     assert main_CV2.shape == expected_shape, f"CV2 shape mismatch: {main_CV2.shape}"
     assert main_CV3.shape == expected_shape, f"CV3 shape mismatch: {main_CV3.shape}"
+    assert main_CV2_with_ESM.shape == expected_shape, f"CV2 with ESM shape mismatch: {main_CV2_with_ESM.shape}"
+    assert main_CV3_with_ESM.shape == expected_shape, f"CV3 with ESM shape mismatch: {main_CV3_with_ESM.shape}"
 
     # Step 2: Average Across Folds
     print("Step 2: Averaging across 5 folds for each CV split...")
@@ -193,6 +197,8 @@ else:
     main_without_ESM_CV1_avg = np.mean(main_without_ESM_CV1, axis=0)
     main_CV2_avg = np.mean(main_CV2, axis=0)
     main_CV3_avg = np.mean(main_CV3, axis=0)
+    main_CV2_with_ESM_avg = np.mean(main_CV2_with_ESM, axis=0)
+    main_CV3_with_ESM_avg = np.mean(main_CV3_with_ESM, axis=0)
 
     # Step 3: Force Symmetry by averaging with transpose
     print("Step 3: Forcing symmetry...")
@@ -200,12 +206,16 @@ else:
     main_without_ESM_CV1_sym = (main_without_ESM_CV1_avg + main_without_ESM_CV1_avg.T) / 2
     main_CV2_sym = (main_CV2_avg + main_CV2_avg.T) / 2
     main_CV3_sym = (main_CV3_avg + main_CV3_avg.T) / 2
+    main_CV2_with_ESM_sym = (main_CV2_with_ESM_avg + main_CV2_with_ESM_avg.T) / 2
+    main_CV3_with_ESM_sym = (main_CV3_with_ESM_avg + main_CV3_with_ESM_avg.T) / 2
 
     # Verify symmetry
     assert np.allclose(main_with_ESM_CV1_sym, main_with_ESM_CV1_sym.T), "CV1 with ESM matrix not symmetric!"
     assert np.allclose(main_without_ESM_CV1_sym, main_without_ESM_CV1_sym.T), "CV1 without ESM matrix not symmetric!"
     assert np.allclose(main_CV2_sym, main_CV2_sym.T), "CV2 matrix not symmetric!"
     assert np.allclose(main_CV3_sym, main_CV3_sym.T), "CV3 matrix not symmetric!"
+    assert np.allclose(main_CV2_with_ESM_sym, main_CV2_with_ESM_sym.T), "CV2 with ESM matrix not symmetric!"
+    assert np.allclose(main_CV3_with_ESM_sym, main_CV3_with_ESM_sym.T), "CV3 with ESM matrix not symmetric!"
 
     # Step 3b: Load SL Reference Data and Create SL Matrices
     print("Step 3b: Loading SL reference data and creating SL matrices...")
@@ -412,6 +422,8 @@ else:
         main_without_ESM_CV1_expanded = np.full((n_expanded, n_expanded), np.nan)
         main_CV2_expanded = np.full((n_expanded, n_expanded), np.nan)
         main_CV3_expanded = np.full((n_expanded, n_expanded), np.nan)
+        main_CV2_with_ESM_expanded = np.full((n_expanded, n_expanded), np.nan)
+        main_CV3_with_ESM_expanded = np.full((n_expanded, n_expanded), np.nan)
         SL_score_expanded = np.full((n_expanded, n_expanded), np.nan)
         SL_status_expanded = np.full((n_expanded, n_expanded), np.nan)
         naive_edge_est_expanded = np.full((n_expanded, n_expanded), np.nan)
@@ -425,6 +437,8 @@ else:
         main_without_ESM_CV1_expanded[:n_original, :n_original] = main_without_ESM_CV1_sym
         main_CV2_expanded[:n_original, :n_original] = main_CV2_sym
         main_CV3_expanded[:n_original, :n_original] = main_CV3_sym
+        main_CV2_with_ESM_expanded[:n_original, :n_original] = main_CV2_with_ESM_sym
+        main_CV3_with_ESM_expanded[:n_original, :n_original] = main_CV3_with_ESM_sym
 
         # Copy original SL data
         SL_score_expanded[:n_original, :n_original] = SL_score_matrix
@@ -443,6 +457,8 @@ else:
         main_without_ESM_CV1_sym = main_without_ESM_CV1_expanded
         main_CV2_sym = main_CV2_expanded
         main_CV3_sym = main_CV3_expanded
+        main_CV2_with_ESM_sym = main_CV2_with_ESM_expanded
+        main_CV3_with_ESM_sym = main_CV3_with_ESM_expanded
         SL_score_matrix = SL_score_expanded
         SL_status_matrix = SL_status_expanded
         naive_edge_est_matrix = naive_edge_est_expanded
@@ -484,7 +500,9 @@ else:
         'main_without_ESM_CV1': main_without_ESM_CV1_sym[upper_tri_indices],
         'main_with_ESM_CV1': main_with_ESM_CV1_sym[upper_tri_indices],
         'main_CV2': main_CV2_sym[upper_tri_indices],
-        'main_CV3': main_CV3_sym[upper_tri_indices]
+        'main_CV3': main_CV3_sym[upper_tri_indices],
+        'main_CV2_with_ESM': main_CV2_with_ESM_sym[upper_tri_indices],
+        'main_CV3_with_ESM': main_CV3_with_ESM_sym[upper_tri_indices]
     })
 
     # Add backward-compatible aliases for CV1 data (for existing analysis code)
@@ -524,7 +542,7 @@ elif 'gene_pairs_df' in locals() and gene_pairs_df is not None:
     # Verify expected columns exist
     required_sl_cols = ['SL_score', 'SL_status']
     required_support_cols = ['naive_edge_est', 'naive_edge_est_logit', 'GO_BP', 'GO_CC', 'PPI']
-    required_cv_cols = ['main_without_ESM_CV1', 'main_with_ESM_CV1', 'main_CV2', 'main_CV3']
+    required_cv_cols = ['main_without_ESM_CV1', 'main_with_ESM_CV1', 'main_CV2', 'main_CV3', 'main_CV2_with_ESM', 'main_CV3_with_ESM']
     required_alias_cols = ['main_with_ESM', 'main_without_ESM']
 
     for col in required_sl_cols + required_support_cols + required_cv_cols + required_alias_cols:
@@ -965,7 +983,9 @@ print(f"  SL scores (SLDB): {gene_pairs_df['SL_score'].notna().sum():,} pairs")
 print(f"  SLMGAE with ESM (CV1): {gene_pairs_df['main_with_ESM_CV1'].notna().sum():,} predictions")
 print(f"  SLMGAE without ESM (CV1): {gene_pairs_df['main_without_ESM_CV1'].notna().sum():,} predictions")
 print(f"  SLMGAE CV2: {gene_pairs_df['main_CV2'].notna().sum():,} predictions")
+print(f"  SLMGAE CV2 with ESM: {gene_pairs_df['main_CV2_with_ESM'].notna().sum():,} predictions")
 print(f"  SLMGAE CV3: {gene_pairs_df['main_CV3'].notna().sum():,} predictions")
+print(f"  SLMGAE CV3 with ESM: {gene_pairs_df['main_CV3_with_ESM'].notna().sum():,} predictions")
 
 print("\n1b. SUPPORT VIEWS:")
 print(f"  Naive edge estimates: {gene_pairs_df['naive_edge_est'].notna().sum():,} pairs")

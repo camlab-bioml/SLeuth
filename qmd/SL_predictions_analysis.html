@@ -333,337 +333,355 @@ Will process from source files...</code></pre>
 <span id="cb5-55"><a href="#cb5-55" aria-hidden="true" tabindex="-1"></a>    main_without_ESM_CV1, _ <span class="op">=</span> load_cv_folds(<span class="st">'main_without_ESM'</span>, <span class="st">'CV1 Non-ESM'</span>, <span class="st">'cv1'</span>, gene_names)</span>
 <span id="cb5-56"><a href="#cb5-56" aria-hidden="true" tabindex="-1"></a>    main_CV2, _ <span class="op">=</span> load_cv_folds(<span class="st">'CV2'</span>, <span class="st">'CV2'</span>, <span class="st">'cv2'</span>, gene_names)</span>
 <span id="cb5-57"><a href="#cb5-57" aria-hidden="true" tabindex="-1"></a>    main_CV3, _ <span class="op">=</span> load_cv_folds(<span class="st">'CV3'</span>, <span class="st">'CV3'</span>, <span class="st">'cv3'</span>, gene_names)</span>
-<span id="cb5-58"><a href="#cb5-58" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-59"><a href="#cb5-59" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify shapes match (ensures all folds have same dimensions)</span></span>
-<span id="cb5-60"><a href="#cb5-60" aria-hidden="true" tabindex="-1"></a>    expected_shape <span class="op">=</span> (N_CV_FOLDS, <span class="bu">len</span>(gene_names), <span class="bu">len</span>(gene_names))</span>
-<span id="cb5-61"><a href="#cb5-61" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> main_with_ESM_CV1.shape <span class="op">==</span> expected_shape, <span class="ss">f"CV1 with ESM shape mismatch: </span><span class="sc">{</span>main_with_ESM_CV1<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span></span>
-<span id="cb5-62"><a href="#cb5-62" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> main_without_ESM_CV1.shape <span class="op">==</span> expected_shape, <span class="ss">f"CV1 without ESM shape mismatch: </span><span class="sc">{</span>main_without_ESM_CV1<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span></span>
-<span id="cb5-63"><a href="#cb5-63" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> main_CV2.shape <span class="op">==</span> expected_shape, <span class="ss">f"CV2 shape mismatch: </span><span class="sc">{</span>main_CV2<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span></span>
-<span id="cb5-64"><a href="#cb5-64" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> main_CV3.shape <span class="op">==</span> expected_shape, <span class="ss">f"CV3 shape mismatch: </span><span class="sc">{</span>main_CV3<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span></span>
-<span id="cb5-65"><a href="#cb5-65" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-66"><a href="#cb5-66" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 2: Average Across Folds</span></span>
-<span id="cb5-67"><a href="#cb5-67" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"Step 2: Averaging across 5 folds for each CV split..."</span>)</span>
-<span id="cb5-68"><a href="#cb5-68" aria-hidden="true" tabindex="-1"></a>    main_with_ESM_CV1_avg <span class="op">=</span> np.mean(main_with_ESM_CV1, axis<span class="op">=</span><span class="dv">0</span>)</span>
-<span id="cb5-69"><a href="#cb5-69" aria-hidden="true" tabindex="-1"></a>    main_without_ESM_CV1_avg <span class="op">=</span> np.mean(main_without_ESM_CV1, axis<span class="op">=</span><span class="dv">0</span>)</span>
-<span id="cb5-70"><a href="#cb5-70" aria-hidden="true" tabindex="-1"></a>    main_CV2_avg <span class="op">=</span> np.mean(main_CV2, axis<span class="op">=</span><span class="dv">0</span>)</span>
-<span id="cb5-71"><a href="#cb5-71" aria-hidden="true" tabindex="-1"></a>    main_CV3_avg <span class="op">=</span> np.mean(main_CV3, axis<span class="op">=</span><span class="dv">0</span>)</span>
-<span id="cb5-72"><a href="#cb5-72" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-73"><a href="#cb5-73" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 3: Force Symmetry by averaging with transpose</span></span>
-<span id="cb5-74"><a href="#cb5-74" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"Step 3: Forcing symmetry..."</span>)</span>
-<span id="cb5-75"><a href="#cb5-75" aria-hidden="true" tabindex="-1"></a>    main_with_ESM_CV1_sym <span class="op">=</span> (main_with_ESM_CV1_avg <span class="op">+</span> main_with_ESM_CV1_avg.T) <span class="op">/</span> <span class="dv">2</span></span>
-<span id="cb5-76"><a href="#cb5-76" aria-hidden="true" tabindex="-1"></a>    main_without_ESM_CV1_sym <span class="op">=</span> (main_without_ESM_CV1_avg <span class="op">+</span> main_without_ESM_CV1_avg.T) <span class="op">/</span> <span class="dv">2</span></span>
-<span id="cb5-77"><a href="#cb5-77" aria-hidden="true" tabindex="-1"></a>    main_CV2_sym <span class="op">=</span> (main_CV2_avg <span class="op">+</span> main_CV2_avg.T) <span class="op">/</span> <span class="dv">2</span></span>
-<span id="cb5-78"><a href="#cb5-78" aria-hidden="true" tabindex="-1"></a>    main_CV3_sym <span class="op">=</span> (main_CV3_avg <span class="op">+</span> main_CV3_avg.T) <span class="op">/</span> <span class="dv">2</span></span>
-<span id="cb5-79"><a href="#cb5-79" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-80"><a href="#cb5-80" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify symmetry</span></span>
-<span id="cb5-81"><a href="#cb5-81" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(main_with_ESM_CV1_sym, main_with_ESM_CV1_sym.T), <span class="st">"CV1 with ESM matrix not symmetric!"</span></span>
-<span id="cb5-82"><a href="#cb5-82" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(main_without_ESM_CV1_sym, main_without_ESM_CV1_sym.T), <span class="st">"CV1 without ESM matrix not symmetric!"</span></span>
-<span id="cb5-83"><a href="#cb5-83" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(main_CV2_sym, main_CV2_sym.T), <span class="st">"CV2 matrix not symmetric!"</span></span>
-<span id="cb5-84"><a href="#cb5-84" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(main_CV3_sym, main_CV3_sym.T), <span class="st">"CV3 matrix not symmetric!"</span></span>
-<span id="cb5-85"><a href="#cb5-85" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-86"><a href="#cb5-86" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 3b: Load SL Reference Data and Create SL Matrices</span></span>
-<span id="cb5-87"><a href="#cb5-87" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"Step 3b: Loading SL reference data and creating SL matrices..."</span>)</span>
-<span id="cb5-88"><a href="#cb5-88" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-89"><a href="#cb5-89" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Load SL reference data (may contain old/uncorrected gene names)</span></span>
-<span id="cb5-90"><a href="#cb5-90" aria-hidden="true" tabindex="-1"></a>    sl_data <span class="op">=</span> pd.read_csv(<span class="ss">f'</span><span class="sc">{</span>DATA_DIR<span class="sc">}</span><span class="ss">/SL_Human_Approved.txt'</span>, sep<span class="op">=</span><span class="st">'</span><span class="ch">\t</span><span class="st">'</span>, header<span class="op">=</span><span class="va">None</span>)</span>
-<span id="cb5-91"><a href="#cb5-91" aria-hidden="true" tabindex="-1"></a>    sl_data.columns <span class="op">=</span> [<span class="st">'gene1'</span>, <span class="st">'gene2'</span>, <span class="st">'score'</span>]</span>
-<span id="cb5-92"><a href="#cb5-92" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-93"><a href="#cb5-93" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Normalize gene names to uppercase for consistent matching</span></span>
-<span id="cb5-94"><a href="#cb5-94" aria-hidden="true" tabindex="-1"></a>    sl_data[<span class="st">'gene1'</span>] <span class="op">=</span> sl_data[<span class="st">'gene1'</span>].<span class="bu">str</span>.upper()</span>
-<span id="cb5-95"><a href="#cb5-95" aria-hidden="true" tabindex="-1"></a>    sl_data[<span class="st">'gene2'</span>] <span class="op">=</span> sl_data[<span class="st">'gene2'</span>].<span class="bu">str</span>.upper()</span>
-<span id="cb5-96"><a href="#cb5-96" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-97"><a href="#cb5-97" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Create uppercase version of gene names for matching</span></span>
-<span id="cb5-98"><a href="#cb5-98" aria-hidden="true" tabindex="-1"></a>    gene_names_upper <span class="op">=</span> [gene.upper() <span class="cf">for</span> gene <span class="kw">in</span> gene_names]</span>
-<span id="cb5-99"><a href="#cb5-99" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-100"><a href="#cb5-100" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Create gene name to index mapping for current genes</span></span>
-<span id="cb5-101"><a href="#cb5-101" aria-hidden="true" tabindex="-1"></a>    gene_to_idx <span class="op">=</span> {gene: idx <span class="cf">for</span> idx, gene <span class="kw">in</span> <span class="bu">enumerate</span>(gene_names_upper)}</span>
+<span id="cb5-58"><a href="#cb5-58" aria-hidden="true" tabindex="-1"></a>    main_CV2_with_ESM, _ <span class="op">=</span> load_cv_folds(<span class="st">'CV2_with_ESM'</span>, <span class="st">'CV2 ESM'</span>, <span class="st">'cv2'</span>, gene_names)</span>
+<span id="cb5-59"><a href="#cb5-59" aria-hidden="true" tabindex="-1"></a>    main_CV3_with_ESM, _ <span class="op">=</span> load_cv_folds(<span class="st">'CV3_with_ESM'</span>, <span class="st">'CV3 ESM'</span>, <span class="st">'cv3'</span>, gene_names)</span>
+<span id="cb5-60"><a href="#cb5-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-61"><a href="#cb5-61" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify shapes match (ensures all folds have same dimensions)</span></span>
+<span id="cb5-62"><a href="#cb5-62" aria-hidden="true" tabindex="-1"></a>    expected_shape <span class="op">=</span> (N_CV_FOLDS, <span class="bu">len</span>(gene_names), <span class="bu">len</span>(gene_names))</span>
+<span id="cb5-63"><a href="#cb5-63" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> main_with_ESM_CV1.shape <span class="op">==</span> expected_shape, <span class="ss">f"CV1 with ESM shape mismatch: </span><span class="sc">{</span>main_with_ESM_CV1<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb5-64"><a href="#cb5-64" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> main_without_ESM_CV1.shape <span class="op">==</span> expected_shape, <span class="ss">f"CV1 without ESM shape mismatch: </span><span class="sc">{</span>main_without_ESM_CV1<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb5-65"><a href="#cb5-65" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> main_CV2.shape <span class="op">==</span> expected_shape, <span class="ss">f"CV2 shape mismatch: </span><span class="sc">{</span>main_CV2<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb5-66"><a href="#cb5-66" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> main_CV3.shape <span class="op">==</span> expected_shape, <span class="ss">f"CV3 shape mismatch: </span><span class="sc">{</span>main_CV3<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb5-67"><a href="#cb5-67" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> main_CV2_with_ESM.shape <span class="op">==</span> expected_shape, <span class="ss">f"CV2 with ESM shape mismatch: </span><span class="sc">{</span>main_CV2_with_ESM<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb5-68"><a href="#cb5-68" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> main_CV3_with_ESM.shape <span class="op">==</span> expected_shape, <span class="ss">f"CV3 with ESM shape mismatch: </span><span class="sc">{</span>main_CV3_with_ESM<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb5-69"><a href="#cb5-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-70"><a href="#cb5-70" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 2: Average Across Folds</span></span>
+<span id="cb5-71"><a href="#cb5-71" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"Step 2: Averaging across 5 folds for each CV split..."</span>)</span>
+<span id="cb5-72"><a href="#cb5-72" aria-hidden="true" tabindex="-1"></a>    main_with_ESM_CV1_avg <span class="op">=</span> np.mean(main_with_ESM_CV1, axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb5-73"><a href="#cb5-73" aria-hidden="true" tabindex="-1"></a>    main_without_ESM_CV1_avg <span class="op">=</span> np.mean(main_without_ESM_CV1, axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb5-74"><a href="#cb5-74" aria-hidden="true" tabindex="-1"></a>    main_CV2_avg <span class="op">=</span> np.mean(main_CV2, axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb5-75"><a href="#cb5-75" aria-hidden="true" tabindex="-1"></a>    main_CV3_avg <span class="op">=</span> np.mean(main_CV3, axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb5-76"><a href="#cb5-76" aria-hidden="true" tabindex="-1"></a>    main_CV2_with_ESM_avg <span class="op">=</span> np.mean(main_CV2_with_ESM, axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb5-77"><a href="#cb5-77" aria-hidden="true" tabindex="-1"></a>    main_CV3_with_ESM_avg <span class="op">=</span> np.mean(main_CV3_with_ESM, axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb5-78"><a href="#cb5-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-79"><a href="#cb5-79" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 3: Force Symmetry by averaging with transpose</span></span>
+<span id="cb5-80"><a href="#cb5-80" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"Step 3: Forcing symmetry..."</span>)</span>
+<span id="cb5-81"><a href="#cb5-81" aria-hidden="true" tabindex="-1"></a>    main_with_ESM_CV1_sym <span class="op">=</span> (main_with_ESM_CV1_avg <span class="op">+</span> main_with_ESM_CV1_avg.T) <span class="op">/</span> <span class="dv">2</span></span>
+<span id="cb5-82"><a href="#cb5-82" aria-hidden="true" tabindex="-1"></a>    main_without_ESM_CV1_sym <span class="op">=</span> (main_without_ESM_CV1_avg <span class="op">+</span> main_without_ESM_CV1_avg.T) <span class="op">/</span> <span class="dv">2</span></span>
+<span id="cb5-83"><a href="#cb5-83" aria-hidden="true" tabindex="-1"></a>    main_CV2_sym <span class="op">=</span> (main_CV2_avg <span class="op">+</span> main_CV2_avg.T) <span class="op">/</span> <span class="dv">2</span></span>
+<span id="cb5-84"><a href="#cb5-84" aria-hidden="true" tabindex="-1"></a>    main_CV3_sym <span class="op">=</span> (main_CV3_avg <span class="op">+</span> main_CV3_avg.T) <span class="op">/</span> <span class="dv">2</span></span>
+<span id="cb5-85"><a href="#cb5-85" aria-hidden="true" tabindex="-1"></a>    main_CV2_with_ESM_sym <span class="op">=</span> (main_CV2_with_ESM_avg <span class="op">+</span> main_CV2_with_ESM_avg.T) <span class="op">/</span> <span class="dv">2</span></span>
+<span id="cb5-86"><a href="#cb5-86" aria-hidden="true" tabindex="-1"></a>    main_CV3_with_ESM_sym <span class="op">=</span> (main_CV3_with_ESM_avg <span class="op">+</span> main_CV3_with_ESM_avg.T) <span class="op">/</span> <span class="dv">2</span></span>
+<span id="cb5-87"><a href="#cb5-87" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-88"><a href="#cb5-88" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify symmetry</span></span>
+<span id="cb5-89"><a href="#cb5-89" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(main_with_ESM_CV1_sym, main_with_ESM_CV1_sym.T), <span class="st">"CV1 with ESM matrix not symmetric!"</span></span>
+<span id="cb5-90"><a href="#cb5-90" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(main_without_ESM_CV1_sym, main_without_ESM_CV1_sym.T), <span class="st">"CV1 without ESM matrix not symmetric!"</span></span>
+<span id="cb5-91"><a href="#cb5-91" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(main_CV2_sym, main_CV2_sym.T), <span class="st">"CV2 matrix not symmetric!"</span></span>
+<span id="cb5-92"><a href="#cb5-92" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(main_CV3_sym, main_CV3_sym.T), <span class="st">"CV3 matrix not symmetric!"</span></span>
+<span id="cb5-93"><a href="#cb5-93" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(main_CV2_with_ESM_sym, main_CV2_with_ESM_sym.T), <span class="st">"CV2 with ESM matrix not symmetric!"</span></span>
+<span id="cb5-94"><a href="#cb5-94" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(main_CV3_with_ESM_sym, main_CV3_with_ESM_sym.T), <span class="st">"CV3 with ESM matrix not symmetric!"</span></span>
+<span id="cb5-95"><a href="#cb5-95" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-96"><a href="#cb5-96" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 3b: Load SL Reference Data and Create SL Matrices</span></span>
+<span id="cb5-97"><a href="#cb5-97" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"Step 3b: Loading SL reference data and creating SL matrices..."</span>)</span>
+<span id="cb5-98"><a href="#cb5-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-99"><a href="#cb5-99" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Load SL reference data (may contain old/uncorrected gene names)</span></span>
+<span id="cb5-100"><a href="#cb5-100" aria-hidden="true" tabindex="-1"></a>    sl_data <span class="op">=</span> pd.read_csv(<span class="ss">f'</span><span class="sc">{</span>DATA_DIR<span class="sc">}</span><span class="ss">/SL_Human_Approved.txt'</span>, sep<span class="op">=</span><span class="st">'</span><span class="ch">\t</span><span class="st">'</span>, header<span class="op">=</span><span class="va">None</span>)</span>
+<span id="cb5-101"><a href="#cb5-101" aria-hidden="true" tabindex="-1"></a>    sl_data.columns <span class="op">=</span> [<span class="st">'gene1'</span>, <span class="st">'gene2'</span>, <span class="st">'score'</span>]</span>
 <span id="cb5-102"><a href="#cb5-102" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-103"><a href="#cb5-103" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Create SL_score matrix (NxN, initialized to 0 for non-SL pairs)</span></span>
-<span id="cb5-104"><a href="#cb5-104" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Known SL pairs from reference data will have positive scores</span></span>
-<span id="cb5-105"><a href="#cb5-105" aria-hidden="true" tabindex="-1"></a>    <span class="co"># This matches the training approach where all non-SL pairs are treated as negatives</span></span>
-<span id="cb5-106"><a href="#cb5-106" aria-hidden="true" tabindex="-1"></a>    n_genes <span class="op">=</span> <span class="bu">len</span>(gene_names)</span>
-<span id="cb5-107"><a href="#cb5-107" aria-hidden="true" tabindex="-1"></a>    SL_score_matrix <span class="op">=</span> np.full((n_genes, n_genes), <span class="fl">0.0</span>)</span>
-<span id="cb5-108"><a href="#cb5-108" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-109"><a href="#cb5-109" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Fill in SL scores from reference data</span></span>
-<span id="cb5-110"><a href="#cb5-110" aria-hidden="true" tabindex="-1"></a>    sl_pairs_matched <span class="op">=</span> <span class="dv">0</span></span>
-<span id="cb5-111"><a href="#cb5-111" aria-hidden="true" tabindex="-1"></a>    sl_pairs_unmatched <span class="op">=</span> <span class="dv">0</span></span>
-<span id="cb5-112"><a href="#cb5-112" aria-hidden="true" tabindex="-1"></a>    unmatched_genes <span class="op">=</span> <span class="bu">set</span>()</span>
-<span id="cb5-113"><a href="#cb5-113" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _, row <span class="kw">in</span> sl_data.iterrows():</span>
-<span id="cb5-114"><a href="#cb5-114" aria-hidden="true" tabindex="-1"></a>        g1, g2, score <span class="op">=</span> row[<span class="st">'gene1'</span>], row[<span class="st">'gene2'</span>], row[<span class="st">'score'</span>]</span>
-<span id="cb5-115"><a href="#cb5-115" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-116"><a href="#cb5-116" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Check if both genes exist in our gene list (case-insensitive)</span></span>
-<span id="cb5-117"><a href="#cb5-117" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> g1 <span class="kw">in</span> gene_to_idx <span class="kw">and</span> g2 <span class="kw">in</span> gene_to_idx:</span>
-<span id="cb5-118"><a href="#cb5-118" aria-hidden="true" tabindex="-1"></a>            idx1, idx2 <span class="op">=</span> gene_to_idx[g1], gene_to_idx[g2]</span>
-<span id="cb5-119"><a href="#cb5-119" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Set both (i,j) and (j,i) for symmetry</span></span>
-<span id="cb5-120"><a href="#cb5-120" aria-hidden="true" tabindex="-1"></a>            SL_score_matrix[idx1, idx2] <span class="op">=</span> score</span>
-<span id="cb5-121"><a href="#cb5-121" aria-hidden="true" tabindex="-1"></a>            SL_score_matrix[idx2, idx1] <span class="op">=</span> score</span>
-<span id="cb5-122"><a href="#cb5-122" aria-hidden="true" tabindex="-1"></a>            sl_pairs_matched <span class="op">+=</span> <span class="dv">1</span></span>
-<span id="cb5-123"><a href="#cb5-123" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
-<span id="cb5-124"><a href="#cb5-124" aria-hidden="true" tabindex="-1"></a>            sl_pairs_unmatched <span class="op">+=</span> <span class="dv">1</span></span>
-<span id="cb5-125"><a href="#cb5-125" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> g1 <span class="kw">not</span> <span class="kw">in</span> gene_to_idx:</span>
-<span id="cb5-126"><a href="#cb5-126" aria-hidden="true" tabindex="-1"></a>                unmatched_genes.add(g1)</span>
-<span id="cb5-127"><a href="#cb5-127" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> g2 <span class="kw">not</span> <span class="kw">in</span> gene_to_idx:</span>
-<span id="cb5-128"><a href="#cb5-128" aria-hidden="true" tabindex="-1"></a>                unmatched_genes.add(g2)</span>
-<span id="cb5-129"><a href="#cb5-129" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-130"><a href="#cb5-130" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  SL pairs matched: </span><span class="sc">{</span>sl_pairs_matched<span class="sc">:,}</span><span class="ss">"</span>)</span>
-<span id="cb5-131"><a href="#cb5-131" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  SL pairs unmatched (genes not in matrix): </span><span class="sc">{</span>sl_pairs_unmatched<span class="sc">:,}</span><span class="ss">"</span>)</span>
-<span id="cb5-132"><a href="#cb5-132" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> unmatched_genes:</span>
-<span id="cb5-133"><a href="#cb5-133" aria-hidden="true" tabindex="-1"></a>        unmatched_list <span class="op">=</span> <span class="bu">sorted</span>(<span class="bu">list</span>(unmatched_genes))[:<span class="dv">10</span>]</span>
-<span id="cb5-134"><a href="#cb5-134" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"  Unmatched genes (first 10): </span><span class="sc">{</span>unmatched_list<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb5-135"><a href="#cb5-135" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(unmatched_genes) <span class="op">&gt;</span> <span class="dv">10</span>:</span>
-<span id="cb5-136"><a href="#cb5-136" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f"    ... and </span><span class="sc">{</span><span class="bu">len</span>(unmatched_genes) <span class="op">-</span> <span class="dv">10</span><span class="sc">}</span><span class="ss"> more"</span>)</span>
-<span id="cb5-137"><a href="#cb5-137" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-138"><a href="#cb5-138" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Create binary SL_status matrix (1 if SL_score &gt; SL_THRESHOLD, 0 otherwise)</span></span>
-<span id="cb5-139"><a href="#cb5-139" aria-hidden="true" tabindex="-1"></a>    <span class="co"># For the genes in the prediction matrix: 0 = non-SL (negative), 1 = SL (positive)</span></span>
-<span id="cb5-140"><a href="#cb5-140" aria-hidden="true" tabindex="-1"></a>    <span class="co"># NaN values will only appear later when matrix is expanded to include additional genes</span></span>
-<span id="cb5-141"><a href="#cb5-141" aria-hidden="true" tabindex="-1"></a>    SL_status_matrix <span class="op">=</span> (SL_score_matrix <span class="op">&gt;</span> SL_THRESHOLD).astype(<span class="bu">float</span>)</span>
-<span id="cb5-142"><a href="#cb5-142" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-143"><a href="#cb5-143" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify symmetry (critical for pairwise interaction interpretation)</span></span>
-<span id="cb5-144"><a href="#cb5-144" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(SL_score_matrix, SL_score_matrix.T, equal_nan<span class="op">=</span><span class="va">True</span>), <span class="st">"SL_score matrix not symmetric!"</span></span>
-<span id="cb5-145"><a href="#cb5-145" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(SL_status_matrix, SL_status_matrix.T, equal_nan<span class="op">=</span><span class="va">True</span>), <span class="st">"SL_status matrix not symmetric!"</span></span>
-<span id="cb5-146"><a href="#cb5-146" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Created symmetric SL matrices: </span><span class="sc">{</span>n_genes<span class="sc">}</span><span class="ss">x</span><span class="sc">{</span>n_genes<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb5-147"><a href="#cb5-147" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Get strictly upper triangle indices (k=1 excludes diagonal, since genes are not SL to themselves)</span></span>
-<span id="cb5-148"><a href="#cb5-148" aria-hidden="true" tabindex="-1"></a>    upper_tri_indices <span class="op">=</span> np.triu_indices(n_genes, k<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb5-149"><a href="#cb5-149" aria-hidden="true" tabindex="-1"></a>    upper_tri_values <span class="op">=</span> SL_status_matrix[upper_tri_indices]</span>
-<span id="cb5-150"><a href="#cb5-150" aria-hidden="true" tabindex="-1"></a>    n_positive <span class="op">=</span> <span class="bu">int</span>(np.<span class="bu">sum</span>(upper_tri_values <span class="op">==</span> <span class="dv">1</span>))</span>
-<span id="cb5-151"><a href="#cb5-151" aria-hidden="true" tabindex="-1"></a>    n_negative <span class="op">=</span> <span class="bu">int</span>(np.<span class="bu">sum</span>(upper_tri_values <span class="op">==</span> <span class="dv">0</span>))</span>
-<span id="cb5-152"><a href="#cb5-152" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Total SL positive pairs (upper triangle): </span><span class="sc">{</span>n_positive<span class="sc">:,}</span><span class="ss">"</span>)</span>
-<span id="cb5-153"><a href="#cb5-153" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Total SL negative pairs (upper triangle): </span><span class="sc">{</span>n_negative<span class="sc">:,}</span><span class="ss">"</span>)</span>
-<span id="cb5-154"><a href="#cb5-154" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Total labeled pairs (upper triangle): </span><span class="sc">{</span>n_positive <span class="op">+</span> n_negative<span class="sc">:,}</span><span class="ss">"</span>)</span>
-<span id="cb5-155"><a href="#cb5-155" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-156"><a href="#cb5-156" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Calculate naive edge probability estimate using vectorized NumPy operations</span></span>
-<span id="cb5-157"><a href="#cb5-157" aria-hidden="true" tabindex="-1"></a>    <span class="co"># For each gene, calculate probability = (# of SL connections) / (# of valid genes)</span></span>
-<span id="cb5-158"><a href="#cb5-158" aria-hidden="true" tabindex="-1"></a>    <span class="co"># This properly handles NaN values by excluding them from both numerator and denominator</span></span>
-<span id="cb5-159"><a href="#cb5-159" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">  Calculating naive edge probability estimate..."</span>)</span>
-<span id="cb5-160"><a href="#cb5-160" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-161"><a href="#cb5-161" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Create working copy and set diagonal to NaN to exclude self-connections</span></span>
-<span id="cb5-162"><a href="#cb5-162" aria-hidden="true" tabindex="-1"></a>    SL_status_no_diag <span class="op">=</span> SL_status_matrix.copy()</span>
-<span id="cb5-163"><a href="#cb5-163" aria-hidden="true" tabindex="-1"></a>    np.fill_diagonal(SL_status_no_diag, np.nan)</span>
-<span id="cb5-164"><a href="#cb5-164" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-165"><a href="#cb5-165" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Vectorized calculation: for each row, sum non-NaN values / count non-NaN values</span></span>
-<span id="cb5-166"><a href="#cb5-166" aria-hidden="true" tabindex="-1"></a>    <span class="co"># nansum: sum ignoring NaN (numerator = # of SL connections)</span></span>
-<span id="cb5-167"><a href="#cb5-167" aria-hidden="true" tabindex="-1"></a>    <span class="co"># count_nonzero(~isnan): count of valid (non-NaN) entries (denominator = # of valid genes)</span></span>
-<span id="cb5-168"><a href="#cb5-168" aria-hidden="true" tabindex="-1"></a>    row_sums <span class="op">=</span> np.nansum(SL_status_no_diag, axis<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb5-169"><a href="#cb5-169" aria-hidden="true" tabindex="-1"></a>    row_counts <span class="op">=</span> np.count_nonzero(<span class="op">~</span>np.isnan(SL_status_no_diag), axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb5-103"><a href="#cb5-103" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Normalize gene names to uppercase for consistent matching</span></span>
+<span id="cb5-104"><a href="#cb5-104" aria-hidden="true" tabindex="-1"></a>    sl_data[<span class="st">'gene1'</span>] <span class="op">=</span> sl_data[<span class="st">'gene1'</span>].<span class="bu">str</span>.upper()</span>
+<span id="cb5-105"><a href="#cb5-105" aria-hidden="true" tabindex="-1"></a>    sl_data[<span class="st">'gene2'</span>] <span class="op">=</span> sl_data[<span class="st">'gene2'</span>].<span class="bu">str</span>.upper()</span>
+<span id="cb5-106"><a href="#cb5-106" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-107"><a href="#cb5-107" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Create uppercase version of gene names for matching</span></span>
+<span id="cb5-108"><a href="#cb5-108" aria-hidden="true" tabindex="-1"></a>    gene_names_upper <span class="op">=</span> [gene.upper() <span class="cf">for</span> gene <span class="kw">in</span> gene_names]</span>
+<span id="cb5-109"><a href="#cb5-109" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-110"><a href="#cb5-110" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Create gene name to index mapping for current genes</span></span>
+<span id="cb5-111"><a href="#cb5-111" aria-hidden="true" tabindex="-1"></a>    gene_to_idx <span class="op">=</span> {gene: idx <span class="cf">for</span> idx, gene <span class="kw">in</span> <span class="bu">enumerate</span>(gene_names_upper)}</span>
+<span id="cb5-112"><a href="#cb5-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-113"><a href="#cb5-113" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Create SL_score matrix (NxN, initialized to 0 for non-SL pairs)</span></span>
+<span id="cb5-114"><a href="#cb5-114" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Known SL pairs from reference data will have positive scores</span></span>
+<span id="cb5-115"><a href="#cb5-115" aria-hidden="true" tabindex="-1"></a>    <span class="co"># This matches the training approach where all non-SL pairs are treated as negatives</span></span>
+<span id="cb5-116"><a href="#cb5-116" aria-hidden="true" tabindex="-1"></a>    n_genes <span class="op">=</span> <span class="bu">len</span>(gene_names)</span>
+<span id="cb5-117"><a href="#cb5-117" aria-hidden="true" tabindex="-1"></a>    SL_score_matrix <span class="op">=</span> np.full((n_genes, n_genes), <span class="fl">0.0</span>)</span>
+<span id="cb5-118"><a href="#cb5-118" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-119"><a href="#cb5-119" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Fill in SL scores from reference data</span></span>
+<span id="cb5-120"><a href="#cb5-120" aria-hidden="true" tabindex="-1"></a>    sl_pairs_matched <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb5-121"><a href="#cb5-121" aria-hidden="true" tabindex="-1"></a>    sl_pairs_unmatched <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb5-122"><a href="#cb5-122" aria-hidden="true" tabindex="-1"></a>    unmatched_genes <span class="op">=</span> <span class="bu">set</span>()</span>
+<span id="cb5-123"><a href="#cb5-123" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _, row <span class="kw">in</span> sl_data.iterrows():</span>
+<span id="cb5-124"><a href="#cb5-124" aria-hidden="true" tabindex="-1"></a>        g1, g2, score <span class="op">=</span> row[<span class="st">'gene1'</span>], row[<span class="st">'gene2'</span>], row[<span class="st">'score'</span>]</span>
+<span id="cb5-125"><a href="#cb5-125" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-126"><a href="#cb5-126" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Check if both genes exist in our gene list (case-insensitive)</span></span>
+<span id="cb5-127"><a href="#cb5-127" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> g1 <span class="kw">in</span> gene_to_idx <span class="kw">and</span> g2 <span class="kw">in</span> gene_to_idx:</span>
+<span id="cb5-128"><a href="#cb5-128" aria-hidden="true" tabindex="-1"></a>            idx1, idx2 <span class="op">=</span> gene_to_idx[g1], gene_to_idx[g2]</span>
+<span id="cb5-129"><a href="#cb5-129" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Set both (i,j) and (j,i) for symmetry</span></span>
+<span id="cb5-130"><a href="#cb5-130" aria-hidden="true" tabindex="-1"></a>            SL_score_matrix[idx1, idx2] <span class="op">=</span> score</span>
+<span id="cb5-131"><a href="#cb5-131" aria-hidden="true" tabindex="-1"></a>            SL_score_matrix[idx2, idx1] <span class="op">=</span> score</span>
+<span id="cb5-132"><a href="#cb5-132" aria-hidden="true" tabindex="-1"></a>            sl_pairs_matched <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb5-133"><a href="#cb5-133" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb5-134"><a href="#cb5-134" aria-hidden="true" tabindex="-1"></a>            sl_pairs_unmatched <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb5-135"><a href="#cb5-135" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> g1 <span class="kw">not</span> <span class="kw">in</span> gene_to_idx:</span>
+<span id="cb5-136"><a href="#cb5-136" aria-hidden="true" tabindex="-1"></a>                unmatched_genes.add(g1)</span>
+<span id="cb5-137"><a href="#cb5-137" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> g2 <span class="kw">not</span> <span class="kw">in</span> gene_to_idx:</span>
+<span id="cb5-138"><a href="#cb5-138" aria-hidden="true" tabindex="-1"></a>                unmatched_genes.add(g2)</span>
+<span id="cb5-139"><a href="#cb5-139" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-140"><a href="#cb5-140" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  SL pairs matched: </span><span class="sc">{</span>sl_pairs_matched<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb5-141"><a href="#cb5-141" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  SL pairs unmatched (genes not in matrix): </span><span class="sc">{</span>sl_pairs_unmatched<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb5-142"><a href="#cb5-142" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> unmatched_genes:</span>
+<span id="cb5-143"><a href="#cb5-143" aria-hidden="true" tabindex="-1"></a>        unmatched_list <span class="op">=</span> <span class="bu">sorted</span>(<span class="bu">list</span>(unmatched_genes))[:<span class="dv">10</span>]</span>
+<span id="cb5-144"><a href="#cb5-144" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"  Unmatched genes (first 10): </span><span class="sc">{</span>unmatched_list<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-145"><a href="#cb5-145" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(unmatched_genes) <span class="op">&gt;</span> <span class="dv">10</span>:</span>
+<span id="cb5-146"><a href="#cb5-146" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f"    ... and </span><span class="sc">{</span><span class="bu">len</span>(unmatched_genes) <span class="op">-</span> <span class="dv">10</span><span class="sc">}</span><span class="ss"> more"</span>)</span>
+<span id="cb5-147"><a href="#cb5-147" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-148"><a href="#cb5-148" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Create binary SL_status matrix (1 if SL_score &gt; SL_THRESHOLD, 0 otherwise)</span></span>
+<span id="cb5-149"><a href="#cb5-149" aria-hidden="true" tabindex="-1"></a>    <span class="co"># For the genes in the prediction matrix: 0 = non-SL (negative), 1 = SL (positive)</span></span>
+<span id="cb5-150"><a href="#cb5-150" aria-hidden="true" tabindex="-1"></a>    <span class="co"># NaN values will only appear later when matrix is expanded to include additional genes</span></span>
+<span id="cb5-151"><a href="#cb5-151" aria-hidden="true" tabindex="-1"></a>    SL_status_matrix <span class="op">=</span> (SL_score_matrix <span class="op">&gt;</span> SL_THRESHOLD).astype(<span class="bu">float</span>)</span>
+<span id="cb5-152"><a href="#cb5-152" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-153"><a href="#cb5-153" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify symmetry (critical for pairwise interaction interpretation)</span></span>
+<span id="cb5-154"><a href="#cb5-154" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(SL_score_matrix, SL_score_matrix.T, equal_nan<span class="op">=</span><span class="va">True</span>), <span class="st">"SL_score matrix not symmetric!"</span></span>
+<span id="cb5-155"><a href="#cb5-155" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(SL_status_matrix, SL_status_matrix.T, equal_nan<span class="op">=</span><span class="va">True</span>), <span class="st">"SL_status matrix not symmetric!"</span></span>
+<span id="cb5-156"><a href="#cb5-156" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Created symmetric SL matrices: </span><span class="sc">{</span>n_genes<span class="sc">}</span><span class="ss">x</span><span class="sc">{</span>n_genes<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-157"><a href="#cb5-157" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Get strictly upper triangle indices (k=1 excludes diagonal, since genes are not SL to themselves)</span></span>
+<span id="cb5-158"><a href="#cb5-158" aria-hidden="true" tabindex="-1"></a>    upper_tri_indices <span class="op">=</span> np.triu_indices(n_genes, k<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb5-159"><a href="#cb5-159" aria-hidden="true" tabindex="-1"></a>    upper_tri_values <span class="op">=</span> SL_status_matrix[upper_tri_indices]</span>
+<span id="cb5-160"><a href="#cb5-160" aria-hidden="true" tabindex="-1"></a>    n_positive <span class="op">=</span> <span class="bu">int</span>(np.<span class="bu">sum</span>(upper_tri_values <span class="op">==</span> <span class="dv">1</span>))</span>
+<span id="cb5-161"><a href="#cb5-161" aria-hidden="true" tabindex="-1"></a>    n_negative <span class="op">=</span> <span class="bu">int</span>(np.<span class="bu">sum</span>(upper_tri_values <span class="op">==</span> <span class="dv">0</span>))</span>
+<span id="cb5-162"><a href="#cb5-162" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Total SL positive pairs (upper triangle): </span><span class="sc">{</span>n_positive<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb5-163"><a href="#cb5-163" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Total SL negative pairs (upper triangle): </span><span class="sc">{</span>n_negative<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb5-164"><a href="#cb5-164" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Total labeled pairs (upper triangle): </span><span class="sc">{</span>n_positive <span class="op">+</span> n_negative<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb5-165"><a href="#cb5-165" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-166"><a href="#cb5-166" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Calculate naive edge probability estimate using vectorized NumPy operations</span></span>
+<span id="cb5-167"><a href="#cb5-167" aria-hidden="true" tabindex="-1"></a>    <span class="co"># For each gene, calculate probability = (# of SL connections) / (# of valid genes)</span></span>
+<span id="cb5-168"><a href="#cb5-168" aria-hidden="true" tabindex="-1"></a>    <span class="co"># This properly handles NaN values by excluding them from both numerator and denominator</span></span>
+<span id="cb5-169"><a href="#cb5-169" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">  Calculating naive edge probability estimate..."</span>)</span>
 <span id="cb5-170"><a href="#cb5-170" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-171"><a href="#cb5-171" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Calculate probability vector: avoid division by zero</span></span>
-<span id="cb5-172"><a href="#cb5-172" aria-hidden="true" tabindex="-1"></a>    prob_vector <span class="op">=</span> np.where(row_counts <span class="op">&gt;</span> <span class="dv">0</span>, row_sums <span class="op">/</span> row_counts, <span class="dv">0</span>)</span>
-<span id="cb5-173"><a href="#cb5-173" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-174"><a href="#cb5-174" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Create naive edge probability matrix via outer product</span></span>
-<span id="cb5-175"><a href="#cb5-175" aria-hidden="true" tabindex="-1"></a>    naive_edge_est_matrix <span class="op">=</span> np.outer(prob_vector, prob_vector)</span>
-<span id="cb5-176"><a href="#cb5-176" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-177"><a href="#cb5-177" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify symmetry (outer product of vector with itself is always symmetric)</span></span>
-<span id="cb5-178"><a href="#cb5-178" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(naive_edge_est_matrix, naive_edge_est_matrix.T), <span class="st">"Naive edge estimate matrix not symmetric!"</span></span>
-<span id="cb5-179"><a href="#cb5-179" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Created naive edge probability matrix: </span><span class="sc">{</span>naive_edge_est_matrix<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb5-180"><a href="#cb5-180" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Use nan-safe functions in case there are any NaN values</span></span>
-<span id="cb5-181"><a href="#cb5-181" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Probability range: [</span><span class="sc">{</span>np<span class="sc">.</span>nanmin(naive_edge_est_matrix)<span class="sc">:.6f}</span><span class="ss">, </span><span class="sc">{</span>np<span class="sc">.</span>nanmax(naive_edge_est_matrix)<span class="sc">:.6f}</span><span class="ss">]"</span>)</span>
-<span id="cb5-182"><a href="#cb5-182" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Mean probability: </span><span class="sc">{</span>np<span class="sc">.</span>nanmean(naive_edge_est_matrix)<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb5-171"><a href="#cb5-171" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Create working copy and set diagonal to NaN to exclude self-connections</span></span>
+<span id="cb5-172"><a href="#cb5-172" aria-hidden="true" tabindex="-1"></a>    SL_status_no_diag <span class="op">=</span> SL_status_matrix.copy()</span>
+<span id="cb5-173"><a href="#cb5-173" aria-hidden="true" tabindex="-1"></a>    np.fill_diagonal(SL_status_no_diag, np.nan)</span>
+<span id="cb5-174"><a href="#cb5-174" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-175"><a href="#cb5-175" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Vectorized calculation: for each row, sum non-NaN values / count non-NaN values</span></span>
+<span id="cb5-176"><a href="#cb5-176" aria-hidden="true" tabindex="-1"></a>    <span class="co"># nansum: sum ignoring NaN (numerator = # of SL connections)</span></span>
+<span id="cb5-177"><a href="#cb5-177" aria-hidden="true" tabindex="-1"></a>    <span class="co"># count_nonzero(~isnan): count of valid (non-NaN) entries (denominator = # of valid genes)</span></span>
+<span id="cb5-178"><a href="#cb5-178" aria-hidden="true" tabindex="-1"></a>    row_sums <span class="op">=</span> np.nansum(SL_status_no_diag, axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb5-179"><a href="#cb5-179" aria-hidden="true" tabindex="-1"></a>    row_counts <span class="op">=</span> np.count_nonzero(<span class="op">~</span>np.isnan(SL_status_no_diag), axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb5-180"><a href="#cb5-180" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-181"><a href="#cb5-181" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Calculate probability vector: avoid division by zero</span></span>
+<span id="cb5-182"><a href="#cb5-182" aria-hidden="true" tabindex="-1"></a>    prob_vector <span class="op">=</span> np.where(row_counts <span class="op">&gt;</span> <span class="dv">0</span>, row_sums <span class="op">/</span> row_counts, <span class="dv">0</span>)</span>
 <span id="cb5-183"><a href="#cb5-183" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-184"><a href="#cb5-184" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Transform to logit scale for logistic regression</span></span>
-<span id="cb5-185"><a href="#cb5-185" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Add small epsilon to avoid log(0) or log(1)</span></span>
-<span id="cb5-186"><a href="#cb5-186" aria-hidden="true" tabindex="-1"></a>    epsilon <span class="op">=</span> <span class="fl">1e-10</span></span>
-<span id="cb5-187"><a href="#cb5-187" aria-hidden="true" tabindex="-1"></a>    naive_edge_est_matrix_clipped <span class="op">=</span> np.clip(naive_edge_est_matrix, epsilon, <span class="dv">1</span> <span class="op">-</span> epsilon)</span>
-<span id="cb5-188"><a href="#cb5-188" aria-hidden="true" tabindex="-1"></a>    naive_edge_est_logit_matrix <span class="op">=</span> np.log(naive_edge_est_matrix_clipped <span class="op">/</span> (<span class="dv">1</span> <span class="op">-</span> naive_edge_est_matrix_clipped))</span>
-<span id="cb5-189"><a href="#cb5-189" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-190"><a href="#cb5-190" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify symmetry of logit-transformed matrix</span></span>
-<span id="cb5-191"><a href="#cb5-191" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(naive_edge_est_logit_matrix, naive_edge_est_logit_matrix.T), <span class="st">"Naive edge logit matrix not symmetric!"</span></span>
-<span id="cb5-192"><a href="#cb5-192" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Created naive edge logit matrix: </span><span class="sc">{</span>naive_edge_est_logit_matrix<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb5-193"><a href="#cb5-193" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Logit range: [</span><span class="sc">{</span>np<span class="sc">.</span>nanmin(naive_edge_est_logit_matrix)<span class="sc">:.6f}</span><span class="ss">, </span><span class="sc">{</span>np<span class="sc">.</span>nanmax(naive_edge_est_logit_matrix)<span class="sc">:.6f}</span><span class="ss">]"</span>)</span>
-<span id="cb5-194"><a href="#cb5-194" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Mean logit: </span><span class="sc">{</span>np<span class="sc">.</span>nanmean(naive_edge_est_logit_matrix)<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb5-195"><a href="#cb5-195" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-196"><a href="#cb5-196" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Load support view matrices</span></span>
-<span id="cb5-197"><a href="#cb5-197" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">  Loading support view matrices..."</span>)</span>
-<span id="cb5-198"><a href="#cb5-198" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-199"><a href="#cb5-199" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Import data loader utilities</span></span>
-<span id="cb5-200"><a href="#cb5-200" aria-hidden="true" tabindex="-1"></a>    <span class="im">from</span> slmgae_pytorch <span class="im">import</span> DataLoader</span>
-<span id="cb5-201"><a href="#cb5-201" aria-hidden="true" tabindex="-1"></a>    loader <span class="op">=</span> DataLoader(DATA_DIR, gene_names)</span>
-<span id="cb5-202"><a href="#cb5-202" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-203"><a href="#cb5-203" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Load GO BP similarity (with KNN preprocessing)</span></span>
-<span id="cb5-204"><a href="#cb5-204" aria-hidden="true" tabindex="-1"></a>    GO_BP_matrix <span class="op">=</span> loader.load_dense_feature(<span class="ss">f"</span><span class="sc">{</span>DATA_DIR<span class="sc">}</span><span class="ss">/Human_GOsim.txt"</span>, knn<span class="op">=</span><span class="va">True</span>).toarray()</span>
-<span id="cb5-205"><a href="#cb5-205" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Loaded GO_BP: </span><span class="sc">{</span>GO_BP_matrix<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb5-206"><a href="#cb5-206" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify matrix dimensions match gene count</span></span>
-<span id="cb5-207"><a href="#cb5-207" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> GO_BP_matrix.shape <span class="op">==</span> (n_genes, n_genes), <span class="ss">f"GO_BP shape mismatch: </span><span class="sc">{</span>GO_BP_matrix<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span></span>
-<span id="cb5-208"><a href="#cb5-208" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Symmetrize by averaging with transpose (handles any asymmetry in preprocessing)</span></span>
-<span id="cb5-209"><a href="#cb5-209" aria-hidden="true" tabindex="-1"></a>    GO_BP_matrix <span class="op">=</span> (GO_BP_matrix <span class="op">+</span> GO_BP_matrix.T) <span class="op">/</span> <span class="dv">2</span></span>
-<span id="cb5-210"><a href="#cb5-210" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-211"><a href="#cb5-211" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Load GO CC similarity (with KNN preprocessing)</span></span>
-<span id="cb5-212"><a href="#cb5-212" aria-hidden="true" tabindex="-1"></a>    GO_CC_matrix <span class="op">=</span> loader.load_dense_feature(<span class="ss">f"</span><span class="sc">{</span>DATA_DIR<span class="sc">}</span><span class="ss">/Human_GOsim_CC.txt"</span>, knn<span class="op">=</span><span class="va">True</span>).toarray()</span>
-<span id="cb5-213"><a href="#cb5-213" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Loaded GO_CC: </span><span class="sc">{</span>GO_CC_matrix<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb5-214"><a href="#cb5-214" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify matrix dimensions match gene count</span></span>
-<span id="cb5-215"><a href="#cb5-215" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> GO_CC_matrix.shape <span class="op">==</span> (n_genes, n_genes), <span class="ss">f"GO_CC shape mismatch: </span><span class="sc">{</span>GO_CC_matrix<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span></span>
-<span id="cb5-216"><a href="#cb5-216" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Symmetrize by averaging with transpose (handles any asymmetry in preprocessing)</span></span>
-<span id="cb5-217"><a href="#cb5-217" aria-hidden="true" tabindex="-1"></a>    GO_CC_matrix <span class="op">=</span> (GO_CC_matrix <span class="op">+</span> GO_CC_matrix.T) <span class="op">/</span> <span class="dv">2</span></span>
-<span id="cb5-218"><a href="#cb5-218" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-219"><a href="#cb5-219" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Load PPI network (sparse edge list)</span></span>
-<span id="cb5-220"><a href="#cb5-220" aria-hidden="true" tabindex="-1"></a>    PPI_matrix <span class="op">=</span> loader.load_sparse_feature(<span class="ss">f"</span><span class="sc">{</span>DATA_DIR<span class="sc">}</span><span class="ss">/biogrid_ppi_sparse.txt"</span>).toarray()</span>
-<span id="cb5-221"><a href="#cb5-221" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Loaded PPI: </span><span class="sc">{</span>PPI_matrix<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb5-222"><a href="#cb5-222" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify matrix dimensions match gene count</span></span>
-<span id="cb5-223"><a href="#cb5-223" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> PPI_matrix.shape <span class="op">==</span> (n_genes, n_genes), <span class="ss">f"PPI shape mismatch: </span><span class="sc">{</span>PPI_matrix<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span></span>
-<span id="cb5-224"><a href="#cb5-224" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Symmetrize by averaging with transpose (PPI networks should be undirected)</span></span>
-<span id="cb5-225"><a href="#cb5-225" aria-hidden="true" tabindex="-1"></a>    PPI_matrix <span class="op">=</span> (PPI_matrix <span class="op">+</span> PPI_matrix.T) <span class="op">/</span> <span class="dv">2</span></span>
-<span id="cb5-226"><a href="#cb5-226" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-227"><a href="#cb5-227" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 3c: Correct Gene Names and Expand Matrix</span></span>
-<span id="cb5-228"><a href="#cb5-228" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Step 3c: Correcting gene names and expanding matrix..."</span>)</span>
-<span id="cb5-229"><a href="#cb5-229" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-230"><a href="#cb5-230" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Apply gene corrections to the gene names</span></span>
-<span id="cb5-231"><a href="#cb5-231" aria-hidden="true" tabindex="-1"></a>    corrected_gene_names <span class="op">=</span> [apply_gene_correction(gene) <span class="cf">for</span> gene <span class="kw">in</span> gene_names]</span>
-<span id="cb5-232"><a href="#cb5-232" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Applied gene corrections to </span><span class="sc">{</span><span class="bu">len</span>(gene_names)<span class="sc">}</span><span class="ss"> genes"</span>)</span>
-<span id="cb5-233"><a href="#cb5-233" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb5-234"><a href="#cb5-234" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Load human gene names using helper function</span></span>
-<span id="cb5-235"><a href="#cb5-235" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"  Loading all human gene names..."</span>)</span>
-<span id="cb5-236"><a href="#cb5-236" aria-hidden="true" tabindex="-1"></a>    cached_file <span class="op">=</span> <span class="ss">f'</span><span class="sc">{</span>DATA_DIR<span class="sc">}</span><span class="ss">/all_human_genes_uniprot.txt'</span></span>
-<span id="cb5-237"><a href="#cb5-237" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-238"><a href="#cb5-238" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Use helper function to load cached genes</span></span>
-<span id="cb5-239"><a href="#cb5-239" aria-hidden="true" tabindex="-1"></a>    all_human_genes_raw <span class="op">=</span> load_human_genes_cached(cached_file)</span>
-<span id="cb5-240"><a href="#cb5-240" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-241"><a href="#cb5-241" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> all_human_genes_raw:</span>
-<span id="cb5-242"><a href="#cb5-242" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Normalize to uppercase for consistent matching</span></span>
-<span id="cb5-243"><a href="#cb5-243" aria-hidden="true" tabindex="-1"></a>        all_human_genes <span class="op">=</span> {gene.upper() <span class="cf">for</span> gene <span class="kw">in</span> all_human_genes_raw}</span>
-<span id="cb5-244"><a href="#cb5-244" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"  Loaded </span><span class="sc">{</span><span class="bu">len</span>(all_human_genes)<span class="sc">:,}</span><span class="ss"> human genes from cache"</span>)</span>
-<span id="cb5-245"><a href="#cb5-245" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
-<span id="cb5-246"><a href="#cb5-246" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Cache doesn't exist - try to fetch from UniProt</span></span>
-<span id="cb5-247"><a href="#cb5-247" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="st">"  Cache not found. Fetching human genes from UniProt (this may take a moment)..."</span>)</span>
-<span id="cb5-248"><a href="#cb5-248" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span>:</span>
-<span id="cb5-249"><a href="#cb5-249" aria-hidden="true" tabindex="-1"></a>            fetched_genes <span class="op">=</span> fetch_uniprot_human_genes()</span>
-<span id="cb5-250"><a href="#cb5-250" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> fetched_genes:</span>
-<span id="cb5-251"><a href="#cb5-251" aria-hidden="true" tabindex="-1"></a>                <span class="co"># Normalize to uppercase and save</span></span>
-<span id="cb5-252"><a href="#cb5-252" aria-hidden="true" tabindex="-1"></a>                all_human_genes <span class="op">=</span> {gene.upper() <span class="cf">for</span> gene <span class="kw">in</span> fetched_genes}</span>
-<span id="cb5-253"><a href="#cb5-253" aria-hidden="true" tabindex="-1"></a>                <span class="bu">print</span>(<span class="ss">f"  Retrieved </span><span class="sc">{</span><span class="bu">len</span>(all_human_genes)<span class="sc">:,}</span><span class="ss"> human genes from UniProt"</span>)</span>
-<span id="cb5-254"><a href="#cb5-254" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-255"><a href="#cb5-255" aria-hidden="true" tabindex="-1"></a>                <span class="co"># Save for future use</span></span>
-<span id="cb5-256"><a href="#cb5-256" aria-hidden="true" tabindex="-1"></a>                <span class="cf">with</span> <span class="bu">open</span>(cached_file, <span class="st">'w'</span>) <span class="im">as</span> f:</span>
-<span id="cb5-257"><a href="#cb5-257" aria-hidden="true" tabindex="-1"></a>                    f.write(<span class="ss">f"# Human genes from UniProt (cached)</span><span class="ch">\n</span><span class="ss">"</span>)</span>
-<span id="cb5-258"><a href="#cb5-258" aria-hidden="true" tabindex="-1"></a>                    f.write(<span class="ss">f"# Total: </span><span class="sc">{</span><span class="bu">len</span>(all_human_genes)<span class="sc">}</span><span class="ss"> genes</span><span class="ch">\n\n</span><span class="ss">"</span>)</span>
-<span id="cb5-259"><a href="#cb5-259" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">for</span> gene <span class="kw">in</span> <span class="bu">sorted</span>(all_human_genes):</span>
-<span id="cb5-260"><a href="#cb5-260" aria-hidden="true" tabindex="-1"></a>                        f.write(<span class="ss">f"</span><span class="sc">{</span>gene<span class="sc">}</span><span class="ch">\n</span><span class="ss">"</span>)</span>
-<span id="cb5-261"><a href="#cb5-261" aria-hidden="true" tabindex="-1"></a>                <span class="bu">print</span>(<span class="ss">f"  Cached genes to: </span><span class="sc">{</span>cached_file<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb5-262"><a href="#cb5-262" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:</span>
-<span id="cb5-263"><a href="#cb5-263" aria-hidden="true" tabindex="-1"></a>                <span class="bu">print</span>(<span class="st">"  Failed to fetch genes from UniProt"</span>)</span>
-<span id="cb5-264"><a href="#cb5-264" aria-hidden="true" tabindex="-1"></a>                all_human_genes <span class="op">=</span> <span class="bu">set</span>()</span>
-<span id="cb5-265"><a href="#cb5-265" aria-hidden="true" tabindex="-1"></a>        <span class="cf">except</span> <span class="pp">Exception</span> <span class="im">as</span> e:</span>
-<span id="cb5-266"><a href="#cb5-266" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f"  Error fetching from UniProt: </span><span class="sc">{</span>e<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb5-267"><a href="#cb5-267" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f"  To generate cached file manually, run: python qmd/fetch_human_genes_uniprot.py"</span>)</span>
-<span id="cb5-268"><a href="#cb5-268" aria-hidden="true" tabindex="-1"></a>            all_human_genes <span class="op">=</span> <span class="bu">set</span>()</span>
-<span id="cb5-269"><a href="#cb5-269" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-270"><a href="#cb5-270" aria-hidden="true" tabindex="-1"></a>    <span class="co"># If we still don't have genes, use the corrected gene names as fallback</span></span>
-<span id="cb5-271"><a href="#cb5-271" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> all_human_genes:</span>
-<span id="cb5-272"><a href="#cb5-272" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="st">"  Proceeding without expansion (using only SL network genes)"</span>)</span>
-<span id="cb5-273"><a href="#cb5-273" aria-hidden="true" tabindex="-1"></a>        all_human_genes <span class="op">=</span> <span class="bu">set</span>([g.upper() <span class="cf">for</span> g <span class="kw">in</span> corrected_gene_names])</span>
-<span id="cb5-274"><a href="#cb5-274" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb5-275"><a href="#cb5-275" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Find new genes not in the corrected list (compare uppercase versions)</span></span>
-<span id="cb5-276"><a href="#cb5-276" aria-hidden="true" tabindex="-1"></a>    corrected_gene_names_upper <span class="op">=</span> <span class="bu">set</span>([g.upper() <span class="cf">for</span> g <span class="kw">in</span> corrected_gene_names])</span>
-<span id="cb5-277"><a href="#cb5-277" aria-hidden="true" tabindex="-1"></a>    new_genes <span class="op">=</span> <span class="bu">sorted</span>(<span class="bu">list</span>(all_human_genes <span class="op">-</span> corrected_gene_names_upper))</span>
-<span id="cb5-278"><a href="#cb5-278" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  New genes to add: </span><span class="sc">{</span><span class="bu">len</span>(new_genes)<span class="sc">:,}</span><span class="ss">"</span>)</span>
-<span id="cb5-279"><a href="#cb5-279" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb5-280"><a href="#cb5-280" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(new_genes) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
-<span id="cb5-281"><a href="#cb5-281" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Create expanded gene list (preserve original order, append new genes)</span></span>
-<span id="cb5-282"><a href="#cb5-282" aria-hidden="true" tabindex="-1"></a>        expanded_gene_names <span class="op">=</span> corrected_gene_names <span class="op">+</span> new_genes</span>
-<span id="cb5-283"><a href="#cb5-283" aria-hidden="true" tabindex="-1"></a>        n_original <span class="op">=</span> <span class="bu">len</span>(corrected_gene_names)</span>
-<span id="cb5-284"><a href="#cb5-284" aria-hidden="true" tabindex="-1"></a>        n_expanded <span class="op">=</span> <span class="bu">len</span>(expanded_gene_names)</span>
-<span id="cb5-285"><a href="#cb5-285" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-286"><a href="#cb5-286" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Create expanded matrices with NaN for new entries (predictions, SL data, and support views)</span></span>
-<span id="cb5-287"><a href="#cb5-287" aria-hidden="true" tabindex="-1"></a>        main_with_ESM_CV1_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
-<span id="cb5-288"><a href="#cb5-288" aria-hidden="true" tabindex="-1"></a>        main_without_ESM_CV1_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
-<span id="cb5-289"><a href="#cb5-289" aria-hidden="true" tabindex="-1"></a>        main_CV2_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
-<span id="cb5-290"><a href="#cb5-290" aria-hidden="true" tabindex="-1"></a>        main_CV3_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
-<span id="cb5-291"><a href="#cb5-291" aria-hidden="true" tabindex="-1"></a>        SL_score_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
-<span id="cb5-292"><a href="#cb5-292" aria-hidden="true" tabindex="-1"></a>        SL_status_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
-<span id="cb5-293"><a href="#cb5-293" aria-hidden="true" tabindex="-1"></a>        naive_edge_est_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
-<span id="cb5-294"><a href="#cb5-294" aria-hidden="true" tabindex="-1"></a>        naive_edge_est_logit_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
-<span id="cb5-295"><a href="#cb5-295" aria-hidden="true" tabindex="-1"></a>        GO_BP_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
-<span id="cb5-296"><a href="#cb5-296" aria-hidden="true" tabindex="-1"></a>        GO_CC_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
-<span id="cb5-297"><a href="#cb5-297" aria-hidden="true" tabindex="-1"></a>        PPI_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
-<span id="cb5-298"><a href="#cb5-298" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-299"><a href="#cb5-299" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Copy original prediction data</span></span>
-<span id="cb5-300"><a href="#cb5-300" aria-hidden="true" tabindex="-1"></a>        main_with_ESM_CV1_expanded[:n_original, :n_original] <span class="op">=</span> main_with_ESM_CV1_sym</span>
-<span id="cb5-301"><a href="#cb5-301" aria-hidden="true" tabindex="-1"></a>        main_without_ESM_CV1_expanded[:n_original, :n_original] <span class="op">=</span> main_without_ESM_CV1_sym</span>
-<span id="cb5-302"><a href="#cb5-302" aria-hidden="true" tabindex="-1"></a>        main_CV2_expanded[:n_original, :n_original] <span class="op">=</span> main_CV2_sym</span>
-<span id="cb5-303"><a href="#cb5-303" aria-hidden="true" tabindex="-1"></a>        main_CV3_expanded[:n_original, :n_original] <span class="op">=</span> main_CV3_sym</span>
-<span id="cb5-304"><a href="#cb5-304" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-305"><a href="#cb5-305" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Copy original SL data</span></span>
-<span id="cb5-306"><a href="#cb5-306" aria-hidden="true" tabindex="-1"></a>        SL_score_expanded[:n_original, :n_original] <span class="op">=</span> SL_score_matrix</span>
-<span id="cb5-307"><a href="#cb5-307" aria-hidden="true" tabindex="-1"></a>        SL_status_expanded[:n_original, :n_original] <span class="op">=</span> SL_status_matrix</span>
-<span id="cb5-308"><a href="#cb5-308" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-309"><a href="#cb5-309" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Copy naive edge estimates and support views</span></span>
-<span id="cb5-310"><a href="#cb5-310" aria-hidden="true" tabindex="-1"></a>        naive_edge_est_expanded[:n_original, :n_original] <span class="op">=</span> naive_edge_est_matrix</span>
-<span id="cb5-311"><a href="#cb5-311" aria-hidden="true" tabindex="-1"></a>        naive_edge_est_logit_expanded[:n_original, :n_original] <span class="op">=</span> naive_edge_est_logit_matrix</span>
-<span id="cb5-312"><a href="#cb5-312" aria-hidden="true" tabindex="-1"></a>        GO_BP_expanded[:n_original, :n_original] <span class="op">=</span> GO_BP_matrix</span>
-<span id="cb5-313"><a href="#cb5-313" aria-hidden="true" tabindex="-1"></a>        GO_CC_expanded[:n_original, :n_original] <span class="op">=</span> GO_CC_matrix</span>
-<span id="cb5-314"><a href="#cb5-314" aria-hidden="true" tabindex="-1"></a>        PPI_expanded[:n_original, :n_original] <span class="op">=</span> PPI_matrix</span>
-<span id="cb5-315"><a href="#cb5-315" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-316"><a href="#cb5-316" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Update variables for Step 4</span></span>
-<span id="cb5-317"><a href="#cb5-317" aria-hidden="true" tabindex="-1"></a>        gene_names <span class="op">=</span> expanded_gene_names</span>
-<span id="cb5-318"><a href="#cb5-318" aria-hidden="true" tabindex="-1"></a>        main_with_ESM_CV1_sym <span class="op">=</span> main_with_ESM_CV1_expanded</span>
-<span id="cb5-319"><a href="#cb5-319" aria-hidden="true" tabindex="-1"></a>        main_without_ESM_CV1_sym <span class="op">=</span> main_without_ESM_CV1_expanded</span>
-<span id="cb5-320"><a href="#cb5-320" aria-hidden="true" tabindex="-1"></a>        main_CV2_sym <span class="op">=</span> main_CV2_expanded</span>
-<span id="cb5-321"><a href="#cb5-321" aria-hidden="true" tabindex="-1"></a>        main_CV3_sym <span class="op">=</span> main_CV3_expanded</span>
-<span id="cb5-322"><a href="#cb5-322" aria-hidden="true" tabindex="-1"></a>        SL_score_matrix <span class="op">=</span> SL_score_expanded</span>
-<span id="cb5-323"><a href="#cb5-323" aria-hidden="true" tabindex="-1"></a>        SL_status_matrix <span class="op">=</span> SL_status_expanded</span>
-<span id="cb5-324"><a href="#cb5-324" aria-hidden="true" tabindex="-1"></a>        naive_edge_est_matrix <span class="op">=</span> naive_edge_est_expanded</span>
-<span id="cb5-325"><a href="#cb5-325" aria-hidden="true" tabindex="-1"></a>        naive_edge_est_logit_matrix <span class="op">=</span> naive_edge_est_logit_expanded</span>
-<span id="cb5-326"><a href="#cb5-326" aria-hidden="true" tabindex="-1"></a>        GO_BP_matrix <span class="op">=</span> GO_BP_expanded</span>
-<span id="cb5-327"><a href="#cb5-327" aria-hidden="true" tabindex="-1"></a>        GO_CC_matrix <span class="op">=</span> GO_CC_expanded</span>
-<span id="cb5-328"><a href="#cb5-328" aria-hidden="true" tabindex="-1"></a>        PPI_matrix <span class="op">=</span> PPI_expanded</span>
-<span id="cb5-329"><a href="#cb5-329" aria-hidden="true" tabindex="-1"></a>        </span>
-<span id="cb5-330"><a href="#cb5-330" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"  Matrix expanded from </span><span class="sc">{</span>n_original<span class="sc">}</span><span class="ss">x</span><span class="sc">{</span>n_original<span class="sc">}</span><span class="ss"> to </span><span class="sc">{</span>n_expanded<span class="sc">}</span><span class="ss">x</span><span class="sc">{</span>n_expanded<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb5-331"><a href="#cb5-331" aria-hidden="true" tabindex="-1"></a>        </span>
-<span id="cb5-332"><a href="#cb5-332" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Save expanded gene list temporarily</span></span>
-<span id="cb5-333"><a href="#cb5-333" aria-hidden="true" tabindex="-1"></a>        temp_gene_list <span class="op">=</span> <span class="st">'temp_expanded_gene_list.txt'</span></span>
-<span id="cb5-334"><a href="#cb5-334" aria-hidden="true" tabindex="-1"></a>        <span class="cf">with</span> <span class="bu">open</span>(temp_gene_list, <span class="st">'w'</span>) <span class="im">as</span> f:</span>
-<span id="cb5-335"><a href="#cb5-335" aria-hidden="true" tabindex="-1"></a>            f.write(<span class="st">"# Original SL genes (corrected names)</span><span class="ch">\n</span><span class="st">"</span>)</span>
-<span id="cb5-336"><a href="#cb5-336" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> i, gene <span class="kw">in</span> <span class="bu">enumerate</span>(corrected_gene_names):</span>
-<span id="cb5-337"><a href="#cb5-337" aria-hidden="true" tabindex="-1"></a>                f.write(<span class="ss">f"</span><span class="sc">{</span>gene<span class="sc">}</span><span class="ch">\n</span><span class="ss">"</span>)</span>
-<span id="cb5-338"><a href="#cb5-338" aria-hidden="true" tabindex="-1"></a>            f.write(<span class="st">"</span><span class="ch">\n</span><span class="st"># Additional human genes from UniProt</span><span class="ch">\n</span><span class="st">"</span>)</span>
-<span id="cb5-339"><a href="#cb5-339" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> gene <span class="kw">in</span> new_genes:</span>
-<span id="cb5-340"><a href="#cb5-340" aria-hidden="true" tabindex="-1"></a>                f.write(<span class="ss">f"</span><span class="sc">{</span>gene<span class="sc">}</span><span class="ch">\n</span><span class="ss">"</span>)</span>
-<span id="cb5-341"><a href="#cb5-341" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"  Saved expanded gene list to '</span><span class="sc">{</span>temp_gene_list<span class="sc">}</span><span class="ss">'"</span>)</span>
-<span id="cb5-342"><a href="#cb5-342" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
-<span id="cb5-343"><a href="#cb5-343" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Just update gene names with corrections</span></span>
-<span id="cb5-344"><a href="#cb5-344" aria-hidden="true" tabindex="-1"></a>        gene_names <span class="op">=</span> corrected_gene_names</span>
-<span id="cb5-345"><a href="#cb5-345" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="st">"  No new genes to add - using corrected gene names only"</span>)</span>
-<span id="cb5-346"><a href="#cb5-346" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb5-347"><a href="#cb5-347" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 4: Convert to Long Format</span></span>
-<span id="cb5-348"><a href="#cb5-348" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"Step 4: Converting to long format (upper triangle only)..."</span>)</span>
-<span id="cb5-349"><a href="#cb5-349" aria-hidden="true" tabindex="-1"></a>    upper_tri_indices <span class="op">=</span> np.triu_indices(<span class="bu">len</span>(gene_names), k<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb5-350"><a href="#cb5-350" aria-hidden="true" tabindex="-1"></a>    gene_pairs_df <span class="op">=</span> pd.DataFrame({</span>
-<span id="cb5-351"><a href="#cb5-351" aria-hidden="true" tabindex="-1"></a>        <span class="st">'gene1'</span>: [gene_names[i] <span class="cf">for</span> i <span class="kw">in</span> upper_tri_indices[<span class="dv">0</span>]],</span>
-<span id="cb5-352"><a href="#cb5-352" aria-hidden="true" tabindex="-1"></a>        <span class="st">'gene2'</span>: [gene_names[j] <span class="cf">for</span> j <span class="kw">in</span> upper_tri_indices[<span class="dv">1</span>]],</span>
-<span id="cb5-353"><a href="#cb5-353" aria-hidden="true" tabindex="-1"></a>        <span class="st">'SL_score'</span>: SL_score_matrix[upper_tri_indices],</span>
-<span id="cb5-354"><a href="#cb5-354" aria-hidden="true" tabindex="-1"></a>        <span class="st">'SL_status'</span>: SL_status_matrix[upper_tri_indices],</span>
-<span id="cb5-355"><a href="#cb5-355" aria-hidden="true" tabindex="-1"></a>        <span class="st">'naive_edge_est'</span>: naive_edge_est_matrix[upper_tri_indices],</span>
-<span id="cb5-356"><a href="#cb5-356" aria-hidden="true" tabindex="-1"></a>        <span class="st">'naive_edge_est_logit'</span>: naive_edge_est_logit_matrix[upper_tri_indices],</span>
-<span id="cb5-357"><a href="#cb5-357" aria-hidden="true" tabindex="-1"></a>        <span class="st">'GO_BP'</span>: GO_BP_matrix[upper_tri_indices],</span>
-<span id="cb5-358"><a href="#cb5-358" aria-hidden="true" tabindex="-1"></a>        <span class="st">'GO_CC'</span>: GO_CC_matrix[upper_tri_indices],</span>
-<span id="cb5-359"><a href="#cb5-359" aria-hidden="true" tabindex="-1"></a>        <span class="st">'PPI'</span>: PPI_matrix[upper_tri_indices],</span>
-<span id="cb5-360"><a href="#cb5-360" aria-hidden="true" tabindex="-1"></a>        <span class="st">'main_without_ESM_CV1'</span>: main_without_ESM_CV1_sym[upper_tri_indices],</span>
-<span id="cb5-361"><a href="#cb5-361" aria-hidden="true" tabindex="-1"></a>        <span class="st">'main_with_ESM_CV1'</span>: main_with_ESM_CV1_sym[upper_tri_indices],</span>
-<span id="cb5-362"><a href="#cb5-362" aria-hidden="true" tabindex="-1"></a>        <span class="st">'main_CV2'</span>: main_CV2_sym[upper_tri_indices],</span>
-<span id="cb5-363"><a href="#cb5-363" aria-hidden="true" tabindex="-1"></a>        <span class="st">'main_CV3'</span>: main_CV3_sym[upper_tri_indices]</span>
-<span id="cb5-364"><a href="#cb5-364" aria-hidden="true" tabindex="-1"></a>    })</span>
-<span id="cb5-365"><a href="#cb5-365" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-366"><a href="#cb5-366" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Add backward-compatible aliases for CV1 data (for existing analysis code)</span></span>
-<span id="cb5-367"><a href="#cb5-367" aria-hidden="true" tabindex="-1"></a>    gene_pairs_df[<span class="st">'main_with_ESM'</span>] <span class="op">=</span> gene_pairs_df[<span class="st">'main_with_ESM_CV1'</span>]</span>
-<span id="cb5-368"><a href="#cb5-368" aria-hidden="true" tabindex="-1"></a>    gene_pairs_df[<span class="st">'main_without_ESM'</span>] <span class="op">=</span> gene_pairs_df[<span class="st">'main_without_ESM_CV1'</span>]</span>
-<span id="cb5-369"><a href="#cb5-369" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-370"><a href="#cb5-370" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Created dataframe with </span><span class="sc">{</span><span class="bu">len</span>(gene_pairs_df)<span class="sc">:,}</span><span class="ss"> gene pairs (upper triangle only, no self-pairs)"</span>)</span>
-<span id="cb5-371"><a href="#cb5-371" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  SL positive pairs (labeled): </span><span class="sc">{</span>(gene_pairs_df[<span class="st">'SL_status'</span>] <span class="op">==</span> <span class="dv">1</span>)<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss">"</span>)</span>
-<span id="cb5-372"><a href="#cb5-372" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  SL negative pairs (labeled): </span><span class="sc">{</span>(gene_pairs_df[<span class="st">'SL_status'</span>] <span class="op">==</span> <span class="dv">0</span>)<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss">"</span>)</span>
-<span id="cb5-373"><a href="#cb5-373" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Unlabeled pairs (NaN): </span><span class="sc">{</span>gene_pairs_df[<span class="st">'SL_status'</span>]<span class="sc">.</span>isna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss">"</span>)</span>
-<span id="cb5-374"><a href="#cb5-374" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Naive edge estimates with data: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'naive_edge_est'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss">"</span>)</span>
-<span id="cb5-375"><a href="#cb5-375" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Naive edge logit estimates with data: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'naive_edge_est_logit'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss">"</span>)</span>
-<span id="cb5-376"><a href="#cb5-376" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  GO_BP entries with data: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'GO_BP'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss">"</span>)</span>
-<span id="cb5-377"><a href="#cb5-377" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  GO_CC entries with data: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'GO_CC'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss">"</span>)</span>
-<span id="cb5-378"><a href="#cb5-378" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  PPI entries with data: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'PPI'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss">"</span>)</span>
-<span id="cb5-379"><a href="#cb5-379" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Columns: </span><span class="sc">{</span><span class="st">', '</span><span class="sc">.</span>join(gene_pairs_df.columns)<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb5-380"><a href="#cb5-380" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-381"><a href="#cb5-381" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Create pair_key column once for efficient merging with external datasets</span></span>
-<span id="cb5-382"><a href="#cb5-382" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Creating pair_key column for external dataset matching..."</span>)</span>
-<span id="cb5-383"><a href="#cb5-383" aria-hidden="true" tabindex="-1"></a>    gene1_upper <span class="op">=</span> gene_pairs_df[<span class="st">'gene1'</span>].<span class="bu">str</span>.upper()</span>
-<span id="cb5-384"><a href="#cb5-384" aria-hidden="true" tabindex="-1"></a>    gene2_upper <span class="op">=</span> gene_pairs_df[<span class="st">'gene2'</span>].<span class="bu">str</span>.upper()</span>
-<span id="cb5-385"><a href="#cb5-385" aria-hidden="true" tabindex="-1"></a>    first_gene <span class="op">=</span> np.where(gene1_upper <span class="op">&lt;</span> gene2_upper, gene1_upper, gene2_upper)</span>
-<span id="cb5-386"><a href="#cb5-386" aria-hidden="true" tabindex="-1"></a>    second_gene <span class="op">=</span> np.where(gene1_upper <span class="op">&lt;</span> gene2_upper, gene2_upper, gene1_upper)</span>
-<span id="cb5-387"><a href="#cb5-387" aria-hidden="true" tabindex="-1"></a>    gene_pairs_df[<span class="st">'pair_key'</span>] <span class="op">=</span> <span class="bu">list</span>(<span class="bu">zip</span>(first_gene, second_gene))</span>
-<span id="cb5-388"><a href="#cb5-388" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Created pair_key for </span><span class="sc">{</span><span class="bu">len</span>(gene_pairs_df)<span class="sc">:,}</span><span class="ss"> gene pairs"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb5-184"><a href="#cb5-184" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Create naive edge probability matrix via outer product</span></span>
+<span id="cb5-185"><a href="#cb5-185" aria-hidden="true" tabindex="-1"></a>    naive_edge_est_matrix <span class="op">=</span> np.outer(prob_vector, prob_vector)</span>
+<span id="cb5-186"><a href="#cb5-186" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-187"><a href="#cb5-187" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify symmetry (outer product of vector with itself is always symmetric)</span></span>
+<span id="cb5-188"><a href="#cb5-188" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(naive_edge_est_matrix, naive_edge_est_matrix.T), <span class="st">"Naive edge estimate matrix not symmetric!"</span></span>
+<span id="cb5-189"><a href="#cb5-189" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Created naive edge probability matrix: </span><span class="sc">{</span>naive_edge_est_matrix<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-190"><a href="#cb5-190" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Use nan-safe functions in case there are any NaN values</span></span>
+<span id="cb5-191"><a href="#cb5-191" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Probability range: [</span><span class="sc">{</span>np<span class="sc">.</span>nanmin(naive_edge_est_matrix)<span class="sc">:.6f}</span><span class="ss">, </span><span class="sc">{</span>np<span class="sc">.</span>nanmax(naive_edge_est_matrix)<span class="sc">:.6f}</span><span class="ss">]"</span>)</span>
+<span id="cb5-192"><a href="#cb5-192" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Mean probability: </span><span class="sc">{</span>np<span class="sc">.</span>nanmean(naive_edge_est_matrix)<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb5-193"><a href="#cb5-193" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-194"><a href="#cb5-194" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Transform to logit scale for logistic regression</span></span>
+<span id="cb5-195"><a href="#cb5-195" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Add small epsilon to avoid log(0) or log(1)</span></span>
+<span id="cb5-196"><a href="#cb5-196" aria-hidden="true" tabindex="-1"></a>    epsilon <span class="op">=</span> <span class="fl">1e-10</span></span>
+<span id="cb5-197"><a href="#cb5-197" aria-hidden="true" tabindex="-1"></a>    naive_edge_est_matrix_clipped <span class="op">=</span> np.clip(naive_edge_est_matrix, epsilon, <span class="dv">1</span> <span class="op">-</span> epsilon)</span>
+<span id="cb5-198"><a href="#cb5-198" aria-hidden="true" tabindex="-1"></a>    naive_edge_est_logit_matrix <span class="op">=</span> np.log(naive_edge_est_matrix_clipped <span class="op">/</span> (<span class="dv">1</span> <span class="op">-</span> naive_edge_est_matrix_clipped))</span>
+<span id="cb5-199"><a href="#cb5-199" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-200"><a href="#cb5-200" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify symmetry of logit-transformed matrix</span></span>
+<span id="cb5-201"><a href="#cb5-201" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> np.allclose(naive_edge_est_logit_matrix, naive_edge_est_logit_matrix.T), <span class="st">"Naive edge logit matrix not symmetric!"</span></span>
+<span id="cb5-202"><a href="#cb5-202" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Created naive edge logit matrix: </span><span class="sc">{</span>naive_edge_est_logit_matrix<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-203"><a href="#cb5-203" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Logit range: [</span><span class="sc">{</span>np<span class="sc">.</span>nanmin(naive_edge_est_logit_matrix)<span class="sc">:.6f}</span><span class="ss">, </span><span class="sc">{</span>np<span class="sc">.</span>nanmax(naive_edge_est_logit_matrix)<span class="sc">:.6f}</span><span class="ss">]"</span>)</span>
+<span id="cb5-204"><a href="#cb5-204" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Mean logit: </span><span class="sc">{</span>np<span class="sc">.</span>nanmean(naive_edge_est_logit_matrix)<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb5-205"><a href="#cb5-205" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-206"><a href="#cb5-206" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Load support view matrices</span></span>
+<span id="cb5-207"><a href="#cb5-207" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">  Loading support view matrices..."</span>)</span>
+<span id="cb5-208"><a href="#cb5-208" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-209"><a href="#cb5-209" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Import data loader utilities</span></span>
+<span id="cb5-210"><a href="#cb5-210" aria-hidden="true" tabindex="-1"></a>    <span class="im">from</span> slmgae_pytorch <span class="im">import</span> DataLoader</span>
+<span id="cb5-211"><a href="#cb5-211" aria-hidden="true" tabindex="-1"></a>    loader <span class="op">=</span> DataLoader(DATA_DIR, gene_names)</span>
+<span id="cb5-212"><a href="#cb5-212" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-213"><a href="#cb5-213" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Load GO BP similarity (with KNN preprocessing)</span></span>
+<span id="cb5-214"><a href="#cb5-214" aria-hidden="true" tabindex="-1"></a>    GO_BP_matrix <span class="op">=</span> loader.load_dense_feature(<span class="ss">f"</span><span class="sc">{</span>DATA_DIR<span class="sc">}</span><span class="ss">/Human_GOsim.txt"</span>, knn<span class="op">=</span><span class="va">True</span>).toarray()</span>
+<span id="cb5-215"><a href="#cb5-215" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Loaded GO_BP: </span><span class="sc">{</span>GO_BP_matrix<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-216"><a href="#cb5-216" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify matrix dimensions match gene count</span></span>
+<span id="cb5-217"><a href="#cb5-217" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> GO_BP_matrix.shape <span class="op">==</span> (n_genes, n_genes), <span class="ss">f"GO_BP shape mismatch: </span><span class="sc">{</span>GO_BP_matrix<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb5-218"><a href="#cb5-218" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Symmetrize by averaging with transpose (handles any asymmetry in preprocessing)</span></span>
+<span id="cb5-219"><a href="#cb5-219" aria-hidden="true" tabindex="-1"></a>    GO_BP_matrix <span class="op">=</span> (GO_BP_matrix <span class="op">+</span> GO_BP_matrix.T) <span class="op">/</span> <span class="dv">2</span></span>
+<span id="cb5-220"><a href="#cb5-220" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-221"><a href="#cb5-221" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Load GO CC similarity (with KNN preprocessing)</span></span>
+<span id="cb5-222"><a href="#cb5-222" aria-hidden="true" tabindex="-1"></a>    GO_CC_matrix <span class="op">=</span> loader.load_dense_feature(<span class="ss">f"</span><span class="sc">{</span>DATA_DIR<span class="sc">}</span><span class="ss">/Human_GOsim_CC.txt"</span>, knn<span class="op">=</span><span class="va">True</span>).toarray()</span>
+<span id="cb5-223"><a href="#cb5-223" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Loaded GO_CC: </span><span class="sc">{</span>GO_CC_matrix<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-224"><a href="#cb5-224" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify matrix dimensions match gene count</span></span>
+<span id="cb5-225"><a href="#cb5-225" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> GO_CC_matrix.shape <span class="op">==</span> (n_genes, n_genes), <span class="ss">f"GO_CC shape mismatch: </span><span class="sc">{</span>GO_CC_matrix<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb5-226"><a href="#cb5-226" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Symmetrize by averaging with transpose (handles any asymmetry in preprocessing)</span></span>
+<span id="cb5-227"><a href="#cb5-227" aria-hidden="true" tabindex="-1"></a>    GO_CC_matrix <span class="op">=</span> (GO_CC_matrix <span class="op">+</span> GO_CC_matrix.T) <span class="op">/</span> <span class="dv">2</span></span>
+<span id="cb5-228"><a href="#cb5-228" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-229"><a href="#cb5-229" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Load PPI network (sparse edge list)</span></span>
+<span id="cb5-230"><a href="#cb5-230" aria-hidden="true" tabindex="-1"></a>    PPI_matrix <span class="op">=</span> loader.load_sparse_feature(<span class="ss">f"</span><span class="sc">{</span>DATA_DIR<span class="sc">}</span><span class="ss">/biogrid_ppi_sparse.txt"</span>).toarray()</span>
+<span id="cb5-231"><a href="#cb5-231" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Loaded PPI: </span><span class="sc">{</span>PPI_matrix<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-232"><a href="#cb5-232" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify matrix dimensions match gene count</span></span>
+<span id="cb5-233"><a href="#cb5-233" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> PPI_matrix.shape <span class="op">==</span> (n_genes, n_genes), <span class="ss">f"PPI shape mismatch: </span><span class="sc">{</span>PPI_matrix<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb5-234"><a href="#cb5-234" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Symmetrize by averaging with transpose (PPI networks should be undirected)</span></span>
+<span id="cb5-235"><a href="#cb5-235" aria-hidden="true" tabindex="-1"></a>    PPI_matrix <span class="op">=</span> (PPI_matrix <span class="op">+</span> PPI_matrix.T) <span class="op">/</span> <span class="dv">2</span></span>
+<span id="cb5-236"><a href="#cb5-236" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-237"><a href="#cb5-237" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 3c: Correct Gene Names and Expand Matrix</span></span>
+<span id="cb5-238"><a href="#cb5-238" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Step 3c: Correcting gene names and expanding matrix..."</span>)</span>
+<span id="cb5-239"><a href="#cb5-239" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-240"><a href="#cb5-240" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Apply gene corrections to the gene names</span></span>
+<span id="cb5-241"><a href="#cb5-241" aria-hidden="true" tabindex="-1"></a>    corrected_gene_names <span class="op">=</span> [apply_gene_correction(gene) <span class="cf">for</span> gene <span class="kw">in</span> gene_names]</span>
+<span id="cb5-242"><a href="#cb5-242" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Applied gene corrections to </span><span class="sc">{</span><span class="bu">len</span>(gene_names)<span class="sc">}</span><span class="ss"> genes"</span>)</span>
+<span id="cb5-243"><a href="#cb5-243" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb5-244"><a href="#cb5-244" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Load human gene names using helper function</span></span>
+<span id="cb5-245"><a href="#cb5-245" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"  Loading all human gene names..."</span>)</span>
+<span id="cb5-246"><a href="#cb5-246" aria-hidden="true" tabindex="-1"></a>    cached_file <span class="op">=</span> <span class="ss">f'</span><span class="sc">{</span>DATA_DIR<span class="sc">}</span><span class="ss">/all_human_genes_uniprot.txt'</span></span>
+<span id="cb5-247"><a href="#cb5-247" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-248"><a href="#cb5-248" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Use helper function to load cached genes</span></span>
+<span id="cb5-249"><a href="#cb5-249" aria-hidden="true" tabindex="-1"></a>    all_human_genes_raw <span class="op">=</span> load_human_genes_cached(cached_file)</span>
+<span id="cb5-250"><a href="#cb5-250" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-251"><a href="#cb5-251" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> all_human_genes_raw:</span>
+<span id="cb5-252"><a href="#cb5-252" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Normalize to uppercase for consistent matching</span></span>
+<span id="cb5-253"><a href="#cb5-253" aria-hidden="true" tabindex="-1"></a>        all_human_genes <span class="op">=</span> {gene.upper() <span class="cf">for</span> gene <span class="kw">in</span> all_human_genes_raw}</span>
+<span id="cb5-254"><a href="#cb5-254" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"  Loaded </span><span class="sc">{</span><span class="bu">len</span>(all_human_genes)<span class="sc">:,}</span><span class="ss"> human genes from cache"</span>)</span>
+<span id="cb5-255"><a href="#cb5-255" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb5-256"><a href="#cb5-256" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Cache doesn't exist - try to fetch from UniProt</span></span>
+<span id="cb5-257"><a href="#cb5-257" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="st">"  Cache not found. Fetching human genes from UniProt (this may take a moment)..."</span>)</span>
+<span id="cb5-258"><a href="#cb5-258" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span>:</span>
+<span id="cb5-259"><a href="#cb5-259" aria-hidden="true" tabindex="-1"></a>            fetched_genes <span class="op">=</span> fetch_uniprot_human_genes()</span>
+<span id="cb5-260"><a href="#cb5-260" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> fetched_genes:</span>
+<span id="cb5-261"><a href="#cb5-261" aria-hidden="true" tabindex="-1"></a>                <span class="co"># Normalize to uppercase and save</span></span>
+<span id="cb5-262"><a href="#cb5-262" aria-hidden="true" tabindex="-1"></a>                all_human_genes <span class="op">=</span> {gene.upper() <span class="cf">for</span> gene <span class="kw">in</span> fetched_genes}</span>
+<span id="cb5-263"><a href="#cb5-263" aria-hidden="true" tabindex="-1"></a>                <span class="bu">print</span>(<span class="ss">f"  Retrieved </span><span class="sc">{</span><span class="bu">len</span>(all_human_genes)<span class="sc">:,}</span><span class="ss"> human genes from UniProt"</span>)</span>
+<span id="cb5-264"><a href="#cb5-264" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-265"><a href="#cb5-265" aria-hidden="true" tabindex="-1"></a>                <span class="co"># Save for future use</span></span>
+<span id="cb5-266"><a href="#cb5-266" aria-hidden="true" tabindex="-1"></a>                <span class="cf">with</span> <span class="bu">open</span>(cached_file, <span class="st">'w'</span>) <span class="im">as</span> f:</span>
+<span id="cb5-267"><a href="#cb5-267" aria-hidden="true" tabindex="-1"></a>                    f.write(<span class="ss">f"# Human genes from UniProt (cached)</span><span class="ch">\n</span><span class="ss">"</span>)</span>
+<span id="cb5-268"><a href="#cb5-268" aria-hidden="true" tabindex="-1"></a>                    f.write(<span class="ss">f"# Total: </span><span class="sc">{</span><span class="bu">len</span>(all_human_genes)<span class="sc">}</span><span class="ss"> genes</span><span class="ch">\n\n</span><span class="ss">"</span>)</span>
+<span id="cb5-269"><a href="#cb5-269" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">for</span> gene <span class="kw">in</span> <span class="bu">sorted</span>(all_human_genes):</span>
+<span id="cb5-270"><a href="#cb5-270" aria-hidden="true" tabindex="-1"></a>                        f.write(<span class="ss">f"</span><span class="sc">{</span>gene<span class="sc">}</span><span class="ch">\n</span><span class="ss">"</span>)</span>
+<span id="cb5-271"><a href="#cb5-271" aria-hidden="true" tabindex="-1"></a>                <span class="bu">print</span>(<span class="ss">f"  Cached genes to: </span><span class="sc">{</span>cached_file<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-272"><a href="#cb5-272" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:</span>
+<span id="cb5-273"><a href="#cb5-273" aria-hidden="true" tabindex="-1"></a>                <span class="bu">print</span>(<span class="st">"  Failed to fetch genes from UniProt"</span>)</span>
+<span id="cb5-274"><a href="#cb5-274" aria-hidden="true" tabindex="-1"></a>                all_human_genes <span class="op">=</span> <span class="bu">set</span>()</span>
+<span id="cb5-275"><a href="#cb5-275" aria-hidden="true" tabindex="-1"></a>        <span class="cf">except</span> <span class="pp">Exception</span> <span class="im">as</span> e:</span>
+<span id="cb5-276"><a href="#cb5-276" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f"  Error fetching from UniProt: </span><span class="sc">{</span>e<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-277"><a href="#cb5-277" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f"  To generate cached file manually, run: python qmd/fetch_human_genes_uniprot.py"</span>)</span>
+<span id="cb5-278"><a href="#cb5-278" aria-hidden="true" tabindex="-1"></a>            all_human_genes <span class="op">=</span> <span class="bu">set</span>()</span>
+<span id="cb5-279"><a href="#cb5-279" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-280"><a href="#cb5-280" aria-hidden="true" tabindex="-1"></a>    <span class="co"># If we still don't have genes, use the corrected gene names as fallback</span></span>
+<span id="cb5-281"><a href="#cb5-281" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> all_human_genes:</span>
+<span id="cb5-282"><a href="#cb5-282" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="st">"  Proceeding without expansion (using only SL network genes)"</span>)</span>
+<span id="cb5-283"><a href="#cb5-283" aria-hidden="true" tabindex="-1"></a>        all_human_genes <span class="op">=</span> <span class="bu">set</span>([g.upper() <span class="cf">for</span> g <span class="kw">in</span> corrected_gene_names])</span>
+<span id="cb5-284"><a href="#cb5-284" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb5-285"><a href="#cb5-285" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Find new genes not in the corrected list (compare uppercase versions)</span></span>
+<span id="cb5-286"><a href="#cb5-286" aria-hidden="true" tabindex="-1"></a>    corrected_gene_names_upper <span class="op">=</span> <span class="bu">set</span>([g.upper() <span class="cf">for</span> g <span class="kw">in</span> corrected_gene_names])</span>
+<span id="cb5-287"><a href="#cb5-287" aria-hidden="true" tabindex="-1"></a>    new_genes <span class="op">=</span> <span class="bu">sorted</span>(<span class="bu">list</span>(all_human_genes <span class="op">-</span> corrected_gene_names_upper))</span>
+<span id="cb5-288"><a href="#cb5-288" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  New genes to add: </span><span class="sc">{</span><span class="bu">len</span>(new_genes)<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb5-289"><a href="#cb5-289" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb5-290"><a href="#cb5-290" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(new_genes) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb5-291"><a href="#cb5-291" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Create expanded gene list (preserve original order, append new genes)</span></span>
+<span id="cb5-292"><a href="#cb5-292" aria-hidden="true" tabindex="-1"></a>        expanded_gene_names <span class="op">=</span> corrected_gene_names <span class="op">+</span> new_genes</span>
+<span id="cb5-293"><a href="#cb5-293" aria-hidden="true" tabindex="-1"></a>        n_original <span class="op">=</span> <span class="bu">len</span>(corrected_gene_names)</span>
+<span id="cb5-294"><a href="#cb5-294" aria-hidden="true" tabindex="-1"></a>        n_expanded <span class="op">=</span> <span class="bu">len</span>(expanded_gene_names)</span>
+<span id="cb5-295"><a href="#cb5-295" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-296"><a href="#cb5-296" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Create expanded matrices with NaN for new entries (predictions, SL data, and support views)</span></span>
+<span id="cb5-297"><a href="#cb5-297" aria-hidden="true" tabindex="-1"></a>        main_with_ESM_CV1_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
+<span id="cb5-298"><a href="#cb5-298" aria-hidden="true" tabindex="-1"></a>        main_without_ESM_CV1_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
+<span id="cb5-299"><a href="#cb5-299" aria-hidden="true" tabindex="-1"></a>        main_CV2_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
+<span id="cb5-300"><a href="#cb5-300" aria-hidden="true" tabindex="-1"></a>        main_CV3_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
+<span id="cb5-301"><a href="#cb5-301" aria-hidden="true" tabindex="-1"></a>        main_CV2_with_ESM_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
+<span id="cb5-302"><a href="#cb5-302" aria-hidden="true" tabindex="-1"></a>        main_CV3_with_ESM_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
+<span id="cb5-303"><a href="#cb5-303" aria-hidden="true" tabindex="-1"></a>        SL_score_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
+<span id="cb5-304"><a href="#cb5-304" aria-hidden="true" tabindex="-1"></a>        SL_status_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
+<span id="cb5-305"><a href="#cb5-305" aria-hidden="true" tabindex="-1"></a>        naive_edge_est_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
+<span id="cb5-306"><a href="#cb5-306" aria-hidden="true" tabindex="-1"></a>        naive_edge_est_logit_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
+<span id="cb5-307"><a href="#cb5-307" aria-hidden="true" tabindex="-1"></a>        GO_BP_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
+<span id="cb5-308"><a href="#cb5-308" aria-hidden="true" tabindex="-1"></a>        GO_CC_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
+<span id="cb5-309"><a href="#cb5-309" aria-hidden="true" tabindex="-1"></a>        PPI_expanded <span class="op">=</span> np.full((n_expanded, n_expanded), np.nan)</span>
+<span id="cb5-310"><a href="#cb5-310" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-311"><a href="#cb5-311" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Copy original prediction data</span></span>
+<span id="cb5-312"><a href="#cb5-312" aria-hidden="true" tabindex="-1"></a>        main_with_ESM_CV1_expanded[:n_original, :n_original] <span class="op">=</span> main_with_ESM_CV1_sym</span>
+<span id="cb5-313"><a href="#cb5-313" aria-hidden="true" tabindex="-1"></a>        main_without_ESM_CV1_expanded[:n_original, :n_original] <span class="op">=</span> main_without_ESM_CV1_sym</span>
+<span id="cb5-314"><a href="#cb5-314" aria-hidden="true" tabindex="-1"></a>        main_CV2_expanded[:n_original, :n_original] <span class="op">=</span> main_CV2_sym</span>
+<span id="cb5-315"><a href="#cb5-315" aria-hidden="true" tabindex="-1"></a>        main_CV3_expanded[:n_original, :n_original] <span class="op">=</span> main_CV3_sym</span>
+<span id="cb5-316"><a href="#cb5-316" aria-hidden="true" tabindex="-1"></a>        main_CV2_with_ESM_expanded[:n_original, :n_original] <span class="op">=</span> main_CV2_with_ESM_sym</span>
+<span id="cb5-317"><a href="#cb5-317" aria-hidden="true" tabindex="-1"></a>        main_CV3_with_ESM_expanded[:n_original, :n_original] <span class="op">=</span> main_CV3_with_ESM_sym</span>
+<span id="cb5-318"><a href="#cb5-318" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-319"><a href="#cb5-319" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Copy original SL data</span></span>
+<span id="cb5-320"><a href="#cb5-320" aria-hidden="true" tabindex="-1"></a>        SL_score_expanded[:n_original, :n_original] <span class="op">=</span> SL_score_matrix</span>
+<span id="cb5-321"><a href="#cb5-321" aria-hidden="true" tabindex="-1"></a>        SL_status_expanded[:n_original, :n_original] <span class="op">=</span> SL_status_matrix</span>
+<span id="cb5-322"><a href="#cb5-322" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-323"><a href="#cb5-323" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Copy naive edge estimates and support views</span></span>
+<span id="cb5-324"><a href="#cb5-324" aria-hidden="true" tabindex="-1"></a>        naive_edge_est_expanded[:n_original, :n_original] <span class="op">=</span> naive_edge_est_matrix</span>
+<span id="cb5-325"><a href="#cb5-325" aria-hidden="true" tabindex="-1"></a>        naive_edge_est_logit_expanded[:n_original, :n_original] <span class="op">=</span> naive_edge_est_logit_matrix</span>
+<span id="cb5-326"><a href="#cb5-326" aria-hidden="true" tabindex="-1"></a>        GO_BP_expanded[:n_original, :n_original] <span class="op">=</span> GO_BP_matrix</span>
+<span id="cb5-327"><a href="#cb5-327" aria-hidden="true" tabindex="-1"></a>        GO_CC_expanded[:n_original, :n_original] <span class="op">=</span> GO_CC_matrix</span>
+<span id="cb5-328"><a href="#cb5-328" aria-hidden="true" tabindex="-1"></a>        PPI_expanded[:n_original, :n_original] <span class="op">=</span> PPI_matrix</span>
+<span id="cb5-329"><a href="#cb5-329" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-330"><a href="#cb5-330" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Update variables for Step 4</span></span>
+<span id="cb5-331"><a href="#cb5-331" aria-hidden="true" tabindex="-1"></a>        gene_names <span class="op">=</span> expanded_gene_names</span>
+<span id="cb5-332"><a href="#cb5-332" aria-hidden="true" tabindex="-1"></a>        main_with_ESM_CV1_sym <span class="op">=</span> main_with_ESM_CV1_expanded</span>
+<span id="cb5-333"><a href="#cb5-333" aria-hidden="true" tabindex="-1"></a>        main_without_ESM_CV1_sym <span class="op">=</span> main_without_ESM_CV1_expanded</span>
+<span id="cb5-334"><a href="#cb5-334" aria-hidden="true" tabindex="-1"></a>        main_CV2_sym <span class="op">=</span> main_CV2_expanded</span>
+<span id="cb5-335"><a href="#cb5-335" aria-hidden="true" tabindex="-1"></a>        main_CV3_sym <span class="op">=</span> main_CV3_expanded</span>
+<span id="cb5-336"><a href="#cb5-336" aria-hidden="true" tabindex="-1"></a>        main_CV2_with_ESM_sym <span class="op">=</span> main_CV2_with_ESM_expanded</span>
+<span id="cb5-337"><a href="#cb5-337" aria-hidden="true" tabindex="-1"></a>        main_CV3_with_ESM_sym <span class="op">=</span> main_CV3_with_ESM_expanded</span>
+<span id="cb5-338"><a href="#cb5-338" aria-hidden="true" tabindex="-1"></a>        SL_score_matrix <span class="op">=</span> SL_score_expanded</span>
+<span id="cb5-339"><a href="#cb5-339" aria-hidden="true" tabindex="-1"></a>        SL_status_matrix <span class="op">=</span> SL_status_expanded</span>
+<span id="cb5-340"><a href="#cb5-340" aria-hidden="true" tabindex="-1"></a>        naive_edge_est_matrix <span class="op">=</span> naive_edge_est_expanded</span>
+<span id="cb5-341"><a href="#cb5-341" aria-hidden="true" tabindex="-1"></a>        naive_edge_est_logit_matrix <span class="op">=</span> naive_edge_est_logit_expanded</span>
+<span id="cb5-342"><a href="#cb5-342" aria-hidden="true" tabindex="-1"></a>        GO_BP_matrix <span class="op">=</span> GO_BP_expanded</span>
+<span id="cb5-343"><a href="#cb5-343" aria-hidden="true" tabindex="-1"></a>        GO_CC_matrix <span class="op">=</span> GO_CC_expanded</span>
+<span id="cb5-344"><a href="#cb5-344" aria-hidden="true" tabindex="-1"></a>        PPI_matrix <span class="op">=</span> PPI_expanded</span>
+<span id="cb5-345"><a href="#cb5-345" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb5-346"><a href="#cb5-346" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"  Matrix expanded from </span><span class="sc">{</span>n_original<span class="sc">}</span><span class="ss">x</span><span class="sc">{</span>n_original<span class="sc">}</span><span class="ss"> to </span><span class="sc">{</span>n_expanded<span class="sc">}</span><span class="ss">x</span><span class="sc">{</span>n_expanded<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-347"><a href="#cb5-347" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb5-348"><a href="#cb5-348" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Save expanded gene list temporarily</span></span>
+<span id="cb5-349"><a href="#cb5-349" aria-hidden="true" tabindex="-1"></a>        temp_gene_list <span class="op">=</span> <span class="st">'temp_expanded_gene_list.txt'</span></span>
+<span id="cb5-350"><a href="#cb5-350" aria-hidden="true" tabindex="-1"></a>        <span class="cf">with</span> <span class="bu">open</span>(temp_gene_list, <span class="st">'w'</span>) <span class="im">as</span> f:</span>
+<span id="cb5-351"><a href="#cb5-351" aria-hidden="true" tabindex="-1"></a>            f.write(<span class="st">"# Original SL genes (corrected names)</span><span class="ch">\n</span><span class="st">"</span>)</span>
+<span id="cb5-352"><a href="#cb5-352" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> i, gene <span class="kw">in</span> <span class="bu">enumerate</span>(corrected_gene_names):</span>
+<span id="cb5-353"><a href="#cb5-353" aria-hidden="true" tabindex="-1"></a>                f.write(<span class="ss">f"</span><span class="sc">{</span>gene<span class="sc">}</span><span class="ch">\n</span><span class="ss">"</span>)</span>
+<span id="cb5-354"><a href="#cb5-354" aria-hidden="true" tabindex="-1"></a>            f.write(<span class="st">"</span><span class="ch">\n</span><span class="st"># Additional human genes from UniProt</span><span class="ch">\n</span><span class="st">"</span>)</span>
+<span id="cb5-355"><a href="#cb5-355" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> gene <span class="kw">in</span> new_genes:</span>
+<span id="cb5-356"><a href="#cb5-356" aria-hidden="true" tabindex="-1"></a>                f.write(<span class="ss">f"</span><span class="sc">{</span>gene<span class="sc">}</span><span class="ch">\n</span><span class="ss">"</span>)</span>
+<span id="cb5-357"><a href="#cb5-357" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"  Saved expanded gene list to '</span><span class="sc">{</span>temp_gene_list<span class="sc">}</span><span class="ss">'"</span>)</span>
+<span id="cb5-358"><a href="#cb5-358" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb5-359"><a href="#cb5-359" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Just update gene names with corrections</span></span>
+<span id="cb5-360"><a href="#cb5-360" aria-hidden="true" tabindex="-1"></a>        gene_names <span class="op">=</span> corrected_gene_names</span>
+<span id="cb5-361"><a href="#cb5-361" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="st">"  No new genes to add - using corrected gene names only"</span>)</span>
+<span id="cb5-362"><a href="#cb5-362" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb5-363"><a href="#cb5-363" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 4: Convert to Long Format</span></span>
+<span id="cb5-364"><a href="#cb5-364" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"Step 4: Converting to long format (upper triangle only)..."</span>)</span>
+<span id="cb5-365"><a href="#cb5-365" aria-hidden="true" tabindex="-1"></a>    upper_tri_indices <span class="op">=</span> np.triu_indices(<span class="bu">len</span>(gene_names), k<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb5-366"><a href="#cb5-366" aria-hidden="true" tabindex="-1"></a>    gene_pairs_df <span class="op">=</span> pd.DataFrame({</span>
+<span id="cb5-367"><a href="#cb5-367" aria-hidden="true" tabindex="-1"></a>        <span class="st">'gene1'</span>: [gene_names[i] <span class="cf">for</span> i <span class="kw">in</span> upper_tri_indices[<span class="dv">0</span>]],</span>
+<span id="cb5-368"><a href="#cb5-368" aria-hidden="true" tabindex="-1"></a>        <span class="st">'gene2'</span>: [gene_names[j] <span class="cf">for</span> j <span class="kw">in</span> upper_tri_indices[<span class="dv">1</span>]],</span>
+<span id="cb5-369"><a href="#cb5-369" aria-hidden="true" tabindex="-1"></a>        <span class="st">'SL_score'</span>: SL_score_matrix[upper_tri_indices],</span>
+<span id="cb5-370"><a href="#cb5-370" aria-hidden="true" tabindex="-1"></a>        <span class="st">'SL_status'</span>: SL_status_matrix[upper_tri_indices],</span>
+<span id="cb5-371"><a href="#cb5-371" aria-hidden="true" tabindex="-1"></a>        <span class="st">'naive_edge_est'</span>: naive_edge_est_matrix[upper_tri_indices],</span>
+<span id="cb5-372"><a href="#cb5-372" aria-hidden="true" tabindex="-1"></a>        <span class="st">'naive_edge_est_logit'</span>: naive_edge_est_logit_matrix[upper_tri_indices],</span>
+<span id="cb5-373"><a href="#cb5-373" aria-hidden="true" tabindex="-1"></a>        <span class="st">'GO_BP'</span>: GO_BP_matrix[upper_tri_indices],</span>
+<span id="cb5-374"><a href="#cb5-374" aria-hidden="true" tabindex="-1"></a>        <span class="st">'GO_CC'</span>: GO_CC_matrix[upper_tri_indices],</span>
+<span id="cb5-375"><a href="#cb5-375" aria-hidden="true" tabindex="-1"></a>        <span class="st">'PPI'</span>: PPI_matrix[upper_tri_indices],</span>
+<span id="cb5-376"><a href="#cb5-376" aria-hidden="true" tabindex="-1"></a>        <span class="st">'main_without_ESM_CV1'</span>: main_without_ESM_CV1_sym[upper_tri_indices],</span>
+<span id="cb5-377"><a href="#cb5-377" aria-hidden="true" tabindex="-1"></a>        <span class="st">'main_with_ESM_CV1'</span>: main_with_ESM_CV1_sym[upper_tri_indices],</span>
+<span id="cb5-378"><a href="#cb5-378" aria-hidden="true" tabindex="-1"></a>        <span class="st">'main_CV2'</span>: main_CV2_sym[upper_tri_indices],</span>
+<span id="cb5-379"><a href="#cb5-379" aria-hidden="true" tabindex="-1"></a>        <span class="st">'main_CV3'</span>: main_CV3_sym[upper_tri_indices],</span>
+<span id="cb5-380"><a href="#cb5-380" aria-hidden="true" tabindex="-1"></a>        <span class="st">'main_CV2_with_ESM'</span>: main_CV2_with_ESM_sym[upper_tri_indices],</span>
+<span id="cb5-381"><a href="#cb5-381" aria-hidden="true" tabindex="-1"></a>        <span class="st">'main_CV3_with_ESM'</span>: main_CV3_with_ESM_sym[upper_tri_indices]</span>
+<span id="cb5-382"><a href="#cb5-382" aria-hidden="true" tabindex="-1"></a>    })</span>
+<span id="cb5-383"><a href="#cb5-383" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-384"><a href="#cb5-384" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Add backward-compatible aliases for CV1 data (for existing analysis code)</span></span>
+<span id="cb5-385"><a href="#cb5-385" aria-hidden="true" tabindex="-1"></a>    gene_pairs_df[<span class="st">'main_with_ESM'</span>] <span class="op">=</span> gene_pairs_df[<span class="st">'main_with_ESM_CV1'</span>]</span>
+<span id="cb5-386"><a href="#cb5-386" aria-hidden="true" tabindex="-1"></a>    gene_pairs_df[<span class="st">'main_without_ESM'</span>] <span class="op">=</span> gene_pairs_df[<span class="st">'main_without_ESM_CV1'</span>]</span>
+<span id="cb5-387"><a href="#cb5-387" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-388"><a href="#cb5-388" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Created dataframe with </span><span class="sc">{</span><span class="bu">len</span>(gene_pairs_df)<span class="sc">:,}</span><span class="ss"> gene pairs (upper triangle only, no self-pairs)"</span>)</span>
+<span id="cb5-389"><a href="#cb5-389" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  SL positive pairs (labeled): </span><span class="sc">{</span>(gene_pairs_df[<span class="st">'SL_status'</span>] <span class="op">==</span> <span class="dv">1</span>)<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb5-390"><a href="#cb5-390" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  SL negative pairs (labeled): </span><span class="sc">{</span>(gene_pairs_df[<span class="st">'SL_status'</span>] <span class="op">==</span> <span class="dv">0</span>)<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb5-391"><a href="#cb5-391" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Unlabeled pairs (NaN): </span><span class="sc">{</span>gene_pairs_df[<span class="st">'SL_status'</span>]<span class="sc">.</span>isna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb5-392"><a href="#cb5-392" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Naive edge estimates with data: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'naive_edge_est'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb5-393"><a href="#cb5-393" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Naive edge logit estimates with data: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'naive_edge_est_logit'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb5-394"><a href="#cb5-394" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  GO_BP entries with data: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'GO_BP'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb5-395"><a href="#cb5-395" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  GO_CC entries with data: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'GO_CC'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb5-396"><a href="#cb5-396" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  PPI entries with data: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'PPI'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb5-397"><a href="#cb5-397" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Columns: </span><span class="sc">{</span><span class="st">', '</span><span class="sc">.</span>join(gene_pairs_df.columns)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-398"><a href="#cb5-398" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-399"><a href="#cb5-399" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Create pair_key column once for efficient merging with external datasets</span></span>
+<span id="cb5-400"><a href="#cb5-400" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Creating pair_key column for external dataset matching..."</span>)</span>
+<span id="cb5-401"><a href="#cb5-401" aria-hidden="true" tabindex="-1"></a>    gene1_upper <span class="op">=</span> gene_pairs_df[<span class="st">'gene1'</span>].<span class="bu">str</span>.upper()</span>
+<span id="cb5-402"><a href="#cb5-402" aria-hidden="true" tabindex="-1"></a>    gene2_upper <span class="op">=</span> gene_pairs_df[<span class="st">'gene2'</span>].<span class="bu">str</span>.upper()</span>
+<span id="cb5-403"><a href="#cb5-403" aria-hidden="true" tabindex="-1"></a>    first_gene <span class="op">=</span> np.where(gene1_upper <span class="op">&lt;</span> gene2_upper, gene1_upper, gene2_upper)</span>
+<span id="cb5-404"><a href="#cb5-404" aria-hidden="true" tabindex="-1"></a>    second_gene <span class="op">=</span> np.where(gene1_upper <span class="op">&lt;</span> gene2_upper, gene2_upper, gene1_upper)</span>
+<span id="cb5-405"><a href="#cb5-405" aria-hidden="true" tabindex="-1"></a>    gene_pairs_df[<span class="st">'pair_key'</span>] <span class="op">=</span> <span class="bu">list</span>(<span class="bu">zip</span>(first_gene, second_gene))</span>
+<span id="cb5-406"><a href="#cb5-406" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Created pair_key for </span><span class="sc">{</span><span class="bu">len</span>(gene_pairs_df)<span class="sc">:,}</span><span class="ss"> gene pairs"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>Step 1: Importing main prediction data from 3 CV splits...
@@ -710,7 +728,7 @@ Created dataframe with 209,234,196 gene pairs (upper triangle only, no self-pair
   GO_BP entries with data: 20,317,125
   GO_CC entries with data: 20,317,125
   PPI entries with data: 20,317,125
-Columns: gene1, gene2, SL_score, SL_status, naive_edge_est, naive_edge_est_logit, GO_BP, GO_CC, PPI, main_without_ESM_CV1, main_with_ESM_CV1, main_CV2, main_CV3, main_with_ESM, main_without_ESM
+Columns: gene1, gene2, SL_score, SL_status, naive_edge_est, naive_edge_est_logit, GO_BP, GO_CC, PPI, main_without_ESM_CV1, main_with_ESM_CV1, main_CV2, main_CV3, main_CV2_with_ESM, main_CV3_with_ESM, main_with_ESM, main_without_ESM
 
 Creating pair_key column for external dataset matching...
   Created pair_key for 209,234,196 gene pairs</code></pre>
@@ -729,7 +747,7 @@ Creating pair_key column for external dataset matching...
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify expected columns exist</span></span>
 <span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    required_sl_cols <span class="op">=</span> [<span class="st">'SL_score'</span>, <span class="st">'SL_status'</span>]</span>
 <span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    required_support_cols <span class="op">=</span> [<span class="st">'naive_edge_est'</span>, <span class="st">'naive_edge_est_logit'</span>, <span class="st">'GO_BP'</span>, <span class="st">'GO_CC'</span>, <span class="st">'PPI'</span>]</span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    required_cv_cols <span class="op">=</span> [<span class="st">'main_without_ESM_CV1'</span>, <span class="st">'main_with_ESM_CV1'</span>, <span class="st">'main_CV2'</span>, <span class="st">'main_CV3'</span>]</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    required_cv_cols <span class="op">=</span> [<span class="st">'main_without_ESM_CV1'</span>, <span class="st">'main_with_ESM_CV1'</span>, <span class="st">'main_CV2'</span>, <span class="st">'main_CV3'</span>, <span class="st">'main_CV2_with_ESM'</span>, <span class="st">'main_CV3_with_ESM'</span>]</span>
 <span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    required_alias_cols <span class="op">=</span> [<span class="st">'main_with_ESM'</span>, <span class="st">'main_without_ESM'</span>]</span>
 <span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> col <span class="kw">in</span> required_sl_cols <span class="op">+</span> required_support_cols <span class="op">+</span> required_cv_cols <span class="op">+</span> required_alias_cols:</span>
@@ -748,9 +766,9 @@ Creating pair_key column for external dataset matching...
 <pre><code>✓ Data alignment verified:
   SL columns: SL_score, SL_status
   Support view columns: naive_edge_est, naive_edge_est_logit, GO_BP, GO_CC, PPI
-  CV-specific columns: main_without_ESM_CV1, main_with_ESM_CV1, main_CV2, main_CV3
+  CV-specific columns: main_without_ESM_CV1, main_with_ESM_CV1, main_CV2, main_CV3, main_CV2_with_ESM, main_CV3_with_ESM
   Backward-compatible aliases: main_with_ESM, main_without_ESM (→ CV1 data)
-  Total columns: 16</code></pre>
+  Total columns: 18</code></pre>
 </div>
 </div>
 </section>
@@ -1300,32 +1318,34 @@ Assigning Gilbert scores to gene pairs...
 <span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  SLMGAE with ESM (CV1): </span><span class="sc">{</span>gene_pairs_df[<span class="st">'main_with_ESM_CV1'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> predictions"</span>)</span>
 <span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  SLMGAE without ESM (CV1): </span><span class="sc">{</span>gene_pairs_df[<span class="st">'main_without_ESM_CV1'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> predictions"</span>)</span>
 <span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  SLMGAE CV2: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'main_CV2'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> predictions"</span>)</span>
-<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  SLMGAE CV3: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'main_CV3'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> predictions"</span>)</span>
-<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">1b. SUPPORT VIEWS:"</span>)</span>
-<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Naive edge estimates: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'naive_edge_est'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
-<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Naive edge estimates (logit): </span><span class="sc">{</span>gene_pairs_df[<span class="st">'naive_edge_est_logit'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
-<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  GO Biological Process: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'GO_BP'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
-<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  GO Cellular Component: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'GO_CC'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
-<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  PPI network: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'PPI'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
-<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="st">'support_view_logistic_pred'</span> <span class="kw">in</span> gene_pairs_df.columns:</span>
-<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Support view logistic predictions: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'support_view_logistic_pred'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
-<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">2. EXTERNAL VALIDATION DATASETS:"</span>)</span>
-<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="st">'Adamson_Tau'</span> <span class="kw">in</span> gene_pairs_df.columns:</span>
-<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Adamson Tau: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'Adamson_Tau'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
-<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="st">'Adamson_Gamma'</span> <span class="kw">in</span> gene_pairs_df.columns:</span>
-<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Adamson Gamma: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'Adamson_Gamma'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
-<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="st">'Adamson_Rho'</span> <span class="kw">in</span> gene_pairs_df.columns:</span>
-<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Adamson Rho: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'Adamson_Rho'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
-<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="st">'Corn_score'</span> <span class="kw">in</span> gene_pairs_df.columns:</span>
-<span id="cb17-29"><a href="#cb17-29" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Corn: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'Corn_score'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
-<span id="cb17-30"><a href="#cb17-30" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="st">'Gilbert_score'</span> <span class="kw">in</span> gene_pairs_df.columns:</span>
-<span id="cb17-31"><a href="#cb17-31" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Gilbert: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'Gilbert_score'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
-<span id="cb17-32"><a href="#cb17-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">3. DATASET COVERAGE:"</span>)</span>
-<span id="cb17-33"><a href="#cb17-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Total gene pairs in dataframe: </span><span class="sc">{</span><span class="bu">len</span>(gene_pairs_df)<span class="sc">:,}</span><span class="ss">"</span>)</span>
-<span id="cb17-34"><a href="#cb17-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-35"><a href="#cb17-35" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">"</span> <span class="op">+</span> <span class="st">"="</span><span class="op">*</span><span class="dv">80</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  SLMGAE CV2 with ESM: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'main_CV2_with_ESM'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> predictions"</span>)</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  SLMGAE CV3: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'main_CV3'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> predictions"</span>)</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  SLMGAE CV3 with ESM: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'main_CV3_with_ESM'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> predictions"</span>)</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">1b. SUPPORT VIEWS:"</span>)</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Naive edge estimates: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'naive_edge_est'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Naive edge estimates (logit): </span><span class="sc">{</span>gene_pairs_df[<span class="st">'naive_edge_est_logit'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  GO Biological Process: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'GO_BP'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  GO Cellular Component: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'GO_CC'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  PPI network: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'PPI'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="st">'support_view_logistic_pred'</span> <span class="kw">in</span> gene_pairs_df.columns:</span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Support view logistic predictions: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'support_view_logistic_pred'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">2. EXTERNAL VALIDATION DATASETS:"</span>)</span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="st">'Adamson_Tau'</span> <span class="kw">in</span> gene_pairs_df.columns:</span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Adamson Tau: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'Adamson_Tau'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
+<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="st">'Adamson_Gamma'</span> <span class="kw">in</span> gene_pairs_df.columns:</span>
+<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Adamson Gamma: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'Adamson_Gamma'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
+<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="st">'Adamson_Rho'</span> <span class="kw">in</span> gene_pairs_df.columns:</span>
+<span id="cb17-29"><a href="#cb17-29" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Adamson Rho: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'Adamson_Rho'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
+<span id="cb17-30"><a href="#cb17-30" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="st">'Corn_score'</span> <span class="kw">in</span> gene_pairs_df.columns:</span>
+<span id="cb17-31"><a href="#cb17-31" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Corn: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'Corn_score'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
+<span id="cb17-32"><a href="#cb17-32" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="st">'Gilbert_score'</span> <span class="kw">in</span> gene_pairs_df.columns:</span>
+<span id="cb17-33"><a href="#cb17-33" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  Gilbert: </span><span class="sc">{</span>gene_pairs_df[<span class="st">'Gilbert_score'</span>]<span class="sc">.</span>notna()<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:,}</span><span class="ss"> pairs"</span>)</span>
+<span id="cb17-34"><a href="#cb17-34" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">3. DATASET COVERAGE:"</span>)</span>
+<span id="cb17-35"><a href="#cb17-35" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Total gene pairs in dataframe: </span><span class="sc">{</span><span class="bu">len</span>(gene_pairs_df)<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb17-36"><a href="#cb17-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-37"><a href="#cb17-37" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">"</span> <span class="op">+</span> <span class="st">"="</span><span class="op">*</span><span class="dv">80</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>================================================================================
@@ -1337,7 +1357,9 @@ DATA IMPORT SUMMARY
   SLMGAE with ESM (CV1): 20,317,125 predictions
   SLMGAE without ESM (CV1): 20,317,125 predictions
   SLMGAE CV2: 20,317,125 predictions
+  SLMGAE CV2 with ESM: 20,317,125 predictions
   SLMGAE CV3: 20,317,125 predictions
+  SLMGAE CV3 with ESM: 20,317,125 predictions
 
 1b. SUPPORT VIEWS:
   Naive edge estimates: 20,317,125 pairs
@@ -1789,12 +1811,12 @@ A. SLDB Analysis (Predictions vs SL Labels)
   Negative SL pairs: 20,297,457
 
 With ESM: 20,317,125 pairs with complete data
-  AUROC: 0.9903 (95% CI: [0.9899, 0.9906])
-  AUPR: 0.1373 (95% CI: [0.1351, 0.1389])
+  AUROC: 0.9902 (95% CI: [0.9897, 0.9905])
+  AUPR: 0.1403 (95% CI: [0.1381, 0.1420])
 
 Without ESM: 20,317,125 pairs with complete data
-  AUROC: 0.9949 (95% CI: [0.9945, 0.9951])
-  AUPR: 0.2688 (95% CI: [0.2661, 0.2714])</code></pre>
+  AUROC: 0.9949 (95% CI: [0.9946, 0.9951])
+  AUPR: 0.2695 (95% CI: [0.2667, 0.2719])</code></pre>
 </div>
 <div class="cell-output cell-output-display">
 <div>
@@ -1812,15 +1834,15 @@ Ranking Correlation Analysis (Spearman)
 Correlation Between Model Predictions:
 ----------------------------------------
 ESM vs Non-ESM Models (n=20,317,125):
-  Spearman ρ: 0.3964 (p=0.00e+00)
-  Pearson r:  0.4782 (p=0.00e+00)
+  Spearman ρ: 0.3878 (p=0.00e+00)
+  Pearson r:  0.4684 (p=0.00e+00)
 
 1. Predictions vs SL Scores:
 ----------------------------------------
 
 With ESM (n=20,317,125):
   Spearman ρ: 0.0528 (p=0.00e+00)
-  Pearson r:  0.1284 (p=0.00e+00)
+  Pearson r:  0.1276 (p=0.00e+00)
 
 Without ESM (n=20,317,125):
   Spearman ρ: 0.0533 (p=0.00e+00)
@@ -1832,11 +1854,11 @@ Without ESM (n=20,317,125):
 Spearman Rank Correlations:
 Dataset         n pairs    With ESM             Without ESM         
 -----------------------------------------------------------------
-Adamson_Tau     71,610     -0.0713***           -0.0388***          
-Adamson_Gamma   71,610     0.0110**             -0.0087*            
-Adamson_Rho     71,610     -0.1467***           -0.0925***          
-Corn_score      79,002     -0.0686***           -0.0539***          
-Gilbert_score   34,453     0.0366***            -0.0050             
+Adamson_Tau     71,610     -0.0763***           -0.0391***          
+Adamson_Gamma   71,610     0.0050               -0.0102**           
+Adamson_Rho     71,610     -0.1437***           -0.0910***          
+Corn_score      79,002     -0.0669***           -0.0552***          
+Gilbert_score   34,453     0.0367***            -0.0059             
 
 * p&lt;0.05, ** p&lt;0.01, *** p&lt;0.001</code></pre>
 </div>
@@ -1989,16 +2011,16 @@ ANALYSIS: Adamson Tau
 
 3. Correlation between model predictions (n=71,610):
   ESM vs Non-ESM:
-    Spearman: ρ=0.6362 (p=0.0000e+00)
-    Pearson:  r=0.7072 (p=0.0000e+00)
+    Spearman: ρ=0.6288 (p=0.0000e+00)
+    Pearson:  r=0.6997 (p=0.0000e+00)
 
 4. Correlation of Adamson Tau with model predictions:
   With ESM (n=71,610):
-    Pearson:  r=-0.0546 (95% CI: [-0.0608, -0.0452]), p=2.1461e-48
-    Spearman: r=-0.0713 (95% CI: [-0.0771, -0.0642]), p=3.0243e-81
+    Pearson:  r=-0.0587 (95% CI: [-0.0650, -0.0495]), p=8.9970e-56
+    Spearman: r=-0.0763 (95% CI: [-0.0821, -0.0694]), p=5.7315e-93
   Without ESM (n=71,610):
-    Pearson:  r=-0.0329 (95% CI: [-0.0394, -0.0220]), p=1.1911e-18
-    Spearman: r=-0.0388 (95% CI: [-0.0442, -0.0305]), p=2.8364e-25
+    Pearson:  r=-0.0340 (95% CI: [-0.0407, -0.0232]), p=8.0832e-20
+    Spearman: r=-0.0391 (95% CI: [-0.0444, -0.0311]), p=1.3425e-25
 
 ============================================================
 ANALYSIS: Adamson Gamma
@@ -2015,16 +2037,16 @@ ANALYSIS: Adamson Gamma
 
 3. Correlation between model predictions (n=71,610):
   ESM vs Non-ESM:
-    Spearman: ρ=0.6362 (p=0.0000e+00)
-    Pearson:  r=0.7072 (p=0.0000e+00)
+    Spearman: ρ=0.6288 (p=0.0000e+00)
+    Pearson:  r=0.6997 (p=0.0000e+00)
 
 4. Correlation of Adamson Gamma with model predictions:
   With ESM (n=71,610):
-    Pearson:  r=0.0294 (95% CI: [0.0225, 0.0365]), p=3.2882e-15
-    Spearman: r=0.0110 (95% CI: [0.0029, 0.0173]), p=3.1132e-03
+    Pearson:  r=0.0240 (95% CI: [0.0171, 0.0308]), p=1.3484e-10
+    Spearman: r=0.0050 (95% CI: [-0.0030, 0.0111]), p=1.7959e-01
   Without ESM (n=71,610):
-    Pearson:  r=0.0030 (95% CI: [-0.0045, 0.0094]), p=4.2738e-01
-    Spearman: r=-0.0087 (95% CI: [-0.0179, -0.0024]), p=2.0440e-02
+    Pearson:  r=0.0020 (95% CI: [-0.0055, 0.0082]), p=5.9683e-01
+    Spearman: r=-0.0102 (95% CI: [-0.0193, -0.0044]), p=6.4353e-03
 
 ============================================================
 ANALYSIS: Adamson Rho
@@ -2041,16 +2063,16 @@ ANALYSIS: Adamson Rho
 
 3. Correlation between model predictions (n=71,610):
   ESM vs Non-ESM:
-    Spearman: ρ=0.6362 (p=0.0000e+00)
-    Pearson:  r=0.7072 (p=0.0000e+00)
+    Spearman: ρ=0.6288 (p=0.0000e+00)
+    Pearson:  r=0.6997 (p=0.0000e+00)
 
 4. Correlation of Adamson Rho with model predictions:
   With ESM (n=71,610):
-    Pearson:  r=-0.1143 (95% CI: [-0.1186, -0.1066]), p=9.6259e-207
-    Spearman: r=-0.1467 (95% CI: [-0.1503, -0.1391]), p=0.0000e+00
+    Pearson:  r=-0.1132 (95% CI: [-0.1175, -0.1054]), p=9.4454e-203
+    Spearman: r=-0.1437 (95% CI: [-0.1474, -0.1363]), p=0.0000e+00
   Without ESM (n=71,610):
-    Pearson:  r=-0.0484 (95% CI: [-0.0520, -0.0407]), p=2.1571e-38
-    Spearman: r=-0.0925 (95% CI: [-0.0978, -0.0862]), p=6.0339e-136</code></pre>
+    Pearson:  r=-0.0487 (95% CI: [-0.0526, -0.0411]), p=6.6899e-39
+    Spearman: r=-0.0910 (95% CI: [-0.0962, -0.0846]), p=1.4679e-131</code></pre>
 </div>
 </div>
 </section>
@@ -2079,16 +2101,16 @@ ANALYSIS: Corn Score
 
 3. Correlation between model predictions (n=79,002):
   ESM vs Non-ESM:
-    Spearman: ρ=0.6715 (p=0.0000e+00)
-    Pearson:  r=0.7157 (p=0.0000e+00)
+    Spearman: ρ=0.6638 (p=0.0000e+00)
+    Pearson:  r=0.7081 (p=0.0000e+00)
 
 4. Correlation of Corn Score with model predictions:
   With ESM (n=79,002):
-    Pearson:  r=-0.0996 (95% CI: [-0.1061, -0.0938]), p=2.3687e-173
-    Spearman: r=-0.0686 (95% CI: [-0.0716, -0.0631]), p=5.7080e-83
+    Pearson:  r=-0.0974 (95% CI: [-0.1040, -0.0916]), p=6.3871e-166
+    Spearman: r=-0.0669 (95% CI: [-0.0701, -0.0609]), p=4.1867e-79
   Without ESM (n=79,002):
-    Pearson:  r=-0.0925 (95% CI: [-0.1001, -0.0877]), p=1.1849e-149
-    Spearman: r=-0.0539 (95% CI: [-0.0591, -0.0491]), p=5.4104e-52</code></pre>
+    Pearson:  r=-0.0935 (95% CI: [-0.1011, -0.0886]), p=6.7885e-153
+    Spearman: r=-0.0552 (95% CI: [-0.0601, -0.0503]), p=2.7692e-54</code></pre>
 </div>
 </div>
 </section>
@@ -2117,16 +2139,16 @@ ANALYSIS: Gilbert GI Score
 
 3. Correlation between model predictions (n=34,453):
   ESM vs Non-ESM:
-    Spearman: ρ=0.5237 (p=0.0000e+00)
-    Pearson:  r=0.5543 (p=0.0000e+00)
+    Spearman: ρ=0.5186 (p=0.0000e+00)
+    Pearson:  r=0.5475 (p=0.0000e+00)
 
 4. Correlation of Gilbert GI Score with model predictions:
   With ESM (n=34,453):
-    Pearson:  r=0.0249 (95% CI: [0.0145, 0.0311]), p=3.7779e-06
-    Spearman: r=0.0366 (95% CI: [0.0251, 0.0419]), p=1.1126e-11
+    Pearson:  r=0.0245 (95% CI: [0.0142, 0.0302]), p=5.4073e-06
+    Spearman: r=0.0367 (95% CI: [0.0253, 0.0422]), p=9.0079e-12
   Without ESM (n=34,453):
-    Pearson:  r=-0.0141 (95% CI: [-0.0238, -0.0053]), p=8.8697e-03
-    Spearman: r=-0.0050 (95% CI: [-0.0149, 0.0044]), p=3.5754e-01</code></pre>
+    Pearson:  r=-0.0148 (95% CI: [-0.0244, -0.0059]), p=6.0434e-03
+    Spearman: r=-0.0059 (95% CI: [-0.0160, 0.0036]), p=2.7352e-01</code></pre>
 </div>
 </div>
 </section>
@@ -2365,18 +2387,18 @@ Plotted predictions against 5 external metrics</code></pre>
 Pearson Correlation Matrix:
                SL Score  Pred (ESM)  Pred (no ESM)  Adamson τ  Adamson γ  \
 SL Score          1.000       0.128          0.174      0.003     -0.001   
-Pred (ESM)        0.128       1.000          0.478     -0.055      0.029   
-Pred (no ESM)     0.174       0.478          1.000     -0.033      0.003   
-Adamson τ         0.003      -0.055         -0.033      1.000      0.758   
-Adamson γ        -0.001       0.029          0.003      0.758      1.000   
-Adamson ρ         0.006      -0.114         -0.048      0.384     -0.311   
-Corn Score       -0.011      -0.100         -0.093      0.169      0.172   
-Gilbert GI       -0.012       0.025         -0.014      0.118      0.125   
+Pred (ESM)        0.128       1.000          0.468     -0.059      0.024   
+Pred (no ESM)     0.174       0.468          1.000     -0.034      0.002   
+Adamson τ         0.003      -0.059         -0.034      1.000      0.758   
+Adamson γ        -0.001       0.024          0.002      0.758      1.000   
+Adamson ρ         0.006      -0.113         -0.049      0.384     -0.311   
+Corn Score       -0.011      -0.097         -0.094      0.169      0.172   
+Gilbert GI       -0.012       0.025         -0.015      0.118      0.125   
 
                Adamson ρ  Corn Score  Gilbert GI  
 SL Score           0.006      -0.011      -0.012  
-Pred (ESM)        -0.114      -0.100       0.025  
-Pred (no ESM)     -0.048      -0.093      -0.014  
+Pred (ESM)        -0.113      -0.097       0.025  
+Pred (no ESM)     -0.049      -0.094      -0.015  
 Adamson τ          0.384       0.169       0.118  
 Adamson γ         -0.311       0.172       0.125  
 Adamson ρ          1.000       0.065      -0.012  
@@ -2386,18 +2408,18 @@ Gilbert GI        -0.012       0.134       1.000
 Spearman Correlation Matrix:
                SL Score  Pred (ESM)  Pred (no ESM)  Adamson τ  Adamson γ  \
 SL Score          1.000       0.053          0.053     -0.003     -0.004   
-Pred (ESM)        0.053       1.000          0.396     -0.071      0.011   
-Pred (no ESM)     0.053       0.396          1.000     -0.039     -0.009   
-Adamson τ        -0.003      -0.071         -0.039      1.000      0.774   
-Adamson γ        -0.004       0.011         -0.009      0.774      1.000   
-Adamson ρ        -0.009      -0.147         -0.093      0.141     -0.442   
-Corn Score       -0.012      -0.069         -0.054      0.130      0.125   
-Gilbert GI       -0.005       0.037         -0.005      0.111      0.115   
+Pred (ESM)        0.053       1.000          0.388     -0.076      0.005   
+Pred (no ESM)     0.053       0.388          1.000     -0.039     -0.010   
+Adamson τ        -0.003      -0.076         -0.039      1.000      0.774   
+Adamson γ        -0.004       0.005         -0.010      0.774      1.000   
+Adamson ρ        -0.009      -0.144         -0.091      0.141     -0.442   
+Corn Score       -0.012      -0.067         -0.055      0.130      0.125   
+Gilbert GI       -0.005       0.037         -0.006      0.111      0.115   
 
                Adamson ρ  Corn Score  Gilbert GI  
 SL Score          -0.009      -0.012      -0.005  
-Pred (ESM)        -0.147      -0.069       0.037  
-Pred (no ESM)     -0.093      -0.054      -0.005  
+Pred (ESM)        -0.144      -0.067       0.037  
+Pred (no ESM)     -0.091      -0.055      -0.006  
 Adamson τ          0.141       0.130       0.111  
 Adamson γ         -0.442       0.125       0.115  
 Adamson ρ          1.000       0.076      -0.015  
@@ -2543,18 +2565,18 @@ Spearman Rank Correlations (Pairwise Complete Observations):
 ----------------------------------------
 
 1. Model Predictions Correlation:
-   ESM vs Non-ESM: ρ = 0.3964
+   ESM vs Non-ESM: ρ = 0.3878
 
 2. Predictions vs SL Scores:
    With ESM:    ρ = 0.0528
    Without ESM: ρ = 0.0533
 
 3. Predictions vs External Validation:
-   Adamson_Tau     - With ESM: -0.0713, Without ESM: -0.0388
-   Adamson_Gamma   - With ESM: 0.0110, Without ESM: -0.0087
-   Adamson_Rho     - With ESM: -0.1467, Without ESM: -0.0925
-   Corn_score      - With ESM: -0.0686, Without ESM: -0.0539
-   Gilbert_score   - With ESM: 0.0366, Without ESM: -0.0050
+   Adamson_Tau     - With ESM: -0.0763, Without ESM: -0.0391
+   Adamson_Gamma   - With ESM: 0.0050, Without ESM: -0.0102
+   Adamson_Rho     - With ESM: -0.1437, Without ESM: -0.0910
+   Corn_score      - With ESM: -0.0669, Without ESM: -0.0552
+   Gilbert_score   - With ESM: 0.0367, Without ESM: -0.0059
 
 Data Summary:
                      Metric     Count
@@ -2573,18 +2595,18 @@ Negative SL pairs (labeled)  20297457
 Correlation Matrix (Pearson, pairwise complete):
                   SL_score  main_without_ESM  main_with_ESM  Adamson_Tau  \
 SL_score             1.000             0.174          0.128        0.003   
-main_without_ESM     0.174             1.000          0.478       -0.033   
-main_with_ESM        0.128             0.478          1.000       -0.055   
-Adamson_Tau          0.003            -0.033         -0.055        1.000   
-Adamson_Gamma       -0.001             0.003          0.029        0.758   
-Adamson_Rho          0.006            -0.048         -0.114        0.384   
-Corn_score          -0.011            -0.093         -0.100        0.169   
-Gilbert_score       -0.012            -0.014          0.025        0.118   
+main_without_ESM     0.174             1.000          0.468       -0.034   
+main_with_ESM        0.128             0.468          1.000       -0.059   
+Adamson_Tau          0.003            -0.034         -0.059        1.000   
+Adamson_Gamma       -0.001             0.002          0.024        0.758   
+Adamson_Rho          0.006            -0.049         -0.113        0.384   
+Corn_score          -0.011            -0.094         -0.097        0.169   
+Gilbert_score       -0.012            -0.015          0.025        0.118   
 
                   Adamson_Gamma  Adamson_Rho  Corn_score  Gilbert_score  
 SL_score                 -0.001        0.006      -0.011         -0.012  
-main_without_ESM          0.003       -0.048      -0.093         -0.014  
-main_with_ESM             0.029       -0.114      -0.100          0.025  
+main_without_ESM          0.002       -0.049      -0.094         -0.015  
+main_with_ESM             0.024       -0.113      -0.097          0.025  
 Adamson_Tau               0.758        0.384       0.169          0.118  
 Adamson_Gamma             1.000       -0.311       0.172          0.125  
 Adamson_Rho              -0.311        1.000       0.065         -0.012  
@@ -2837,18 +2859,18 @@ Cleaning up 1 temporary files...
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>SLDB SL proportion: 0.0010 (0.10%)
-    Computing metrics on 20317125 complete cases: AUROC=0.9949, AUPR=0.2688</code></pre>
+    Computing metrics on 20317125 complete cases: AUROC=0.9949, AUPR=0.2695</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
-<pre><code>    Computing metrics on 71610 complete cases: AUROC=0.5086, AUPR=0.0108</code></pre>
+<pre><code>    Computing metrics on 71610 complete cases: AUROC=0.5110, AUPR=0.0108</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>  Added Adamson_Gamma_SL_status: 717 SL pairs (top 1% threshold=0.0105)
-    Computing metrics on 79002 complete cases: AUROC=0.6284, AUPR=0.0200</code></pre>
+    Computing metrics on 79002 complete cases: AUROC=0.6297, AUPR=0.0202</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>  Added Corn_score_SL_status: 791 SL pairs (bottom 1% threshold=-1.5187)
-    Computing metrics on 34453 complete cases: AUROC=0.5607, AUPR=0.0125</code></pre>
+    Computing metrics on 34453 complete cases: AUROC=0.5612, AUPR=0.0127</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>  Added Gilbert_score_SL_status: 345 SL pairs (bottom 1% threshold=-3.4874)</code></pre>
@@ -2864,20 +2886,20 @@ Cleaning up 1 temporary files...
 <pre><code>
 Results Summary:
 SLDB (nonzero=1):
-  AUROC: 0.9949 [0.9945, 0.9952]
-  AUPR: 0.2688 [0.2627, 0.2712]
+  AUROC: 0.9949 [0.9946, 0.9953]
+  AUPR: 0.2695 [0.2630, 0.2724]
 Adamson (top 1%):
-  AUROC: 0.5086 [0.4891, 0.5243]
+  AUROC: 0.5110 [0.4912, 0.5272]
   AUPR: 0.0108 [0.0099, 0.0113]
 Corn (bottom 1%):
-  AUROC: 0.6284 [0.6064, 0.6474]
-  AUPR: 0.0200 [0.0178, 0.0232]
+  AUROC: 0.6297 [0.6071, 0.6487]
+  AUPR: 0.0202 [0.0179, 0.0237]
 Gilbert (bottom 1%):
-  AUROC: 0.5607 [0.5457, 0.5824]
-  AUPR: 0.0125 [0.0115, 0.0151]
+  AUROC: 0.5612 [0.5456, 0.5823]
+  AUPR: 0.0127 [0.0117, 0.0169]
 
 Saving processed dataframe to gene_pairs_df_cached.pkl...
-Saved 209,234,196 rows with 25 columns</code></pre>
+Saved 209,234,196 rows with 27 columns</code></pre>
 </div>
 </div>
 </section>
@@ -3042,21 +3064,21 @@ Correlation Statistics:
 ----------------------------------------
 
 SLMGAE correlations with external datasets:
-  Adamson Tau: Pearson=-0.033, Spearman=-0.039 (n=71,610)
-  Adamson Gamma: Pearson=0.003, Spearman=-0.009 (n=71,610)
-  Adamson Rho: Pearson=-0.048, Spearman=-0.093 (n=71,610)
-  Corn Score: Pearson=-0.093, Spearman=-0.054 (n=79,002)
-  Gilbert Score: Pearson=-0.014, Spearman=-0.005 (n=34,453)
+  Adamson Tau: Pearson=-0.034, Spearman=-0.039 (n=71,610)
+  Adamson Gamma: Pearson=0.002, Spearman=-0.010 (n=71,610)
+  Adamson Rho: Pearson=-0.049, Spearman=-0.091 (n=71,610)
+  Corn Score: Pearson=-0.094, Spearman=-0.055 (n=79,002)
+  Gilbert Score: Pearson=-0.015, Spearman=-0.006 (n=34,453)
 
 SLMGAE+ESM correlations with external datasets:
-  Adamson Tau: Pearson=-0.055, Spearman=-0.071 (n=71,610)
-  Adamson Gamma: Pearson=0.029, Spearman=0.011 (n=71,610)
-  Adamson Rho: Pearson=-0.114, Spearman=-0.147 (n=71,610)
-  Corn Score: Pearson=-0.100, Spearman=-0.069 (n=79,002)
+  Adamson Tau: Pearson=-0.059, Spearman=-0.076 (n=71,610)
+  Adamson Gamma: Pearson=0.024, Spearman=0.005 (n=71,610)
+  Adamson Rho: Pearson=-0.113, Spearman=-0.144 (n=71,610)
+  Corn Score: Pearson=-0.097, Spearman=-0.067 (n=79,002)
   Gilbert Score: Pearson=0.025, Spearman=0.037 (n=34,453)
 
 Model Agreement:
-  SLMGAE vs SLMGAE+ESM: Pearson=0.478, Spearman=0.396 (n=20,317,125)</code></pre>
+  SLMGAE vs SLMGAE+ESM: Pearson=0.468, Spearman=0.388 (n=20,317,125)</code></pre>
 </div>
 </div>
 </section>
@@ -3080,8 +3102,8 @@ Model Agreement:
 File Output Summary:
   Saved to: SL_predictions_merged_analysis.pkl (pickle format)
   Total rows: 209,234,196
-  Total columns: 25
-  Columns included: gene1, gene2, SL_score, SL_status, naive_edge_est, naive_edge_est_logit, GO_BP, GO_CC, PPI, main_without_ESM_CV1, main_with_ESM_CV1, main_CV2, main_CV3, main_with_ESM, main_without_ESM, pair_key, support_view_logistic_pred, Adamson_Tau, Adamson_Gamma, Adamson_Rho, Corn_score, Gilbert_score, Adamson_Gamma_SL_status, Corn_score_SL_status, Gilbert_score_SL_status</code></pre>
+  Total columns: 27
+  Columns included: gene1, gene2, SL_score, SL_status, naive_edge_est, naive_edge_est_logit, GO_BP, GO_CC, PPI, main_without_ESM_CV1, main_with_ESM_CV1, main_CV2, main_CV3, main_CV2_with_ESM, main_CV3_with_ESM, main_with_ESM, main_without_ESM, pair_key, support_view_logistic_pred, Adamson_Tau, Adamson_Gamma, Adamson_Rho, Corn_score, Gilbert_score, Adamson_Gamma_SL_status, Corn_score_SL_status, Gilbert_score_SL_status</code></pre>
 </div>
 </div>
 </section>

@@ -271,32 +271,60 @@ main() {
 		print_warning "step3_train_main_without_ESM.sh not found"
 	fi
 
-	# Submit CV2 (gene-based cross-validation)
+	# Submit CV2 (gene-based cross-validation) without ESM
 	if [ -f "step3_train_CV2.sh" ]; then
 		local job3c_id
 		if job3c_id=$(submit_job "step3_train_CV2.sh"); then
 			print_info "Submitted step3_train_CV2.sh with job ID: $job3c_id"
-			jobs_step3+=("$job3c_id:CV2_gene_based")
+			jobs_step3+=("$job3c_id:CV2_without_ESM")
 		else
-			print_warning "Failed to submit CV2 training"
+			print_warning "Failed to submit CV2 training without ESM"
 			step3_failed=true
 		fi
 	else
 		print_warning "step3_train_CV2.sh not found"
 	fi
 
-	# Submit CV3 (pair-based cross-validation)
+	# Submit CV2 with ESM
+	if [ -f "step3_train_CV2_with_ESM.sh" ]; then
+		local job3c2_id
+		if job3c2_id=$(submit_job "step3_train_CV2_with_ESM.sh"); then
+			print_info "Submitted step3_train_CV2_with_ESM.sh with job ID: $job3c2_id"
+			jobs_step3+=("$job3c2_id:CV2_with_ESM")
+		else
+			print_warning "Failed to submit CV2 training with ESM"
+			step3_failed=true
+		fi
+	else
+		print_warning "step3_train_CV2_with_ESM.sh not found"
+	fi
+
+	# Submit CV3 (pair-based cross-validation) without ESM
 	if [ -f "step3_train_CV3.sh" ]; then
 		local job3d_id
 		if job3d_id=$(submit_job "step3_train_CV3.sh"); then
 			print_info "Submitted step3_train_CV3.sh with job ID: $job3d_id"
-			jobs_step3+=("$job3d_id:CV3_pair_based")
+			jobs_step3+=("$job3d_id:CV3_without_ESM")
 		else
-			print_warning "Failed to submit CV3 training"
+			print_warning "Failed to submit CV3 training without ESM"
 			step3_failed=true
 		fi
 	else
 		print_warning "step3_train_CV3.sh not found"
+	fi
+
+	# Submit CV3 with ESM
+	if [ -f "step3_train_CV3_with_ESM.sh" ]; then
+		local job3d2_id
+		if job3d2_id=$(submit_job "step3_train_CV3_with_ESM.sh"); then
+			print_info "Submitted step3_train_CV3_with_ESM.sh with job ID: $job3d2_id"
+			jobs_step3+=("$job3d2_id:CV3_with_ESM")
+		else
+			print_warning "Failed to submit CV3 training with ESM"
+			step3_failed=true
+		fi
+	else
+		print_warning "step3_train_CV3_with_ESM.sh not found"
 	fi
 
 	# Check if we have any Step 3 jobs to wait for

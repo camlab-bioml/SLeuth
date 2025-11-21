@@ -310,9 +310,11 @@ class SLMGAE(nn.Module):
 class DataLoader:
     """Data loader matching TensorFlow data loading exactly."""
 
-    def __init__(self, data_path="../data/", nn_size=45):
+    def __init__(self, data_path="../data/", gene_names=None, nn_size=45):
         self.data_path = data_path
         self.nn_size = nn_size
+        # Set num_nodes from gene_names if provided, otherwise will be set when loading data
+        self.num_nodes = len(gene_names) if gene_names is not None else None
 
     def load_sl_matrix(self):
         """Load SL adjacency: A_ij = 1 if (i,j) is SL pair, 0 otherwise"""
@@ -325,6 +327,9 @@ class DataLoader:
 
         # Infer num_nodes from gene list
         num_nodes = len(sl_mapping)
+        # Set instance variable if not already set
+        if self.num_nodes is None:
+            self.num_nodes = num_nodes
 
         # Load SL edges
         row, col = [], []
@@ -375,6 +380,13 @@ class DataLoader:
     def load_dense_feature(self, filename, knn=True):
         """Load dense feature matrix matching TensorFlow implementation."""
         print(f"Loading {filename}")
+
+        # Ensure num_nodes is set
+        if self.num_nodes is None:
+            raise ValueError(
+                "num_nodes not set. Either pass gene_names to DataLoader.__init__() "
+                "or call load_sl_matrix() first to infer num_nodes from data."
+            )
 
         # Load using TensorFlow's approach: upper triangular format with j+1 offset
         # File format: row i contains columns from i onwards (triangular)

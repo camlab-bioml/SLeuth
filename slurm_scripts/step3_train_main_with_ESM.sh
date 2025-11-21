@@ -24,13 +24,13 @@ echo "=================================================="
 
 # Load modules
 module purge
-module load gnu13/13.2.0 openmpi5/5.0.3 EasyBuild/4.9.1 cmake/3.24.2 openblas/0.3.21 fftw/3.3.10
+module load gnu14 openmpi5 EasyBuild cmake openblas fftw
 source /opt/rh/gcc-toolset-13/enable
 
 # Python path explicitly set - no conda activation needed
 
 # Python path
-PYTHON_PATH=/ddn_exa/campbell/kaiyang/slmgae/bin/python
+PYTHON_PATH=/ddn_exa/campbell/kaiyang/pytorch/bin/python
 
 # GPU is automatically set by SLURM via --gres=gpu:1
 
@@ -100,8 +100,8 @@ if [ -f "../outputs/main_with_ESM/training_summary.json" ]; then
 import json
 with open('../outputs/main_with_ESM/training_summary.json', 'r') as f:
     log = json.load(f)
-    if 'mean_auc' in log:
-        print(f'Mean AUC across folds: {log[\"mean_auc\"]:.4f}')
+    if 'auc_mean' in log:
+        print(f'Mean AUC across folds: {log[\"auc_mean\"]:.4f}')
     if 'auc_std' in log:
         print(f'AUC Std across folds: {log[\"auc_std\"]:.4f}')
     if 'training_time' in log:

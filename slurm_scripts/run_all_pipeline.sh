@@ -30,13 +30,19 @@ echo "  Job ID: $JOB3A - Main with ESM (depends on $JOB2)"
 JOB3B=$(sbatch --parsable step3_train_main_without_ESM.sh)
 echo "  Job ID: $JOB3B - Main without ESM (can run immediately)"
 
-# CV2 and CV3: Cross-validation experiments (can run immediately)
+# CV2 and CV3: Cross-validation experiments
 echo "Submitting CV2 and CV3: Cross-validation experiments..."
 JOB3C=$(sbatch --parsable step3_train_CV2.sh)
-echo "  Job ID: $JOB3C - CV2 (gene-based, can run immediately)"
+echo "  Job ID: $JOB3C - CV2 without ESM (can run immediately)"
+
+JOB3C2=$(sbatch --parsable --dependency=afterok:$JOB2 step3_train_CV2_with_ESM.sh)
+echo "  Job ID: $JOB3C2 - CV2 with ESM (depends on $JOB2)"
 
 JOB3D=$(sbatch --parsable step3_train_CV3.sh)
-echo "  Job ID: $JOB3D - CV3 (pair-based, can run immediately)"
+echo "  Job ID: $JOB3D - CV3 without ESM (can run immediately)"
+
+JOB3D2=$(sbatch --parsable --dependency=afterok:$JOB2 step3_train_CV3_with_ESM.sh)
+echo "  Job ID: $JOB3D2 - CV3 with ESM (depends on $JOB2)"
 
 # ============================================================================
 # OPTIONAL STEPS (Currently disabled - uncomment to enable)
@@ -65,10 +71,12 @@ echo "Pipeline structure:"
 echo "  1. Download proteins: $JOB1"
 echo "  2. Generate ESM: $JOB2 (after $JOB1)"
 echo "  3. Main training:"
-echo "     - With ESM: $JOB3A (after $JOB2)"
-echo "     - Without ESM (CV1): $JOB3B (immediate)"
-echo "     - CV2 (gene-based): $JOB3C (immediate)"
-echo "     - CV3 (pair-based): $JOB3D (immediate)"
+echo "     - CV1 with ESM: $JOB3A (after $JOB2)"
+echo "     - CV1 without ESM: $JOB3B (immediate)"
+echo "     - CV2 without ESM: $JOB3C (immediate)"
+echo "     - CV2 with ESM: $JOB3C2 (after $JOB2)"
+echo "     - CV3 without ESM: $JOB3D (immediate)"
+echo "     - CV3 with ESM: $JOB3D2 (after $JOB2)"
 echo "  4. BC training: Optional (see script to enable)"
 echo "  5. Case study: Optional (see script to enable)"
 echo ""

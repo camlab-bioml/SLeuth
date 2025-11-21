@@ -17,13 +17,13 @@ echo "=================================================="
 
 # Load modules
 module purge
-module load gnu13/13.2.0 openmpi5/5.0.3 EasyBuild/4.9.1 cmake/3.24.2 openblas/0.3.21 fftw/3.3.10
+module load gnu14 openmpi5 EasyBuild cmake openblas fftw
 source /opt/rh/gcc-toolset-13/enable
 
 # Python path explicitly set - no conda activation needed
 
 # Python path
-PYTHON_PATH=/ddn_exa/campbell/kaiyang/slmgae/bin/python
+PYTHON_PATH=/ddn_exa/campbell/kaiyang/pytorch/bin/python
 
 # Change to code directory
 cd ../code_Adamson

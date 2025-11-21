@@ -9,11 +9,6 @@ FILTERED VERSION: Only includes genes from the missing genes list
 # Gene name corrections - maps old names to current official names
 # FILTERED: Only includes genes that appear in the missing genes list
 GENE_CORRECTIONS = {
-    # Fusion/readthrough genes
-    "DNAJC25-GNG10":
-    "DNAJC25",  # Use first part of fusion, https://www.uniprot.org/uniprotkb/Q9H1X3
-    "NME1-NME2":
-    "NME1",  # Use first part of readthrough, https://www.uniprot.org/uniprotkb/P15531
     # MARCH genes (only the ones in missing list)
     "MAR-02": "MARCHF2",  # https://www.uniprot.org/uniprotkb/Q9P0N8
     "MAR-05": "MARCHF5",  # https://www.uniprot.org/uniprotkb/Q9NX47
