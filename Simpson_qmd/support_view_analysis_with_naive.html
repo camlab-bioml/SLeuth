@@ -59,18 +59,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </style>
 
 
-<script src="Simpson_files/libs/clipboard/clipboard.min.js"></script>
-<script src="Simpson_files/libs/quarto-html/quarto.js" type="module"></script>
-<script src="Simpson_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="Simpson_files/libs/quarto-html/axe/axe-check.js" type="module"></script>
-<script src="Simpson_files/libs/quarto-html/popper.min.js"></script>
-<script src="Simpson_files/libs/quarto-html/tippy.umd.min.js"></script>
-<script src="Simpson_files/libs/quarto-html/anchor.min.js"></script>
-<link href="Simpson_files/libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="Simpson_files/libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" id="quarto-text-highlighting-styles">
-<script src="Simpson_files/libs/bootstrap/bootstrap.min.js"></script>
-<link href="Simpson_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="Simpson_files/libs/bootstrap/bootstrap-a74871fe4945b66d259aafc266475145.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="support_view_analysis_with_naive_files/libs/clipboard/clipboard.min.js"></script>
+<script src="support_view_analysis_with_naive_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="support_view_analysis_with_naive_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="support_view_analysis_with_naive_files/libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="support_view_analysis_with_naive_files/libs/quarto-html/popper.min.js"></script>
+<script src="support_view_analysis_with_naive_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="support_view_analysis_with_naive_files/libs/quarto-html/anchor.min.js"></script>
+<link href="support_view_analysis_with_naive_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="support_view_analysis_with_naive_files/libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="support_view_analysis_with_naive_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="support_view_analysis_with_naive_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="support_view_analysis_with_naive_files/libs/bootstrap/bootstrap-a74871fe4945b66d259aafc266475145.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 
 
 </head>
@@ -95,6 +95,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#part-2-single-logistic-regression-on-upper-triangle" id="toc-part-2-single-logistic-regression-on-upper-triangle" class="nav-link" data-scroll-target="#part-2-single-logistic-regression-on-upper-triangle">Part 2: Single Logistic Regression on Upper Triangle</a></li>
   <li><a href="#part-3-visualize-coefficient-distributions" id="toc-part-3-visualize-coefficient-distributions" class="nav-link" data-scroll-target="#part-3-visualize-coefficient-distributions">Part 3: Visualize Coefficient Distributions</a></li>
   <li><a href="#part-4-coefficient-vs-gene-connecting-probability" id="toc-part-4-coefficient-vs-gene-connecting-probability" class="nav-link" data-scroll-target="#part-4-coefficient-vs-gene-connecting-probability">Part 4: Coefficient vs Gene Connecting Probability</a></li>
+  <li><a href="#part-5-per-gene-univariate-logistic-regression" id="toc-part-5-per-gene-univariate-logistic-regression" class="nav-link" data-scroll-target="#part-5-per-gene-univariate-logistic-regression">Part 5: Per-Gene Univariate Logistic Regression</a></li>
+  <li><a href="#part-6-visualize-univariate-coefficient-distributions" id="toc-part-6-visualize-univariate-coefficient-distributions" class="nav-link" data-scroll-target="#part-6-visualize-univariate-coefficient-distributions">Part 6: Visualize Univariate Coefficient Distributions</a></li>
+  <li><a href="#part-7-univariate-coefficient-vs-gene-connecting-probability" id="toc-part-7-univariate-coefficient-vs-gene-connecting-probability" class="nav-link" data-scroll-target="#part-7-univariate-coefficient-vs-gene-connecting-probability">Part 7: Univariate Coefficient vs Gene Connecting Probability</a></li>
   <li><a href="#output" id="toc-output" class="nav-link" data-scroll-target="#output">Output</a></li>
   </ul></li>
   </ul>
@@ -138,40 +141,41 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> seaborn <span class="im">as</span> sns</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> tqdm <span class="im">import</span> tqdm</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pickle</span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> warnings</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> sys</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os</span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>warnings.filterwarnings(<span class="st">'ignore'</span>)</span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>sns.set_style(<span class="st">"whitegrid"</span>)</span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Add code directory to path for imports</span></span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>sys.path.append(<span class="st">'../code'</span>)</span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Set random seed for reproducibility</span></span>
-<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
-<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================================</span></span>
-<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="co"># CONFIGURATION PARAMETERS</span></span>
-<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================================</span></span>
-<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Cross-validation parameters</span></span>
-<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>N_CV_FOLDS <span class="op">=</span> <span class="dv">5</span>  <span class="co"># Number of folds in cross-validation</span></span>
-<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a><span class="co"># SL status threshold (any score &gt; 0 is considered SL-positive)</span></span>
-<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>SL_THRESHOLD <span class="op">=</span> <span class="dv">0</span></span>
-<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a><span class="co"># File paths</span></span>
-<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>DATA_DIR <span class="op">=</span> <span class="st">'../data'</span></span>
-<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>OUTPUT_DIR <span class="op">=</span> <span class="st">'../outputs'</span></span>
-<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Libraries loaded successfully"</span>)</span>
-<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Working directory: </span><span class="sc">{</span>os<span class="sc">.</span>getcwd()<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Configuration:"</span>)</span>
-<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  CV folds: </span><span class="sc">{</span>N_CV_FOLDS<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  SL threshold: &gt; </span><span class="sc">{</span>SL_THRESHOLD<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> tqdm <span class="im">import</span> tqdm</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pickle</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> warnings</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> sys</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>warnings.filterwarnings(<span class="st">'ignore'</span>)</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>sns.set_style(<span class="st">"whitegrid"</span>)</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Add code directory to path for imports</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>sys.path.append(<span class="st">'../code'</span>)</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Set random seed for reproducibility</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================================</span></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="co"># CONFIGURATION PARAMETERS</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================================</span></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a><span class="co"># Cross-validation parameters</span></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>N_CV_FOLDS <span class="op">=</span> <span class="dv">5</span>  <span class="co"># Number of folds in cross-validation</span></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="co"># SL status threshold (any score &gt; 0 is considered SL-positive)</span></span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>SL_THRESHOLD <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a><span class="co"># File paths</span></span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>DATA_DIR <span class="op">=</span> <span class="st">'../data'</span></span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>OUTPUT_DIR <span class="op">=</span> <span class="st">'../outputs'</span></span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Libraries loaded successfully"</span>)</span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Working directory: </span><span class="sc">{</span>os<span class="sc">.</span>getcwd()<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Configuration:"</span>)</span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  CV folds: </span><span class="sc">{</span>N_CV_FOLDS<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  SL threshold: &gt; </span><span class="sc">{</span>SL_THRESHOLD<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>Libraries loaded successfully
@@ -298,22 +302,25 @@ Configuration:
 <div id="naive-probability" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>SL_status_no_diag <span class="op">=</span> SL_status_matrix.copy()</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>np.fill_diagonal(SL_status_no_diag, np.nan)</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>row_sums <span class="op">=</span> np.nansum(SL_status_no_diag, axis<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>row_counts <span class="op">=</span> np.count_nonzero(<span class="op">~</span>np.isnan(SL_status_no_diag), axis<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>prob_vector <span class="op">=</span> np.where(row_counts <span class="op">&gt;</span> <span class="dv">0</span>, row_sums <span class="op">/</span> row_counts, <span class="dv">0</span>)</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>naive_edge_est_matrix <span class="op">=</span> np.outer(prob_vector, prob_vector)</span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> np.allclose(naive_edge_est_matrix, naive_edge_est_matrix.T)</span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>epsilon <span class="op">=</span> <span class="fl">1e-10</span></span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>naive_edge_est_logit_matrix <span class="op">=</span> np.log(</span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    np.clip(naive_edge_est_matrix, epsilon, <span class="dv">1</span> <span class="op">-</span> epsilon) <span class="op">/</span></span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    (<span class="dv">1</span> <span class="op">-</span> np.clip(naive_edge_est_matrix, epsilon, <span class="dv">1</span> <span class="op">-</span> epsilon))</span>
-<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> np.allclose(naive_edge_est_logit_matrix, naive_edge_est_logit_matrix.T)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate per-gene connecting probability (# SL connections / N-1)</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>SL_status_no_diag <span class="op">=</span> SL_status_matrix.copy()</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>np.fill_diagonal(SL_status_no_diag, np.nan)</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>row_sums <span class="op">=</span> np.nansum(SL_status_no_diag, axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>row_counts <span class="op">=</span> np.count_nonzero(<span class="op">~</span>np.isnan(SL_status_no_diag), axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>prob_vector <span class="op">=</span> np.where(row_counts <span class="op">&gt;</span> <span class="dv">0</span>, row_sums <span class="op">/</span> row_counts, <span class="dv">0</span>)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Create naive edge probability matrix as outer product of gene probabilities</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>naive_edge_est_matrix <span class="op">=</span> np.outer(prob_vector, prob_vector)</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> np.allclose(naive_edge_est_matrix, naive_edge_est_matrix.T)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Transform to logit scale for linear modeling</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>epsilon <span class="op">=</span> <span class="fl">1e-10</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>naive_edge_est_logit_matrix <span class="op">=</span> np.log(</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    np.clip(naive_edge_est_matrix, epsilon, <span class="dv">1</span> <span class="op">-</span> epsilon) <span class="op">/</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    (<span class="dv">1</span> <span class="op">-</span> np.clip(naive_edge_est_matrix, epsilon, <span class="dv">1</span> <span class="op">-</span> epsilon))</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> np.allclose(naive_edge_est_logit_matrix, naive_edge_est_logit_matrix.T)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 </div>
 </section>
@@ -365,16 +372,17 @@ Loading ../data/biogrid_ppi_sparse.txt</code></pre>
 <span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>        PPI_matrix</span>
 <span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>    ], axis<span class="op">=</span><span class="dv">0</span>)</span>
 <span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>]:</span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>        np.fill_diagonal(tensor_7xNxN[i], np.nan)</span>
-<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Created tensor: </span><span class="sc">{</span>tensor_7xNxN<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>):</span>
-<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">assert</span> np.allclose(tensor_7xNxN[i], tensor_7xNxN[i].T, equal_nan<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> <span class="bu">open</span>(<span class="st">'tensor_7xNxN.pkl'</span>, <span class="st">'wb'</span>) <span class="im">as</span> f:</span>
-<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>        pickle.dump(tensor_7xNxN, f)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Set diagonal to NaN for SL-related layers (no self-interactions)</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>]:</span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>        np.fill_diagonal(tensor_7xNxN[i], np.nan)</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Created tensor: </span><span class="sc">{</span>tensor_7xNxN<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">7</span>):</span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">assert</span> np.allclose(tensor_7xNxN[i], tensor_7xNxN[i].T, equal_nan<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>    <span class="co"># with open('tensor_7xNxN.pkl', 'wb') as f:</span></span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>    <span class="co">#     pickle.dump(tensor_7xNxN, f)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>Created tensor: (7, 6375, 6375)</code></pre>
@@ -399,51 +407,58 @@ Loading ../data/biogrid_ppi_sparse.txt</code></pre>
 <span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Store gene connecting probability as row 5</span></span>
 <span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>    coefficients_per_gene[<span class="dv">5</span>, :] <span class="op">=</span> prob_vector</span>
 <span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Fit per-gene logistic regression models</span></span>
-<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> tqdm(<span class="bu">range</span>(n_genes), desc<span class="op">=</span><span class="st">"Fitting per-gene models"</span>):</span>
-<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span>:</span>
-<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>            y <span class="op">=</span> tensor_7xNxN[<span class="dv">2</span>, i, :]</span>
-<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>            X <span class="op">=</span> tensor_7xNxN[[<span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>, <span class="dv">6</span>], i, :].T</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> tqdm(<span class="bu">range</span>(n_genes), desc<span class="op">=</span><span class="st">"Fitting per-gene models"</span>):</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span>:</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Extract data for gene i (copy to avoid mutation)</span></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>            y <span class="op">=</span> tensor_7xNxN[<span class="dv">2</span>, i, :].copy()  <span class="co"># SL status</span></span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>            X <span class="op">=</span> tensor_7xNxN[[<span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>, <span class="dv">6</span>], i, :].T.copy()  <span class="co"># Covariates</span></span>
 <span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>            df <span class="op">=</span> pd.DataFrame({</span>
-<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>                <span class="st">'SL_status'</span>: y,</span>
-<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a>                <span class="st">'naive_edge_logit'</span>: X[:, <span class="dv">0</span>],</span>
-<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>                <span class="st">'GO_BP'</span>: X[:, <span class="dv">1</span>],</span>
-<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>                <span class="st">'GO_CC'</span>: X[:, <span class="dv">2</span>],</span>
-<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>                <span class="st">'PPI'</span>: X[:, <span class="dv">3</span>]</span>
-<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a>            }).dropna()</span>
-<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a>            lr <span class="op">=</span> LogisticRegression(fit_intercept<span class="op">=</span><span class="va">True</span>, max_iter<span class="op">=</span><span class="dv">1000</span>)</span>
-<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a>            lr.fit(df[[<span class="st">'naive_edge_logit'</span>, <span class="st">'GO_BP'</span>, <span class="st">'GO_CC'</span>, <span class="st">'PPI'</span>]], df[<span class="st">'SL_status'</span>])</span>
-<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-31"><a href="#cb14-31" aria-hidden="true" tabindex="-1"></a>            coefficients_per_gene[:<span class="dv">5</span>, i] <span class="op">=</span> np.concatenate([[lr.intercept_[<span class="dv">0</span>]], lr.coef_[<span class="dv">0</span>]])</span>
-<span id="cb14-32"><a href="#cb14-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">except</span>:</span>
-<span id="cb14-33"><a href="#cb14-33" aria-hidden="true" tabindex="-1"></a>            <span class="cf">pass</span></span>
-<span id="cb14-34"><a href="#cb14-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-35"><a href="#cb14-35" aria-hidden="true" tabindex="-1"></a>    n_success <span class="op">=</span> np.<span class="bu">sum</span>(<span class="op">~</span>np.isnan(coefficients_per_gene[<span class="dv">0</span>, :]))</span>
-<span id="cb14-36"><a href="#cb14-36" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Fitted </span><span class="sc">{</span>n_success<span class="sc">}</span><span class="ss">/</span><span class="sc">{</span>n_genes<span class="sc">}</span><span class="ss"> models successfully"</span>)</span>
-<span id="cb14-37"><a href="#cb14-37" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-38"><a href="#cb14-38" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> <span class="bu">open</span>(<span class="st">'coefficients_per_gene_6xN.pkl'</span>, <span class="st">'wb'</span>) <span class="im">as</span> f:</span>
-<span id="cb14-39"><a href="#cb14-39" aria-hidden="true" tabindex="-1"></a>        pickle.dump(coefficients_per_gene, f)</span>
-<span id="cb14-40"><a href="#cb14-40" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-41"><a href="#cb14-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Coefficient summary:"</span>)</span>
-<span id="cb14-42"><a href="#cb14-42" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> idx, name <span class="kw">in</span> <span class="bu">enumerate</span>([<span class="st">'Intercept'</span>, <span class="st">'Naive_edge_logit'</span>, <span class="st">'GO_BP'</span>, <span class="st">'GO_CC'</span>, <span class="st">'PPI'</span>]):</span>
-<span id="cb14-43"><a href="#cb14-43" aria-hidden="true" tabindex="-1"></a>    valid <span class="op">=</span> coefficients_per_gene[idx, <span class="op">~</span>np.isnan(coefficients_per_gene[idx, :])]</span>
-<span id="cb14-44"><a href="#cb14-44" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(valid) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
-<span id="cb14-45"><a href="#cb14-45" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"  </span><span class="sc">{</span>name<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>np<span class="sc">.</span>mean(valid)<span class="sc">:.3f}</span><span class="ss"> ± </span><span class="sc">{</span>np<span class="sc">.</span>std(valid)<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
-<span id="cb14-46"><a href="#cb14-46" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-47"><a href="#cb14-47" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Gene connecting probability: </span><span class="sc">{</span>np<span class="sc">.</span>mean(coefficients_per_gene[<span class="dv">5</span>, :])<span class="sc">:.3f}</span><span class="ss"> ± </span><span class="sc">{</span>np<span class="sc">.</span>std(coefficients_per_gene[<span class="dv">5</span>, :])<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Prepare dataframe and remove missing values</span></span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>            df <span class="op">=</span> pd.DataFrame({</span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a>                <span class="st">'SL_status'</span>: y,</span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>                <span class="st">'naive_edge_logit'</span>: X[:, <span class="dv">0</span>],</span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>                <span class="st">'GO_BP'</span>: X[:, <span class="dv">1</span>],</span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>                <span class="st">'GO_CC'</span>: X[:, <span class="dv">2</span>],</span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a>                <span class="st">'PPI'</span>: X[:, <span class="dv">3</span>]</span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a>            }).dropna()</span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Standardize covariates (mean=0, std=1)</span></span>
+<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a>            scaler <span class="op">=</span> StandardScaler()</span>
+<span id="cb14-31"><a href="#cb14-31" aria-hidden="true" tabindex="-1"></a>            X_scaled <span class="op">=</span> scaler.fit_transform(df[[<span class="st">'naive_edge_logit'</span>, <span class="st">'GO_BP'</span>, <span class="st">'GO_CC'</span>, <span class="st">'PPI'</span>]])</span>
+<span id="cb14-32"><a href="#cb14-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-33"><a href="#cb14-33" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Fit logistic regression</span></span>
+<span id="cb14-34"><a href="#cb14-34" aria-hidden="true" tabindex="-1"></a>            lr <span class="op">=</span> LogisticRegression(fit_intercept<span class="op">=</span><span class="va">True</span>, max_iter<span class="op">=</span><span class="dv">1000</span>)</span>
+<span id="cb14-35"><a href="#cb14-35" aria-hidden="true" tabindex="-1"></a>            lr.fit(X_scaled, df[<span class="st">'SL_status'</span>])</span>
+<span id="cb14-36"><a href="#cb14-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-37"><a href="#cb14-37" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Store intercept + coefficients</span></span>
+<span id="cb14-38"><a href="#cb14-38" aria-hidden="true" tabindex="-1"></a>            coefficients_per_gene[:<span class="dv">5</span>, i] <span class="op">=</span> np.concatenate([[lr.intercept_[<span class="dv">0</span>]], lr.coef_[<span class="dv">0</span>]])</span>
+<span id="cb14-39"><a href="#cb14-39" aria-hidden="true" tabindex="-1"></a>        <span class="cf">except</span>:</span>
+<span id="cb14-40"><a href="#cb14-40" aria-hidden="true" tabindex="-1"></a>            <span class="cf">pass</span></span>
+<span id="cb14-41"><a href="#cb14-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-42"><a href="#cb14-42" aria-hidden="true" tabindex="-1"></a>    n_success <span class="op">=</span> np.<span class="bu">sum</span>(<span class="op">~</span>np.isnan(coefficients_per_gene[<span class="dv">0</span>, :]))</span>
+<span id="cb14-43"><a href="#cb14-43" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Fitted </span><span class="sc">{</span>n_success<span class="sc">}</span><span class="ss">/</span><span class="sc">{</span>n_genes<span class="sc">}</span><span class="ss"> models successfully"</span>)</span>
+<span id="cb14-44"><a href="#cb14-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-45"><a href="#cb14-45" aria-hidden="true" tabindex="-1"></a>    <span class="co"># with open('coefficients_per_gene_6xN.pkl', 'wb') as f:</span></span>
+<span id="cb14-46"><a href="#cb14-46" aria-hidden="true" tabindex="-1"></a>    <span class="co">#     pickle.dump(coefficients_per_gene, f)</span></span>
+<span id="cb14-47"><a href="#cb14-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-48"><a href="#cb14-48" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Coefficient summary:"</span>)</span>
+<span id="cb14-49"><a href="#cb14-49" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> idx, name <span class="kw">in</span> <span class="bu">enumerate</span>([<span class="st">'Intercept'</span>, <span class="st">'Naive_edge_logit'</span>, <span class="st">'GO_BP'</span>, <span class="st">'GO_CC'</span>, <span class="st">'PPI'</span>]):</span>
+<span id="cb14-50"><a href="#cb14-50" aria-hidden="true" tabindex="-1"></a>    valid <span class="op">=</span> coefficients_per_gene[idx, <span class="op">~</span>np.isnan(coefficients_per_gene[idx, :])]</span>
+<span id="cb14-51"><a href="#cb14-51" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(valid) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb14-52"><a href="#cb14-52" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"  </span><span class="sc">{</span>name<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>np<span class="sc">.</span>mean(valid)<span class="sc">:.3f}</span><span class="ss"> ± </span><span class="sc">{</span>np<span class="sc">.</span>std(valid)<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb14-53"><a href="#cb14-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-54"><a href="#cb14-54" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Gene connecting probability: </span><span class="sc">{</span>np<span class="sc">.</span>mean(coefficients_per_gene[<span class="dv">5</span>, :])<span class="sc">:.3f}</span><span class="ss"> ± </span><span class="sc">{</span>np<span class="sc">.</span>std(coefficients_per_gene[<span class="dv">5</span>, :])<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>
 Fitted 6375/6375 models successfully
 
 Coefficient summary:
-  Intercept: 4.810 ± 7.709
-  Naive_edge_logit: 0.907 ± 0.621
-  GO_BP: -0.028 ± 0.169
-  GO_CC: -0.036 ± 0.204
-  PPI: 0.046 ± 0.354
+  Intercept: -9.130 ± 1.658
+  Naive_edge_logit: 0.910 ± 0.720
+  GO_BP: -0.048 ± 0.085
+  GO_CC: -0.044 ± 0.087
+  PPI: -0.022 ± 0.122
 
 Gene connecting probability: 0.001 ± 0.006</code></pre>
 </div>
@@ -454,37 +469,43 @@ Gene connecting probability: 0.001 ± 0.006</code></pre>
 <div id="single-logistic" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>upper_tri_indices <span class="op">=</span> np.triu_indices(n_genes, k<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>df_long <span class="op">=</span> pd.DataFrame({</span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">'SL_status'</span>: tensor_7xNxN[<span class="dv">2</span>][upper_tri_indices],</span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">'naive_edge_logit'</span>: tensor_7xNxN[<span class="dv">3</span>][upper_tri_indices],</span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">'GO_BP'</span>: tensor_7xNxN[<span class="dv">4</span>][upper_tri_indices],</span>
-<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">'GO_CC'</span>: tensor_7xNxN[<span class="dv">5</span>][upper_tri_indices],</span>
-<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">'PPI'</span>: tensor_7xNxN[<span class="dv">6</span>][upper_tri_indices]</span>
-<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>}).dropna()</span>
-<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Using </span><span class="sc">{</span><span class="bu">len</span>(df_long)<span class="sc">:,}</span><span class="ss"> gene pairs"</span>)</span>
-<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>lr_global <span class="op">=</span> LogisticRegression(fit_intercept<span class="op">=</span><span class="va">True</span>, max_iter<span class="op">=</span><span class="dv">1000</span>)</span>
-<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>lr_global.fit(df_long[[<span class="st">'naive_edge_logit'</span>, <span class="st">'GO_BP'</span>, <span class="st">'GO_CC'</span>, <span class="st">'PPI'</span>]], df_long[<span class="st">'SL_status'</span>])</span>
-<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Global Model Coefficients:"</span>)</span>
-<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Intercept: </span><span class="sc">{</span>lr_global<span class="sc">.</span>intercept_[<span class="dv">0</span>]<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Naive edge logit: </span><span class="sc">{</span>lr_global<span class="sc">.</span>coef_[<span class="dv">0</span>][<span class="dv">0</span>]<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  GO_BP: </span><span class="sc">{</span>lr_global<span class="sc">.</span>coef_[<span class="dv">0</span>][<span class="dv">1</span>]<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  GO_CC: </span><span class="sc">{</span>lr_global<span class="sc">.</span>coef_[<span class="dv">0</span>][<span class="dv">2</span>]<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  PPI: </span><span class="sc">{</span>lr_global<span class="sc">.</span>coef_[<span class="dv">0</span>][<span class="dv">3</span>]<span class="sc">:.6f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Extract upper triangle (unique gene pairs)</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>upper_tri_indices <span class="op">=</span> np.triu_indices(n_genes, k<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>df_long <span class="op">=</span> pd.DataFrame({</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">'SL_status'</span>: tensor_7xNxN[<span class="dv">2</span>][upper_tri_indices],</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">'naive_edge_logit'</span>: tensor_7xNxN[<span class="dv">3</span>][upper_tri_indices],</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">'GO_BP'</span>: tensor_7xNxN[<span class="dv">4</span>][upper_tri_indices],</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">'GO_CC'</span>: tensor_7xNxN[<span class="dv">5</span>][upper_tri_indices],</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">'PPI'</span>: tensor_7xNxN[<span class="dv">6</span>][upper_tri_indices]</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>}).dropna()</span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Using </span><span class="sc">{</span><span class="bu">len</span>(df_long)<span class="sc">:,}</span><span class="ss"> gene pairs"</span>)</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Standardize covariates globally (mean=0, std=1)</span></span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>scaler_global <span class="op">=</span> StandardScaler()</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>X_global_scaled <span class="op">=</span> scaler_global.fit_transform(df_long[[<span class="st">'naive_edge_logit'</span>, <span class="st">'GO_BP'</span>, <span class="st">'GO_CC'</span>, <span class="st">'PPI'</span>]])</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Fit single logistic regression on all gene pairs</span></span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a>lr_global <span class="op">=</span> LogisticRegression(fit_intercept<span class="op">=</span><span class="va">True</span>, max_iter<span class="op">=</span><span class="dv">1000</span>)</span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a>lr_global.fit(X_global_scaled, df_long[<span class="st">'SL_status'</span>])</span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Global Model Coefficients:"</span>)</span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Intercept: </span><span class="sc">{</span>lr_global<span class="sc">.</span>intercept_[<span class="dv">0</span>]<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Naive edge logit: </span><span class="sc">{</span>lr_global<span class="sc">.</span>coef_[<span class="dv">0</span>][<span class="dv">0</span>]<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  GO_BP: </span><span class="sc">{</span>lr_global<span class="sc">.</span>coef_[<span class="dv">0</span>][<span class="dv">1</span>]<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  GO_CC: </span><span class="sc">{</span>lr_global<span class="sc">.</span>coef_[<span class="dv">0</span>][<span class="dv">2</span>]<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb16-27"><a href="#cb16-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  PPI: </span><span class="sc">{</span>lr_global<span class="sc">.</span>coef_[<span class="dv">0</span>][<span class="dv">3</span>]<span class="sc">:.6f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>Using 20,317,125 gene pairs
 
 Global Model Coefficients:
-  Intercept: 8.963765
-  Naive edge logit: 1.162223
-  GO_BP: 0.075967
-  GO_CC: 0.066209
-  PPI: 1.125783</code></pre>
+  Intercept: -9.227325
+  Naive edge logit: 1.652594
+  GO_BP: 0.005765
+  GO_CC: 0.004896
+  PPI: 0.028384</code></pre>
 </div>
 </div>
 </section>
@@ -522,7 +543,7 @@ Global Model Coefficients:
 <div class="cell-output cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="Simpson_files/figure-html/coefficient-histograms-output-1.png" id="coefficient-histograms" width="1142" height="950" class="figure-img"></p>
+<p><img src="support_view_analysis_with_naive_files/figure-html/coefficient-histograms-output-1.png" id="coefficient-histograms" width="1143" height="950" class="figure-img"></p>
 </figure>
 </div>
 </div>
@@ -573,7 +594,154 @@ Global Model Coefficients:
 <div class="cell-output cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="Simpson_files/figure-html/coefficient-scatter-output-1.png" id="coefficient-scatter" width="1142" height="949" class="figure-img"></p>
+<p><img src="support_view_analysis_with_naive_files/figure-html/coefficient-scatter-output-1.png" id="coefficient-scatter" width="1142" height="949" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="part-5-per-gene-univariate-logistic-regression" class="level2">
+<h2 class="anchored" data-anchor-id="part-5-per-gene-univariate-logistic-regression">Part 5: Per-Gene Univariate Logistic Regression</h2>
+<div id="per-gene-univariate" class="cell" data-execution_count="12">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> os.path.exists(<span class="st">'coefficients_univariate_3xN.pkl'</span>):</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"Loading cached univariate coefficients..."</span>)</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> <span class="bu">open</span>(<span class="st">'coefficients_univariate_3xN.pkl'</span>, <span class="st">'rb'</span>) <span class="im">as</span> f:</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>        coefficients_univariate <span class="op">=</span> pickle.load(f)</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Loaded coefficients: </span><span class="sc">{</span>coefficients_univariate<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 3×N matrix for GO_BP, GO_CC, PPI coefficients (univariate: naive_logit + one view)</span></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>    coefficients_univariate <span class="op">=</span> np.full((<span class="dv">3</span>, n_genes), np.nan)</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> tqdm(<span class="bu">range</span>(n_genes), desc<span class="op">=</span><span class="st">"Fitting univariate models"</span>):</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span>:</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>            y <span class="op">=</span> tensor_7xNxN[<span class="dv">2</span>, i, :].copy()</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>            X <span class="op">=</span> tensor_7xNxN[[<span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>, <span class="dv">6</span>], i, :].T.copy()</span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>            df <span class="op">=</span> pd.DataFrame({</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>                <span class="st">'SL_status'</span>: y,</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>                <span class="st">'naive_edge_logit'</span>: X[:, <span class="dv">0</span>],</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a>                <span class="st">'GO_BP'</span>: X[:, <span class="dv">1</span>],</span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>                <span class="st">'GO_CC'</span>: X[:, <span class="dv">2</span>],</span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>                <span class="st">'PPI'</span>: X[:, <span class="dv">3</span>]</span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a>            }).dropna()</span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Fit 3 models: y ~ intercept + naive_logit + one_view</span></span>
+<span id="cb20-24"><a href="#cb20-24" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> idx, view <span class="kw">in</span> <span class="bu">enumerate</span>([<span class="st">'GO_BP'</span>, <span class="st">'GO_CC'</span>, <span class="st">'PPI'</span>]):</span>
+<span id="cb20-25"><a href="#cb20-25" aria-hidden="true" tabindex="-1"></a>                scaler <span class="op">=</span> StandardScaler()</span>
+<span id="cb20-26"><a href="#cb20-26" aria-hidden="true" tabindex="-1"></a>                X_scaled <span class="op">=</span> scaler.fit_transform(df[[<span class="st">'naive_edge_logit'</span>, view]])</span>
+<span id="cb20-27"><a href="#cb20-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-28"><a href="#cb20-28" aria-hidden="true" tabindex="-1"></a>                lr <span class="op">=</span> LogisticRegression(fit_intercept<span class="op">=</span><span class="va">True</span>, max_iter<span class="op">=</span><span class="dv">1000</span>)</span>
+<span id="cb20-29"><a href="#cb20-29" aria-hidden="true" tabindex="-1"></a>                lr.fit(X_scaled, df[<span class="st">'SL_status'</span>])</span>
+<span id="cb20-30"><a href="#cb20-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-31"><a href="#cb20-31" aria-hidden="true" tabindex="-1"></a>                coefficients_univariate[idx, i] <span class="op">=</span> lr.coef_[<span class="dv">0</span>][<span class="dv">1</span>]</span>
+<span id="cb20-32"><a href="#cb20-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">except</span>:</span>
+<span id="cb20-33"><a href="#cb20-33" aria-hidden="true" tabindex="-1"></a>            <span class="cf">pass</span></span>
+<span id="cb20-34"><a href="#cb20-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-35"><a href="#cb20-35" aria-hidden="true" tabindex="-1"></a>    n_success <span class="op">=</span> np.<span class="bu">sum</span>(<span class="op">~</span>np.isnan(coefficients_univariate[<span class="dv">0</span>, :]))</span>
+<span id="cb20-36"><a href="#cb20-36" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Fitted </span><span class="sc">{</span>n_success<span class="sc">}</span><span class="ss">/</span><span class="sc">{</span>n_genes<span class="sc">}</span><span class="ss"> models successfully"</span>)</span>
+<span id="cb20-37"><a href="#cb20-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-38"><a href="#cb20-38" aria-hidden="true" tabindex="-1"></a>    <span class="co"># with open('coefficients_univariate_3xN.pkl', 'wb') as f:</span></span>
+<span id="cb20-39"><a href="#cb20-39" aria-hidden="true" tabindex="-1"></a>    <span class="co">#     pickle.dump(coefficients_univariate, f)</span></span>
+<span id="cb20-40"><a href="#cb20-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-41"><a href="#cb20-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Univariate coefficient summary:"</span>)</span>
+<span id="cb20-42"><a href="#cb20-42" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> idx, name <span class="kw">in</span> <span class="bu">enumerate</span>([<span class="st">'GO_BP'</span>, <span class="st">'GO_CC'</span>, <span class="st">'PPI'</span>]):</span>
+<span id="cb20-43"><a href="#cb20-43" aria-hidden="true" tabindex="-1"></a>    valid <span class="op">=</span> coefficients_univariate[idx, <span class="op">~</span>np.isnan(coefficients_univariate[idx, :])]</span>
+<span id="cb20-44"><a href="#cb20-44" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(valid) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb20-45"><a href="#cb20-45" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"  </span><span class="sc">{</span>name<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>np<span class="sc">.</span>mean(valid)<span class="sc">:.3f}</span><span class="ss"> ± </span><span class="sc">{</span>np<span class="sc">.</span>std(valid)<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Fitted 6375/6375 models successfully
+
+Univariate coefficient summary:
+  GO_BP: -0.049 ± 0.082
+  GO_CC: -0.045 ± 0.085
+  PPI: -0.022 ± 0.121</code></pre>
+</div>
+</div>
+</section>
+<section id="part-6-visualize-univariate-coefficient-distributions" class="level2">
+<h2 class="anchored" data-anchor-id="part-6-visualize-univariate-coefficient-distributions">Part 6: Visualize Univariate Coefficient Distributions</h2>
+<div id="cell-univariate-histograms" class="cell" data-fig-height="4" data-fig-width="12" data-execution_count="13">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> idx, name <span class="kw">in</span> <span class="bu">enumerate</span>([<span class="st">'GO_BP'</span>, <span class="st">'GO_CC'</span>, <span class="st">'PPI'</span>]):</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>    ax <span class="op">=</span> axes[idx]</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>    valid <span class="op">=</span> coefficients_univariate[idx, <span class="op">~</span>np.isnan(coefficients_univariate[idx, :])]</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(valid) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>        ax.hist(valid, bins<span class="op">=</span><span class="dv">50</span>, edgecolor<span class="op">=</span><span class="st">'black'</span>, alpha<span class="op">=</span><span class="fl">0.7</span>)</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>        ax.axvline(x<span class="op">=</span><span class="dv">0</span>, color<span class="op">=</span><span class="st">'red'</span>, linestyle<span class="op">=</span><span class="st">'--'</span>, linewidth<span class="op">=</span><span class="fl">1.5</span>, alpha<span class="op">=</span><span class="fl">0.7</span>)</span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>        ax.set_xlabel(<span class="st">'Coefficient Value'</span>)</span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>        ax.set_ylabel(<span class="st">'Frequency'</span>)</span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>        ax.set_title(<span class="ss">f'</span><span class="sc">{</span>name<span class="sc">}</span><span class="ss"> (n=</span><span class="sc">{</span><span class="bu">len</span>(valid)<span class="sc">}</span><span class="ss">)'</span>, fontweight<span class="op">=</span><span class="st">'bold'</span>)</span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>        ax.grid(<span class="va">True</span>, alpha<span class="op">=</span><span class="fl">0.3</span>)</span>
+<span id="cb22-14"><a href="#cb22-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-15"><a href="#cb22-15" aria-hidden="true" tabindex="-1"></a>        stats <span class="op">=</span> <span class="ss">f'Mean: </span><span class="sc">{</span>np<span class="sc">.</span>mean(valid)<span class="sc">:.3f}</span><span class="ch">\n</span><span class="ss">Median: </span><span class="sc">{</span>np<span class="sc">.</span>median(valid)<span class="sc">:.3f}</span><span class="ch">\n</span><span class="ss">Std: </span><span class="sc">{</span>np<span class="sc">.</span>std(valid)<span class="sc">:.3f}</span><span class="ss">'</span></span>
+<span id="cb22-16"><a href="#cb22-16" aria-hidden="true" tabindex="-1"></a>        ax.text(<span class="fl">0.02</span>, <span class="fl">0.98</span>, stats, transform<span class="op">=</span>ax.transAxes, va<span class="op">=</span><span class="st">'top'</span>, fontsize<span class="op">=</span><span class="dv">9</span>,</span>
+<span id="cb22-17"><a href="#cb22-17" aria-hidden="true" tabindex="-1"></a>                bbox<span class="op">=</span><span class="bu">dict</span>(boxstyle<span class="op">=</span><span class="st">'round'</span>, facecolor<span class="op">=</span><span class="st">'wheat'</span>, alpha<span class="op">=</span><span class="fl">0.5</span>))</span>
+<span id="cb22-18"><a href="#cb22-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb22-19"><a href="#cb22-19" aria-hidden="true" tabindex="-1"></a>        ax.text(<span class="fl">0.5</span>, <span class="fl">0.5</span>, <span class="st">'No valid coefficients'</span>, transform<span class="op">=</span>ax.transAxes, ha<span class="op">=</span><span class="st">'center'</span>, va<span class="op">=</span><span class="st">'center'</span>)</span>
+<span id="cb22-20"><a href="#cb22-20" aria-hidden="true" tabindex="-1"></a>        ax.set_title(<span class="ss">f'</span><span class="sc">{</span>name<span class="sc">}</span><span class="ss"> (n=0)'</span>, fontweight<span class="op">=</span><span class="st">'bold'</span>)</span>
+<span id="cb22-21"><a href="#cb22-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-22"><a href="#cb22-22" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb22-23"><a href="#cb22-23" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="support_view_analysis_with_naive_files/figure-html/univariate-histograms-output-1.png" id="univariate-histograms" width="1142" height="374" class="figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="part-7-univariate-coefficient-vs-gene-connecting-probability" class="level2">
+<h2 class="anchored" data-anchor-id="part-7-univariate-coefficient-vs-gene-connecting-probability">Part 7: Univariate Coefficient vs Gene Connecting Probability</h2>
+<div id="cell-univariate-scatter" class="cell" data-fig-height="4" data-fig-width="12" data-execution_count="14">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>gene_prob <span class="op">=</span> coefficients_per_gene[<span class="dv">5</span>, :]</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> idx, name <span class="kw">in</span> <span class="bu">enumerate</span>([<span class="st">'GO_BP'</span>, <span class="st">'GO_CC'</span>, <span class="st">'PPI'</span>]):</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>    ax <span class="op">=</span> axes[idx]</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>    coef <span class="op">=</span> coefficients_univariate[idx, :]</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>    valid_mask <span class="op">=</span> <span class="op">~</span>(np.isnan(coef) <span class="op">|</span> np.isnan(gene_prob))</span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> np.<span class="bu">sum</span>(valid_mask) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> gene_prob[valid_mask]</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>        y <span class="op">=</span> coef[valid_mask]</span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>        ax.scatter(x, y, alpha<span class="op">=</span><span class="fl">0.5</span>, s<span class="op">=</span><span class="dv">20</span>, edgecolors<span class="op">=</span><span class="st">'black'</span>, linewidth<span class="op">=</span><span class="fl">0.5</span>)</span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>        ax.axhline(y<span class="op">=</span><span class="dv">0</span>, color<span class="op">=</span><span class="st">'red'</span>, linestyle<span class="op">=</span><span class="st">'--'</span>, linewidth<span class="op">=</span><span class="dv">1</span>, alpha<span class="op">=</span><span class="fl">0.5</span>)</span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>        ax.set_xlabel(<span class="st">'Gene Connecting Probability'</span>)</span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a>        ax.set_ylabel(<span class="st">'Coefficient Value'</span>)</span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a>        ax.set_title(<span class="ss">f'</span><span class="sc">{</span>name<span class="sc">}</span><span class="ss"> (n=</span><span class="sc">{</span><span class="bu">len</span>(x)<span class="sc">}</span><span class="ss">)'</span>, fontweight<span class="op">=</span><span class="st">'bold'</span>)</span>
+<span id="cb23-19"><a href="#cb23-19" aria-hidden="true" tabindex="-1"></a>        ax.grid(<span class="va">True</span>, alpha<span class="op">=</span><span class="fl">0.3</span>)</span>
+<span id="cb23-20"><a href="#cb23-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-21"><a href="#cb23-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(x) <span class="op">&gt;</span> <span class="dv">1</span>:</span>
+<span id="cb23-22"><a href="#cb23-22" aria-hidden="true" tabindex="-1"></a>            r_pearson, p_pearson <span class="op">=</span> pearsonr(x, y)</span>
+<span id="cb23-23"><a href="#cb23-23" aria-hidden="true" tabindex="-1"></a>            r_spearman, p_spearman <span class="op">=</span> spearmanr(x, y)</span>
+<span id="cb23-24"><a href="#cb23-24" aria-hidden="true" tabindex="-1"></a>            corr_text <span class="op">=</span> <span class="ss">f'Pearson r: </span><span class="sc">{</span>r_pearson<span class="sc">:.3f}</span><span class="ss"> (p=</span><span class="sc">{</span>p_pearson<span class="sc">:.2e}</span><span class="ss">)</span><span class="ch">\n</span><span class="ss">Spearman ρ: </span><span class="sc">{</span>r_spearman<span class="sc">:.3f}</span><span class="ss"> (p=</span><span class="sc">{</span>p_spearman<span class="sc">:.2e}</span><span class="ss">)'</span></span>
+<span id="cb23-25"><a href="#cb23-25" aria-hidden="true" tabindex="-1"></a>            ax.text(<span class="fl">0.02</span>, <span class="fl">0.98</span>, corr_text, transform<span class="op">=</span>ax.transAxes, va<span class="op">=</span><span class="st">'top'</span>, fontsize<span class="op">=</span><span class="dv">8</span>,</span>
+<span id="cb23-26"><a href="#cb23-26" aria-hidden="true" tabindex="-1"></a>                    bbox<span class="op">=</span><span class="bu">dict</span>(boxstyle<span class="op">=</span><span class="st">'round'</span>, facecolor<span class="op">=</span><span class="st">'lightblue'</span>, alpha<span class="op">=</span><span class="fl">0.5</span>))</span>
+<span id="cb23-27"><a href="#cb23-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb23-28"><a href="#cb23-28" aria-hidden="true" tabindex="-1"></a>        ax.text(<span class="fl">0.5</span>, <span class="fl">0.5</span>, <span class="st">'No valid data'</span>, transform<span class="op">=</span>ax.transAxes, ha<span class="op">=</span><span class="st">'center'</span>, va<span class="op">=</span><span class="st">'center'</span>)</span>
+<span id="cb23-29"><a href="#cb23-29" aria-hidden="true" tabindex="-1"></a>        ax.set_title(<span class="ss">f'</span><span class="sc">{</span>name<span class="sc">}</span><span class="ss"> (n=0)'</span>, fontweight<span class="op">=</span><span class="st">'bold'</span>)</span>
+<span id="cb23-30"><a href="#cb23-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-31"><a href="#cb23-31" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb23-32"><a href="#cb23-32" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="support_view_analysis_with_naive_files/figure-html/univariate-scatter-output-1.png" id="univariate-scatter" width="1142" height="374" class="figure-img"></p>
 </figure>
 </div>
 </div>
