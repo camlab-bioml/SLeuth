@@ -353,6 +353,30 @@ print(f"  GO_CC: {lr_global.coef_[0][2]:.6f}")
 print(f"  PPI: {lr_global.coef_[0][3]:.6f}")
 ```
 
+## Part 2b: Univariate Global Logistic Regression
+
+```{python}
+#| label: univariate-global
+#| echo: true
+
+# Fit separate univariate models for each covariate
+univariate_global_coefs = {}
+
+for name, col in [('Naive_edge_logit', 'naive_edge_logit'), ('GO_BP', 'GO_BP'),
+                   ('GO_CC', 'GO_CC'), ('PPI', 'PPI')]:
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(df_long[[col]])
+
+    lr = LogisticRegression(fit_intercept=True, max_iter=1000)
+    lr.fit(X_scaled, df_long['SL_status'])
+
+    univariate_global_coefs[name] = lr.coef_[0][0]
+
+print("\nUnivariate Global Model Coefficients:")
+for name, coef in univariate_global_coefs.items():
+    print(f"  {name}: {coef:.6f}")
+```
+
 ## Part 3: Visualize Coefficient Distributions
 
 ```{python}
