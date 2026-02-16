@@ -19,13 +19,13 @@ Usage:
                       --gene1 BRCA1 --top_k 100
 """
 
+import json
 import argparse
 from pathlib import Path
 from typing import List, Tuple, Optional
 
 import torch
 import pandas as pd
-import numpy as np
 from tqdm import tqdm
 
 from siamese_esm import SiameseSL, SiameseSLWithAttention, SiameseSLKernel, set_seed
@@ -74,7 +74,16 @@ def _infer_kernel_dims(state_dict: dict) -> dict:
         latent_key = _find_key(state_dict, ["encoder.net.3.net.4.weight"])
         latent_dim = state_dict[latent_key].shape[0]
 
-        encoder_rank = max(bottleneck1, bottleneck2 * 2)
+        # Recover encoder_rank from bottleneck dims.
+        # EfficientEncoder computes: bottleneck1 = max(rank, input_dim // 8)
+        #                            bottleneck2 = max(rank // 2, output_dim // 4)
+        # Try candidates and verify both equations hold.
+        encoder_rank = bottleneck1  # fallback
+        for candidate in [bottleneck1, bottleneck2 * 2]:
+            if (max(candidate, input_dim // 8) == bottleneck1 and
+                    max(candidate // 2, latent_dim // 4) == bottleneck2):
+                encoder_rank = candidate
+                break
     elif encoder_type == "gated":
         first_key = _find_key(state_dict, ["encoder.net.0.linear.weight"])
         input_dim = state_dict[first_key].shape[1]
@@ -105,6 +114,7 @@ def load_model(
     checkpoint_path: str,
     model_type: str = "siamese",
     device: str = "cpu",
+    num_heads: Optional[int] = None,
 ) -> torch.nn.Module:
     """Load trained model from checkpoint."""
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
@@ -112,7 +122,7 @@ def load_model(
     # Infer model params from state dict
     state_dict = checkpoint["model_state_dict"]
 
-    # Detect model type from state dict keys if not specified
+    # Auto-detect model type from state dict keys (overrides --model_type)
     if "hilbert_map" in str(state_dict.keys()):
         model_type = "kernel"
     elif "cross_attn" in str(state_dict.keys()):
@@ -161,10 +171,26 @@ def load_model(
         latent_key = _find_key(state_dict, ["post_attn.0.weight"])
         latent_dim = state_dict[latent_key].shape[0]
 
+        # num_heads can't be inferred from weight shapes; use CLI override,
+        # checkpoint config, config.json, or default 4 (in priority order)
+        if num_heads is None:
+            if "config" in checkpoint:
+                num_heads = checkpoint["config"].get("num_heads", 4)
+            else:
+                config_path = Path(checkpoint_path).parent.parent / "config.json"
+                if config_path.exists():
+                    with open(config_path) as f:
+                        config = json.load(f)
+                    num_heads = config.get("num_heads", 4)
+                else:
+                    num_heads = 4
+                    print(f"Warning: no config in checkpoint or {config_path}, using num_heads={num_heads}")
+
         model = SiameseSLWithAttention(
             input_dim=input_dim,
             hidden_dim=hidden_dim,
             latent_dim=latent_dim,
+            num_heads=num_heads,
         )
 
     model.load_state_dict(state_dict)
@@ -177,14 +203,28 @@ def load_model(
 def load_embeddings(
     embeddings_path: str,
 ) -> Tuple[torch.Tensor, dict, dict]:
-    """Load ESM embeddings and gene mappings."""
+    """Load gene embeddings and gene mappings."""
     data = torch.load(embeddings_path, map_location="cpu", weights_only=False)
 
     if isinstance(data, dict):
         embeddings = data["embeddings"]
-        gene_order = data["gene_order"]
+        if "gene_order" in data:
+            gene_order = data["gene_order"]
+        elif "gene_to_idx" in data:
+            # Reconstruct gene_order from gene_to_idx (must be contiguous 0..N-1)
+            g2i = data["gene_to_idx"]
+            n = len(g2i)
+            gene_order = [""] * n
+            for gene, idx in g2i.items():
+                if not (0 <= idx < n):
+                    raise ValueError(f"gene_to_idx has out-of-range index {idx} for {gene} (expected 0..{n-1})")
+                gene_order[idx] = gene
+            if "" in gene_order:
+                raise ValueError("gene_to_idx has non-contiguous indices (gaps detected)")
+        else:
+            raise ValueError("Embeddings file must contain gene_order or gene_to_idx")
     else:
-        raise ValueError("Embeddings file must contain gene_order")
+        raise ValueError("Embeddings file must be a dict with 'embeddings' key")
 
     gene_to_idx = {gene: idx for idx, gene in enumerate(gene_order)}
     idx_to_gene = {idx: gene for idx, gene in enumerate(gene_order)}
@@ -326,7 +366,7 @@ def main():
     )
     parser.add_argument(
         "--embeddings", type=str, required=True,
-        help="Path to ESM embeddings file"
+        help="Path to gene embeddings file"
     )
     parser.add_argument(
         "--model_type", type=str, default="siamese",
@@ -350,6 +390,10 @@ def main():
         help="Output file for results"
     )
 
+    # Model overrides (for old checkpoints without embedded config)
+    parser.add_argument("--num_heads", type=int, default=None,
+                        help="Attention heads override (auto-detected from checkpoint if available)")
+
     # Runtime
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--batch_size", type=int, default=256)
@@ -360,7 +404,7 @@ def main():
 
     # Load model and embeddings
     print("Loading model...")
-    model = load_model(args.model, args.model_type, args.device)
+    model = load_model(args.model, args.model_type, args.device, args.num_heads)
 
     print("Loading embeddings...")
     embeddings, gene_to_idx, idx_to_gene = load_embeddings(args.embeddings)

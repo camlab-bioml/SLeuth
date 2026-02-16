@@ -136,7 +136,6 @@ def parse_fasta(fasta_path: str) -> Dict[str, Tuple[str, str]]:
 
     # Handle gzipped files
     if fasta_path.endswith(".gz"):
-        import gzip
         opener = lambda p: gzip.open(p, "rt")
     else:
         opener = lambda p: open(p, "r")
@@ -367,7 +366,7 @@ class ESMEmbeddingGenerator:
     def generate_embeddings(
         self,
         gene_seqs: Dict[str, Tuple[str, str]],
-    ) -> Tuple[torch.Tensor, List[str]]:
+    ) -> Tuple[torch.Tensor, List[str], List[str]]:
         """
         Generate embeddings for all genes.
 
@@ -375,7 +374,7 @@ class ESMEmbeddingGenerator:
             gene_seqs: Dict mapping gene name -> (uniprot_id, sequence)
 
         Returns:
-            (embeddings tensor, gene_order list)
+            (embeddings tensor, gene_order list, failed_genes list)
         """
         gene_order = sorted(gene_seqs.keys())
         all_embeddings = {}
@@ -472,28 +471,25 @@ def main():
         help="Pooling method: pool_parti (PageRank-based, default) or mean"
     )
     parser.add_argument(
-        "--reviewed_only", action="store_true", default=True,
-        help="Only use reviewed (Swiss-Prot) proteins (~20k, default: True)"
-    )
-    parser.add_argument(
         "--include_unreviewed", action="store_true",
-        help="Include unreviewed (TrEMBL) proteins (overrides --reviewed_only)"
+        help="Include unreviewed (TrEMBL) proteins (default: reviewed/Swiss-Prot only)"
     )
 
     args = parser.parse_args()
 
-    # Handle reviewed_only logic
-    reviewed_only = args.reviewed_only and not args.include_unreviewed
+    # Default: reviewed (Swiss-Prot) only (~20k proteins)
+    reviewed_only = not args.include_unreviewed
 
     # Create cache directory
     cache_dir = Path(args.cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    # Get FASTA file
+    # Get FASTA file (distinct cache per mode to avoid reviewed/unreviewed mismatch)
     if args.fasta:
         fasta_path = args.fasta
     else:
-        fasta_path = cache_dir / "human_proteome.fasta"
+        cache_name = "human_proteome_reviewed.fasta" if reviewed_only else "human_proteome_full.fasta"
+        fasta_path = cache_dir / cache_name
         if not fasta_path.exists():
             download_uniprot_fasta(str(fasta_path), reviewed_only)
         else:

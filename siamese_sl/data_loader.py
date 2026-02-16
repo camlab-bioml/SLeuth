@@ -8,7 +8,7 @@ Uses SLMGAE benchmark's CV splitting code for consistency:
   - CV3: Pair-based split (both genes in test pairs are unseen)
 
 Handles:
-  - Loading ESM embeddings for all genes (~20k)
+  - Loading gene embeddings for all genes (~20k)
   - Loading SL interaction pairs from SLMGAE (~6k genes, ~10k pairs)
   - Creating train/test splits via SLMGAE benchmark code
   - Batching for training
@@ -46,8 +46,8 @@ class SLDataset(Dataset):
     Dataset for Synthetic Lethality prediction.
 
     Each sample is a gene pair with:
-      - ESM embedding for gene1
-      - ESM embedding for gene2
+      - Embedding for gene1 (ESM-only or combined ESM+GO)
+      - Embedding for gene2
       - Label (1 = SL, 0 = non-SL)
     """
 
@@ -59,7 +59,7 @@ class SLDataset(Dataset):
     ):
         """
         Args:
-            embeddings: ESM embeddings tensor (num_genes, 1280)
+            embeddings: Gene embeddings tensor (num_genes, embed_dim)
             pairs: Gene index pairs (N, 2)
             labels: Labels for each pair (N,)
         """
@@ -86,9 +86,8 @@ class SLDataManager:
     Uses SLMGAE benchmark's SLDataSplitter for CV1/CV2/CV3 splits
     to ensure consistency with published results.
 
-    NOTE: The benchmark splitter uses a hard-coded seed (123) internally
-    for CV splitting. The --seed argument only affects model weight
-    initialization, not the CV splits themselves.
+    NOTE: The --seed argument controls both model weight initialization
+    AND CV splitting (passed as random_state to SLDataSplitter).
 
     Gene universe:
       - All genes with ESM embeddings (~20k)
@@ -105,7 +104,7 @@ class SLDataManager:
     ):
         """
         Args:
-            embeddings_path: Path to ESM embeddings (.pt file)
+            embeddings_path: Path to gene embeddings (.pt file)
             sl_pairs_path: Path to SL pairs file (gene1 TAB gene2 [TAB weight])
             gene_list_path: Optional path to gene list (for ordering)
             seed: Random seed for reproducibility
@@ -143,7 +142,7 @@ class SLDataManager:
         embeddings_path: str,
         gene_list_path: Optional[str],
     ) -> Tuple[torch.Tensor, Dict[str, int], Dict[int, str]]:
-        """Load ESM embeddings and create gene index mappings."""
+        """Load gene embeddings and create gene index mappings."""
         data = torch.load(embeddings_path, map_location="cpu", weights_only=False)
 
         if isinstance(data, dict):
@@ -151,11 +150,16 @@ class SLDataManager:
             if "gene_order" in data:
                 gene_order = data["gene_order"]
             elif "gene_to_idx" in data:
-                # Reconstruct gene_order from gene_to_idx
+                # Reconstruct gene_order from gene_to_idx (must be contiguous 0..N-1)
                 gene_to_idx = data["gene_to_idx"]
-                gene_order = [""] * len(gene_to_idx)
+                n = len(gene_to_idx)
+                gene_order = [""] * n
                 for gene, idx in gene_to_idx.items():
+                    if not (0 <= idx < n):
+                        raise ValueError(f"gene_to_idx has out-of-range index {idx} for {gene} (expected 0..{n-1})")
                     gene_order[idx] = gene
+                if "" in gene_order:
+                    raise ValueError("gene_to_idx has non-contiguous indices (gaps detected)")
             elif gene_list_path:
                 with open(gene_list_path, "r") as f:
                     gene_order = [line.strip() for line in f]
@@ -399,7 +403,7 @@ def create_fold_dataloaders(
     Create train and test DataLoaders for a CV fold.
 
     Args:
-        embeddings: ESM embeddings tensor (num_genes, dim)
+        embeddings: Gene embeddings tensor (num_genes, dim)
         fold_data: Fold dict from get_cv*_splits()
         batch_size: Batch size
         num_workers: Number of data loading workers

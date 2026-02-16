@@ -3,7 +3,7 @@
 Siamese network for Synthetic Lethality prediction using ESM embeddings.
 
 Architecture:
-  - Input: Two gene ESM embeddings (1280-dim each)
+  - Input: Two gene embeddings (e.g. 1280-dim ESM or 1480-dim ESM+GO)
   - Encoder: Shared MLP projecting embeddings to latent space
   - Predictor: Combines encoded representations to predict SL probability
 
@@ -65,8 +65,8 @@ class LowRankLinear(nn.Module):
         return out
 
     @property
-    def num_params(self) -> int:
-        """Number of parameters (for comparison with full linear)."""
+    def num_params(self) -> tuple:
+        """Number of parameters (low_rank, full) for comparison."""
         in_f = self.V.in_features
         out_f = self.U.out_features
         full = in_f * out_f
@@ -218,7 +218,7 @@ class EfficientEncoder(nn.Module):
     - 'gated': Gated Linear Units (GLU)
 
     Args:
-        input_dim: Input dimension (e.g., 1280 for ESM)
+        input_dim: Input dimension (e.g., 1280 for ESM or 1480 for ESM+GO)
         hidden_dim: Hidden layer dimension
         output_dim: Output dimension
         encoder_type: Architecture type
@@ -295,9 +295,9 @@ class EfficientEncoder(nn.Module):
 
 class SiameseEncoder(nn.Module):
     """
-    Shared encoder that projects ESM embeddings to a latent space.
+    Shared encoder that projects gene embeddings to a latent space.
 
-    Architecture: ESM (1280) -> hidden -> latent
+    Architecture: input_dim -> hidden -> latent
     """
 
     def __init__(
@@ -320,7 +320,7 @@ class SiameseEncoder(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Encode ESM embedding to latent representation."""
+        """Encode gene embedding to latent representation."""
         return self.encoder(x)
 
 
@@ -328,7 +328,7 @@ class SiameseSL(nn.Module):
     """
     Siamese network for Synthetic Lethality prediction.
 
-    Takes two gene ESM embeddings and predicts their SL probability.
+    Takes two gene embeddings and predicts their SL probability.
 
     Architecture:
       gene1_esm -+-> SharedEncoder -> z1 -+
@@ -376,7 +376,7 @@ class SiameseSL(nn.Module):
         )
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
-        """Encode a batch of ESM embeddings."""
+        """Encode a batch of gene embeddings."""
         return self.encoder(x)
 
     def forward(
@@ -388,8 +388,8 @@ class SiameseSL(nn.Module):
         Predict SL probability for gene pairs.
 
         Args:
-            x1: ESM embeddings for first genes (batch_size, 1280)
-            x2: ESM embeddings for second genes (batch_size, 1280)
+            x1: Gene embeddings for first genes (batch_size, input_dim)
+            x2: Gene embeddings for second genes (batch_size, input_dim)
 
         Returns:
             SL probability logits (batch_size, 1)
@@ -717,13 +717,15 @@ class SiameseSLKernel(nn.Module):
     - arXiv:2508.04476: Metric Learning in an RKHS
 
     Args:
-        input_dim: ESM embedding dimension (1280)
+        input_dim: Gene embedding dimension (e.g. 1280 ESM or 1480 ESM+GO)
         hidden_dim: Encoder hidden dimension
         latent_dim: Latent space dimension (before Hilbert mapping)
-        hilbert_dim: Learned Hilbert space dimension
-        rff_dim: RFF dimension (Gaussian RKHS component)
+        rff_features: RFF dimension (Gaussian RKHS component)
+        bilinear_rank: Hilbert space linear projection dimension
         dropout: Dropout rate
         sigma: Initial RBF kernel bandwidth
+        encoder_type: Encoder architecture ('standard', 'lowrank', 'bottleneck', 'gated')
+        encoder_rank: Rank for lowrank encoder factorization
     """
 
     def __init__(
@@ -744,7 +746,7 @@ class SiameseSLKernel(nn.Module):
         hilbert_dim = bilinear_rank
         rff_dim = rff_features
 
-        # Step 1: Shared encoder (ESM → latent) - configurable efficiency
+        # Step 1: Shared encoder (input → latent) - configurable efficiency
         self.encoder = EfficientEncoder(
             input_dim=input_dim,
             hidden_dim=hidden_dim,
@@ -773,7 +775,7 @@ class SiameseSLKernel(nn.Module):
         )
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
-        """Encode ESM embedding to latent space."""
+        """Encode gene embedding to latent space."""
         return self.encoder(x)
 
     def map_to_hilbert(self, z: torch.Tensor) -> torch.Tensor:
@@ -804,8 +806,8 @@ class SiameseSLKernel(nn.Module):
         Predict SL probability for gene pairs.
 
         Args:
-            x1: ESM embeddings for first genes (batch, 1280)
-            x2: ESM embeddings for second genes (batch, 1280)
+            x1: Gene embeddings for first genes (batch, input_dim)
+            x2: Gene embeddings for second genes (batch, input_dim)
 
         Returns:
             SL probability logits (batch, 1)

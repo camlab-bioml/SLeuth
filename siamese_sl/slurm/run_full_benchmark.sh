@@ -83,7 +83,7 @@ if [ -f "$ESM_PATH" ]; then
     echo "ESM embeddings already exist, skipping generation..."
     $PYTHON_PATH -c "
 import torch
-data = torch.load('$ESM_PATH', map_location='cpu')
+data = torch.load('$ESM_PATH', map_location='cpu', weights_only=False)
 print(f'  Embeddings: {data[\"embeddings\"].shape}')
 print(f'  Genes: {len(data[\"gene_order\"])}')
 print(f'  Pooling: {data.get(\"pooling\", \"unknown\")}')
@@ -103,6 +103,38 @@ else
     echo "ESM embeddings created successfully"
 fi
 
+# Combine ESM + GO embeddings
+GAF_PATH="/ddn_exa/campbell/kaiyang/SLMGAE-pytorch/uniprot_GO/goa_human.gaf.gz"
+COMBINED_PATH="results/all_genes_esm_go.pt"
+
+if [ -f "$COMBINED_PATH" ]; then
+    echo "Combined ESM+GO embeddings already exist, skipping..."
+    $PYTHON_PATH -c "
+import torch
+data = torch.load('$COMBINED_PATH', map_location='cpu', weights_only=False)
+print(f'  Embeddings: {data[\"embeddings\"].shape}')
+print(f'  ESM dim: {data[\"esm_dim\"]}, GO dim: {data[\"go_dim\"]}')
+print(f'  GO coverage: {data[\"num_genes_with_go\"]}/{data[\"num_genes\"]}')
+"
+else
+    echo "Generating combined ESM + GO embeddings..."
+    $PYTHON_PATH generate_go_esm_embeddings.py \
+        --esm_embeddings "$ESM_PATH" \
+        --gaf "$GAF_PATH" \
+        --output "$COMBINED_PATH"
+
+    if [ ! -f "$COMBINED_PATH" ]; then
+        echo "FAILED: Combined embeddings not created"
+        exit 1
+    fi
+    echo "Combined ESM+GO embeddings created successfully"
+fi
+
+# Use combined embeddings for training, infer input_dim dynamically
+EMB_PATH="$COMBINED_PATH"
+INPUT_DIM=$($PYTHON_PATH -c "import torch; print(torch.load('$EMB_PATH', map_location='cpu', weights_only=False)['embeddings'].shape[1])")
+echo "Input dimension: $INPUT_DIM"
+
 # SL pairs read from parent data directory (read-only)
 SL_PATH="/ddn_exa/campbell/kaiyang/SLMGAE-pytorch/data/SL_Human_Approved.txt"
 
@@ -113,13 +145,14 @@ fi
 echo "SL pairs file found: $SL_PATH"
 
 echo "" >> $RESULTS_FILE
-echo "ESM Embeddings:" >> $RESULTS_FILE
+echo "Combined ESM+GO Embeddings:" >> $RESULTS_FILE
 $PYTHON_PATH -c "
 import torch
-data = torch.load('$ESM_PATH', map_location='cpu')
+data = torch.load('$EMB_PATH', map_location='cpu', weights_only=False)
 print(f'  Shape: {data[\"embeddings\"].shape}')
-print(f'  Pooling: {data.get(\"pooling\", \"unknown\")}')
+print(f'  ESM dim: {data[\"esm_dim\"]}, GO dim: {data[\"go_dim\"]}')
 print(f'  Standardized: {data.get(\"standardized\", False)}')
+print(f'  GO coverage: {data[\"num_genes_with_go\"]}/{data[\"num_genes\"]}')
 " >> $RESULTS_FILE
 
 echo ""
@@ -142,6 +175,7 @@ CV_TYPES=("cv1" "cv2" "cv3")
 EPOCHS=300
 BATCH_SIZE=256
 LR=0.001
+L1_LAMBDA=0.1
 PATIENCE=20
 NUM_FOLDS=5
 SEED=42
@@ -175,7 +209,8 @@ for MODEL in "${MODELS[@]}"; do
         # Run training (continue on error to complete other runs)
         set +e  # Temporarily disable exit on error
         $PYTHON_PATH train.py \
-            --embeddings_path "$ESM_PATH" \
+            --embeddings_path "$EMB_PATH" \
+            --input_dim $INPUT_DIM \
             --sl_path "$SL_PATH" \
             --output_dir "$OUTPUT_DIR" \
             --cv_type "$CV" \
@@ -186,6 +221,7 @@ for MODEL in "${MODELS[@]}"; do
             --epochs $EPOCHS \
             --batch_size $BATCH_SIZE \
             --learning_rate $LR \
+            --l1_lambda $L1_LAMBDA \
             --patience $PATIENCE \
             --num_folds $NUM_FOLDS \
             --seed $SEED
@@ -316,7 +352,7 @@ cv_types = ["cv1", "cv2", "cv3"]
 summary = {
     "timestamp": datetime.now().isoformat(),
     "configuration": {
-        "epochs": 200,
+        "epochs": 300,
         "batch_size": 256,
         "learning_rate": 0.001,
         "patience": 20,

@@ -37,24 +37,30 @@ cd "$(dirname "$0")/.."
 mkdir -p slurm/logs
 mkdir -p results/cv1/checkpoints
 
-# Check if embeddings exist
-if [ ! -f "../data/all_genes_esm.pt" ]; then
-    echo "❌ ESM embeddings not found. Run step1_generate_esm.sh first"
+# Embeddings path and dynamic input_dim
+EMB_PATH="../data/all_genes_esm_go.pt"
+
+if [ ! -f "$EMB_PATH" ]; then
+    echo "❌ Combined ESM+GO embeddings not found. Run step1b_generate_go_esm.sh first"
     exit 1
 fi
+
+INPUT_DIM=$($PYTHON_PATH -c "import torch; print(torch.load('$EMB_PATH', map_location='cpu', weights_only=False)['embeddings'].shape[1])")
 
 echo "Configuration:"
 echo "  - CV Type: CV1 (edge-based, random SL pair split)"
 echo "  - Model: RKHS Siamese (kernel, default)"
 echo "  - Encoder: lowrank (efficient)"
-echo "  - Epochs: 200"
+echo "  - Input dim: $INPUT_DIM"
+echo "  - Epochs: 300"
 echo "  - Folds: 5"
-echo "  - Note: CV splits use fixed seed 123 (benchmark standard)"
+echo "  - Note: CV splits use --seed (42 by default)"
 echo ""
 
 # Run training
 $PYTHON_PATH train.py \
-    --embeddings_path ../data/all_genes_esm.pt \
+    --embeddings_path "$EMB_PATH" \
+    --input_dim $INPUT_DIM \
     --sl_path ../data/SL_Human_Approved.txt \
     --output_dir results/cv1 \
     --cv_type cv1 \
@@ -68,6 +74,7 @@ $PYTHON_PATH train.py \
     --epochs 300 \
     --batch_size 256 \
     --learning_rate 0.001 \
+    --l1_lambda 0.1 \
     --patience 20 \
     --num_folds 5 \
     --seed 42

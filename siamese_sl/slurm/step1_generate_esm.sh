@@ -61,7 +61,7 @@ if [ -f "../data/all_genes_esm.pt" ]; then
     # Verify embeddings
     $PYTHON_PATH -c "
 import torch
-data = torch.load('../data/all_genes_esm.pt', map_location='cpu')
+data = torch.load('../data/all_genes_esm.pt', map_location='cpu', weights_only=False)
 print(f'Embeddings shape: {data[\"embeddings\"].shape}')
 print(f'Gene count: {len(data[\"gene_order\"])}')
 print(f'Embedding dim: {data[\"embeddings\"].shape[1]}')
@@ -85,5 +85,5 @@ fi
 
 echo "=================================================="
 echo "ESM generation completed at: $(date)"
-echo "Next: Run step2_train_all_cv.sh"
+echo "Next: Run step1b_generate_go_esm.sh, then step2_train_cv{1,2,3}.sh"
 echo "=================================================="
