@@ -216,8 +216,8 @@ outputs_Adamson/
 checkpoints/
 saved_models/
 models/
-*.pt
-*.pth
+# *.pt
+# *.pth
 *.ckpt
 *.weights
 *.safetensors
