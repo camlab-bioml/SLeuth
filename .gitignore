@@ -169,7 +169,7 @@ external\ data/*.txt
 *.tar
 *.tar.gz
 *.tgz
-*.gz
+# *.gz
 *.bz2
 *.xz
 *.7z
