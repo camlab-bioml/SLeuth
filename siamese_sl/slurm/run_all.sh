@@ -7,8 +7,6 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR/.."
 
-# Create logs directory
-mkdir -p slurm/logs
 
 echo "=================================================="
 echo "Siamese SL Pipeline - RKHS-based Siamese Network"
@@ -16,8 +14,8 @@ echo "=================================================="
 echo "Start time: $(date)"
 echo ""
 echo "Pipeline:"
-echo "  1.  Generate ESM embeddings (Pool PaRTI pooling)"
-echo "  1b. Combine ESM + GO embeddings (anc2vec)"
+echo "  1.  Generate ESM embeddings (Pool PaRTI pooling, for gene list)"
+echo "  1b. Generate GO-only embeddings (anc2vec, 200-dim)"
 echo "  2.  Train on CV1 (edge-based)"
 echo "  3.  Train on CV2 (gene-based)"
 echo "  4.  Train on CV3 (pair-based)"
@@ -38,25 +36,25 @@ if [ "$SKIP_ESM" = false ]; then
     echo "  Job ID: $JOB1"
     echo ""
 
-    # Step 1b: Combine ESM + GO embeddings (depends on Step 1)
-    echo "Submitting Step 1b: GO Embedding Generation..."
+    # Step 1b: Generate GO-only embeddings (depends on Step 1 for gene list)
+    echo "Submitting Step 1b: GO-Only Embedding Generation..."
     JOB1B=$(sbatch --parsable --dependency=afterok:$JOB1 slurm/step1b_generate_go_esm.sh)
     echo "  Job ID: $JOB1B"
     echo ""
 
     # Step 2: Train all CVs (depends on Step 1b)
-    echo "Submitting Step 2: Training (will wait for GO generation)..."
+    echo "Submitting Step 2: Training (will wait for GO-only generation)..."
     JOB_CV1=$(sbatch --parsable --dependency=afterok:$JOB1B slurm/step2_train_cv1.sh)
     JOB_CV2=$(sbatch --parsable --dependency=afterok:$JOB1B slurm/step2_train_cv2.sh)
     JOB_CV3=$(sbatch --parsable --dependency=afterok:$JOB1B slurm/step2_train_cv3.sh)
 else
-    # Check if combined embeddings exist
-    if [ ! -f "../data/all_genes_esm_go.pt" ]; then
-        echo "❌ Error: Combined ESM+GO embeddings not found at ../data/all_genes_esm_go.pt"
+    # Check if GO-only embeddings exist
+    if [ ! -f "../data/all_genes_go.pt" ]; then
+        echo "Error: GO-only embeddings not found at ../data/all_genes_go.pt"
         echo "   Run without --skip-esm flag first"
         exit 1
     fi
-    echo "Using existing combined ESM+GO embeddings"
+    echo "Using existing GO-only embeddings"
     echo ""
 
     # Submit training jobs without dependency

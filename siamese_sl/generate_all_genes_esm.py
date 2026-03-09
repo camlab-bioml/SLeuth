@@ -46,7 +46,6 @@ try:
 except ImportError:
     nx = None  # Will be checked if pool_parti is used
 
-
 # UniProt human reference proteome
 UNIPROT_HUMAN_URL = (
     "https://rest.uniprot.org/uniprotkb/stream?"
@@ -55,14 +54,13 @@ UNIPROT_HUMAN_URL = (
 )
 
 # Alternative: full proteome (including unreviewed)
-UNIPROT_FULL_URL = (
-    "https://rest.uniprot.org/uniprotkb/stream?"
-    "format=fasta&"
-    "query=organism_id:9606+AND+proteome:UP000005640"
-)
+UNIPROT_FULL_URL = ("https://rest.uniprot.org/uniprotkb/stream?"
+                    "format=fasta&"
+                    "query=organism_id:9606+AND+proteome:UP000005640")
 
 
-def download_uniprot_fasta(output_path: str, reviewed_only: bool = True) -> str:
+def download_uniprot_fasta(output_path: str,
+                           reviewed_only: bool = True) -> str:
     """Download human proteome from UniProt."""
     print("Downloading human proteome from UniProt...")
 
@@ -74,7 +72,10 @@ def download_uniprot_fasta(output_path: str, reviewed_only: bool = True) -> str:
     total_size = int(response.headers.get("content-length", 0))
 
     with open(output_path, "wb") as f:
-        with tqdm(total=total_size, unit="B", unit_scale=True, desc="Downloading") as pbar:
+        with tqdm(total=total_size,
+                  unit="B",
+                  unit_scale=True,
+                  desc="Downloading") as pbar:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
                 pbar.update(len(chunk))
@@ -154,7 +155,9 @@ def parse_fasta(fasta_path: str) -> Dict[str, Tuple[str, str]]:
 
     print(f"Parsed {len(gene_seqs)} unique genes")
     if duplicates:
-        print(f"  (resolved {len(duplicates)} duplicates by keeping longest sequence)")
+        print(
+            f"  (resolved {len(duplicates)} duplicates by keeping longest sequence)"
+        )
 
     return gene_seqs
 
@@ -175,7 +178,9 @@ class PoolPaRTI:
             alpha: PageRank damping factor (default 0.85)
         """
         if nx is None:
-            raise ImportError("networkx required for Pool PaRTI. Install: pip install networkx")
+            raise ImportError(
+                "networkx required for Pool PaRTI. Install: pip install networkx"
+            )
         self.alpha = alpha
 
     def _aggregate_attention(self, attentions: torch.Tensor) -> np.ndarray:
@@ -193,7 +198,7 @@ class PoolPaRTI:
         # attentions shape: (layers, heads, seq_len, seq_len)
         # Max pool across layers and heads
         agg_attn = attentions.max(dim=0).values  # (heads, seq_len, seq_len)
-        agg_attn = agg_attn.max(dim=0).values    # (seq_len, seq_len)
+        agg_attn = agg_attn.max(dim=0).values  # (seq_len, seq_len)
         return agg_attn.cpu().numpy()
 
     def _compute_pagerank(self, attention_matrix: np.ndarray) -> np.ndarray:
@@ -217,7 +222,11 @@ class PoolPaRTI:
 
         # Compute PageRank
         try:
-            pr = nx.pagerank(G, alpha=self.alpha, tol=1e-06, weight='weight', max_iter=100)
+            pr = nx.pagerank(G,
+                             alpha=self.alpha,
+                             tol=1e-06,
+                             weight='weight',
+                             max_iter=100)
             weights = np.array([pr[i] for i in range(len(pr))])
         except nx.PowerIterationFailedConvergence:
             # Fall back to uniform weights on convergence failure
@@ -245,10 +254,12 @@ class PoolPaRTI:
         """
         # Extract embeddings for actual sequence (exclude BOS/EOS tokens)
         # ESM adds BOS at position 0, sequence is 1:seq_len+1
-        embeddings = token_embeddings[0, 1:seq_len+1, :].cpu().numpy()  # (seq_len, embed_dim)
+        embeddings = token_embeddings[
+            0, 1:seq_len + 1, :].cpu().numpy()  # (seq_len, embed_dim)
 
         # Extract attention for actual sequence positions
-        attn = attentions[:, :, 1:seq_len+1, 1:seq_len+1]  # (layers, heads, seq_len, seq_len)
+        attn = attentions[:, :, 1:seq_len + 1,
+                          1:seq_len + 1]  # (layers, heads, seq_len, seq_len)
 
         # Aggregate attention matrices
         agg_attn = self._aggregate_attention(attn)
@@ -310,7 +321,8 @@ class ESMEmbeddingGenerator:
             os.system("pip install fair-esm")
             import esm
 
-        self.model, self.alphabet = esm.pretrained.load_model_and_alphabet(model_name)
+        self.model, self.alphabet = esm.pretrained.load_model_and_alphabet(
+            model_name)
         self.model = self.model.to(self.device)
         self.model.eval()
         self.batch_converter = self.alphabet.get_batch_converter()
@@ -321,7 +333,8 @@ class ESMEmbeddingGenerator:
         print(f"Embedding dimension: {self.embed_dim}")
         print(f"Number of layers: {self.num_layers}")
 
-    def _generate_batch(self, batch: List[Tuple[str, str]]) -> Dict[str, np.ndarray]:
+    def _generate_batch(self,
+                        batch: List[Tuple[str, str]]) -> Dict[str, np.ndarray]:
         """Generate embeddings for a batch of sequences."""
         labels, strs, tokens = self.batch_converter(batch)
         tokens = tokens.to(self.device)
@@ -353,11 +366,12 @@ class ESMEmbeddingGenerator:
                 # Pool PaRTI: PageRank-weighted pooling
                 # Attention shape: (batch, layers, heads, seq, seq)
                 attn_i = attentions[i]  # (layers, heads, seq, seq)
-                emb_i = representations[i:i+1]  # (1, seq, dim)
+                emb_i = representations[i:i + 1]  # (1, seq, dim)
                 embedding = self.pooler.pool(emb_i, attn_i, seq_len)
             else:
                 # Mean pooling fallback
-                embedding = representations[i, 1:seq_len+1].mean(0).cpu().numpy()
+                embedding = representations[i, 1:seq_len +
+                                            1].mean(0).cpu().numpy()
 
             embeddings[gene] = embedding
 
@@ -374,7 +388,7 @@ class ESMEmbeddingGenerator:
             gene_seqs: Dict mapping gene name -> (uniprot_id, sequence)
 
         Returns:
-            (embeddings tensor, gene_order list, failed_genes list)
+            (embeddings tensor, raw_embeddings tensor, gene_order list, failed_genes list)
         """
         gene_order = sorted(gene_seqs.keys())
         all_embeddings = {}
@@ -392,7 +406,8 @@ class ESMEmbeddingGenerator:
             # Skip invalid sequences
             if not seq or len(seq) < 10:
                 failed_genes.append(gene)
-                all_embeddings[gene] = np.zeros(self.embed_dim, dtype=np.float32)
+                all_embeddings[gene] = np.zeros(self.embed_dim,
+                                                dtype=np.float32)
                 continue
 
             # Truncate long sequences
@@ -410,7 +425,8 @@ class ESMEmbeddingGenerator:
                     print(f"\nBatch failed: {e}")
                     for g, _ in batch:
                         failed_genes.append(g)
-                        all_embeddings[g] = np.zeros(self.embed_dim, dtype=np.float32)
+                        all_embeddings[g] = np.zeros(self.embed_dim,
+                                                     dtype=np.float32)
                 batch = []
 
         # Process remaining
@@ -422,57 +438,74 @@ class ESMEmbeddingGenerator:
                 print(f"\nFinal batch failed: {e}")
                 for g, _ in batch:
                     failed_genes.append(g)
-                    all_embeddings[g] = np.zeros(self.embed_dim, dtype=np.float32)
+                    all_embeddings[g] = np.zeros(self.embed_dim,
+                                                 dtype=np.float32)
 
         # Stack into tensor
         embedding_matrix = np.stack([all_embeddings[g] for g in gene_order])
 
+        # Save raw embeddings before standardization (for per-fold standardization)
+        raw_matrix = embedding_matrix.copy()
+
         # Standardize: zero mean, unit variance per feature
-        print("\nStandardizing embeddings (zero mean, unit variance per feature)...")
+        print(
+            "\nStandardizing embeddings (zero mean, unit variance per feature)..."
+        )
         non_zero_mask = np.any(embedding_matrix != 0, axis=1)
         if np.any(non_zero_mask):
             non_zero = embedding_matrix[non_zero_mask]
             mean = non_zero.mean(axis=0, keepdims=True)
-            std = non_zero.std(axis=0, keepdims=True) + 1e-8  # Avoid division by zero
+            std = non_zero.std(axis=0,
+                               keepdims=True) + 1e-8  # Avoid division by zero
             embedding_matrix[non_zero_mask] = (non_zero - mean) / std
 
         print(f"\nGenerated {len(gene_order)} embeddings")
         print(f"  - Successful: {len(gene_order) - len(failed_genes)}")
         print(f"  - Failed (zero): {len(failed_genes)}")
 
-        return torch.from_numpy(embedding_matrix).float(), gene_order, failed_genes
+        return (
+            torch.from_numpy(embedding_matrix).float(),
+            torch.from_numpy(raw_matrix).float(),
+            gene_order,
+            failed_genes,
+        )
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate ESM embeddings for all human genes"
-    )
+        description="Generate ESM embeddings for all human genes")
     parser.add_argument(
-        "--fasta", type=str, default=None,
-        help="Path to FASTA file (optional; will download from UniProt if not provided)"
+        "--fasta",
+        type=str,
+        default=None,
+        help=
+        "Path to FASTA file (optional; will download from UniProt if not provided)"
     )
-    parser.add_argument(
-        "--output", type=str, required=True,
-        help="Output path for embeddings (.pt file)"
-    )
-    parser.add_argument(
-        "--cache_dir", type=str, default="../data/cache",
-        help="Directory to cache downloaded files"
-    )
-    parser.add_argument(
-        "--model", type=str, default="esm2_t33_650M_UR50D",
-        help="ESM model name"
-    )
+    parser.add_argument("--output",
+                        type=str,
+                        required=True,
+                        help="Output path for embeddings (.pt file)")
+    parser.add_argument("--cache_dir",
+                        type=str,
+                        default="../data/cache",
+                        help="Directory to cache downloaded files")
+    parser.add_argument("--model",
+                        type=str,
+                        default="esm2_t33_650M_UR50D",
+                        help="ESM model name")
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument(
-        "--pooling", type=str, default="pool_parti",
+        "--pooling",
+        type=str,
+        default="pool_parti",
         choices=["pool_parti", "mean"],
-        help="Pooling method: pool_parti (PageRank-based, default) or mean"
-    )
+        help="Pooling method: pool_parti (PageRank-based, default) or mean")
     parser.add_argument(
-        "--include_unreviewed", action="store_true",
-        help="Include unreviewed (TrEMBL) proteins (default: reviewed/Swiss-Prot only)"
+        "--include_unreviewed",
+        action="store_true",
+        help=
+        "Include unreviewed (TrEMBL) proteins (default: reviewed/Swiss-Prot only)"
     )
 
     args = parser.parse_args()
@@ -506,23 +539,27 @@ def main():
         pooling=args.pooling,
     )
 
-    embeddings, gene_order, failed = generator.generate_embeddings(gene_seqs)
+    embeddings, raw_embeddings, gene_order, failed = generator.generate_embeddings(
+        gene_seqs)
 
     # Save
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    torch.save({
-        "embeddings": embeddings,
-        "gene_order": gene_order,
-        "model_name": args.model,
-        "dimension": embeddings.shape[1],
-        "pooling": args.pooling,
-        "standardized": True,  # Zero mean, unit variance per feature
-        "failed_genes": failed,
-        "source": str(fasta_path),
-        "num_genes": len(gene_order),
-    }, output_path)
+    torch.save(
+        {
+            "embeddings": embeddings,
+            "raw_embeddings": raw_embeddings,
+            "gene_order": gene_order,
+            "model_name": args.model,
+            "dimension": embeddings.shape[1],
+            "pooling": args.pooling,
+            "standardized": True,  # Zero mean, unit variance per feature
+            "failed_genes": failed,
+            "source": str(fasta_path),
+            "num_genes": len(gene_order),
+        },
+        output_path)
 
     # Also save gene list as text file
     gene_list_path = output_path.with_suffix(".genes.txt")

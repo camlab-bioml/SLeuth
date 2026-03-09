@@ -46,7 +46,7 @@ class SLDataset(Dataset):
     Dataset for Synthetic Lethality prediction.
 
     Each sample is a gene pair with:
-      - Embedding for gene1 (ESM-only or combined ESM+GO)
+      - Embedding for gene1 (GO-only, ESM-only, or combined ESM+GO)
       - Embedding for gene2
       - Label (1 = SL, 0 = non-SL)
     """
@@ -70,7 +70,8 @@ class SLDataset(Dataset):
     def __len__(self) -> int:
         return len(self.labels)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def __getitem__(
+            self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         i, j = self.pairs[idx]
         return (
             self.embeddings[i],
@@ -114,12 +115,12 @@ class SLDataManager:
 
         # Load embeddings
         self.embeddings, self.gene_to_idx, self.idx_to_gene = self._load_embeddings(
-            embeddings_path, gene_list_path
-        )
+            embeddings_path, gene_list_path)
         self.num_genes = len(self.gene_to_idx)
 
         # Load SL pairs (positive pairs) - indices into full embedding matrix
-        self.pos_pairs_full_idx, self.sl_genes = self._load_sl_pairs(sl_pairs_path)
+        self.pos_pairs_full_idx, self.sl_genes = self._load_sl_pairs(
+            sl_pairs_path)
         self.num_sl_genes = len(self.sl_genes)
 
         # Create mapping between full embedding indices and SL-only indices
@@ -127,7 +128,8 @@ class SLDataManager:
         self._create_sl_index_mapping()
 
         # Convert pos_pairs to SL-only indices for the splitter
-        self.pos_pairs_sl_idx = self._full_to_sl_indices(self.pos_pairs_full_idx)
+        self.pos_pairs_sl_idx = self._full_to_sl_indices(
+            self.pos_pairs_full_idx)
 
         # Create negative pairs for benchmark splitter
         # Benchmark code samples negatives during splitting
@@ -143,10 +145,13 @@ class SLDataManager:
         gene_list_path: Optional[str],
     ) -> Tuple[torch.Tensor, Dict[str, int], Dict[int, str]]:
         """Load gene embeddings and create gene index mappings."""
-        data = torch.load(embeddings_path, map_location="cpu", weights_only=False)
+        data = torch.load(embeddings_path,
+                          map_location="cpu",
+                          weights_only=False)
 
         if isinstance(data, dict):
-            embeddings = data["embeddings"]
+            # Prefer raw embeddings for per-fold standardization (avoids test data leakage)
+            embeddings = data.get("raw_embeddings", data["embeddings"])
             if "gene_order" in data:
                 gene_order = data["gene_order"]
             elif "gene_to_idx" in data:
@@ -156,29 +161,36 @@ class SLDataManager:
                 gene_order = [""] * n
                 for gene, idx in gene_to_idx.items():
                     if not (0 <= idx < n):
-                        raise ValueError(f"gene_to_idx has out-of-range index {idx} for {gene} (expected 0..{n-1})")
+                        raise ValueError(
+                            f"gene_to_idx has out-of-range index {idx} for {gene} (expected 0..{n-1})"
+                        )
                     gene_order[idx] = gene
                 if "" in gene_order:
-                    raise ValueError("gene_to_idx has non-contiguous indices (gaps detected)")
+                    raise ValueError(
+                        "gene_to_idx has non-contiguous indices (gaps detected)"
+                    )
             elif gene_list_path:
                 with open(gene_list_path, "r") as f:
                     gene_order = [line.strip() for line in f]
             else:
-                raise ValueError("No gene order in embeddings file and no gene_list_path")
+                raise ValueError(
+                    "No gene order in embeddings file and no gene_list_path")
         else:
             embeddings = data
             if gene_list_path:
                 with open(gene_list_path, "r") as f:
                     gene_order = [line.strip() for line in f]
             else:
-                raise ValueError("Raw tensor embeddings require gene_list_path")
+                raise ValueError(
+                    "Raw tensor embeddings require gene_list_path")
 
         gene_to_idx = {gene: idx for idx, gene in enumerate(gene_order)}
         idx_to_gene = {idx: gene for gene, idx in gene_to_idx.items()}
 
         return embeddings, gene_to_idx, idx_to_gene
 
-    def _load_sl_pairs(self, sl_pairs_path: str) -> Tuple[np.ndarray, Set[str]]:
+    def _load_sl_pairs(self,
+                       sl_pairs_path: str) -> Tuple[np.ndarray, Set[str]]:
         """
         Load positive SL pairs from file.
 
@@ -233,8 +245,14 @@ class SLDataManager:
         unique_full_indices = sorted(list(unique_full_indices))
 
         # Create mappings
-        self.full_to_sl = {full_idx: sl_idx for sl_idx, full_idx in enumerate(unique_full_indices)}
-        self.sl_to_full = {sl_idx: full_idx for full_idx, sl_idx in self.full_to_sl.items()}
+        self.full_to_sl = {
+            full_idx: sl_idx
+            for sl_idx, full_idx in enumerate(unique_full_indices)
+        }
+        self.sl_to_full = {
+            sl_idx: full_idx
+            for full_idx, sl_idx in self.full_to_sl.items()
+        }
 
     def _full_to_sl_indices(self, pairs: np.ndarray) -> np.ndarray:
         """Convert pairs from full embedding indices to SL-only indices."""
@@ -253,7 +271,8 @@ class SLDataManager:
     def _create_splitter(self) -> SLDataSplitter:
         """Create SLMGAE benchmark's data splitter using SL-only indices."""
         return SLDataSplitter(
-            pos_edges=self.pos_pairs_sl_idx,  # Use SL-only indices [0, num_sl_genes)
+            pos_edges=self.
+            pos_pairs_sl_idx,  # Use SL-only indices [0, num_sl_genes)
             neg_edges=self.neg_pairs,
             num_nodes=self.num_sl_genes,
             train_ratio=0.8,
@@ -304,7 +323,9 @@ class SLDataManager:
         Randomly splits SL pairs into folds.
         Tests ability to predict held-out interactions between known genes.
         """
-        print(f"\nGenerating CV1 splits (edge-based) using SLMGAE benchmark code...")
+        print(
+            f"\nGenerating CV1 splits (edge-based) using SLMGAE benchmark code..."
+        )
         splitter = self._create_splitter()
         splits = splitter.cv1_split(k=num_folds, pos_neg_ratio=pos_neg_ratio)
 
@@ -328,7 +349,9 @@ class SLDataManager:
         Holds out entire genes. Test pairs have at least one unseen gene.
         Tests ability to generalize to partially new genes.
         """
-        print(f"\nGenerating CV2 splits (gene-based) using SLMGAE benchmark code...")
+        print(
+            f"\nGenerating CV2 splits (gene-based) using SLMGAE benchmark code..."
+        )
         splitter = self._create_splitter()
         splits = splitter.cv2_split(k=num_folds, pos_neg_ratio=pos_neg_ratio)
 
@@ -353,7 +376,9 @@ class SLDataManager:
         Tests ability to generalize to completely novel gene pairs.
         This is the hardest setting.
         """
-        print(f"\nGenerating CV3 splits (pair-based) using SLMGAE benchmark code...")
+        print(
+            f"\nGenerating CV3 splits (pair-based) using SLMGAE benchmark code..."
+        )
         splitter = self._create_splitter()
         splits = splitter.cv3_split(k=num_folds, pos_neg_ratio=pos_neg_ratio)
 
@@ -367,30 +392,36 @@ class SLDataManager:
         return converted
 
 
-def create_dataloaders(
-    data: Dict,
-    batch_size: int = 256,
-    shuffle: bool = True,
-    num_workers: int = 0,
-) -> DataLoader:
+def _standardize_for_fold(
+    embeddings: torch.Tensor,
+    train_pairs: np.ndarray,
+) -> Tuple[torch.Tensor, Dict]:
     """
-    Create a DataLoader from split data.
+    Per-fold standardization using only training gene statistics.
 
-    Args:
-        data: Dict with 'pairs' and 'labels' keys
-        batch_size: Batch size
-        shuffle: Whether to shuffle
-        num_workers: Number of data loading workers
+    Prevents test gene information from leaking into feature normalization
+    (relevant for CV2/CV3 where test genes are unseen during training).
 
     Returns:
-        DataLoader
+        (standardized_embeddings, fold_stats) where fold_stats contains
+        the mean/std used, which must be saved in the checkpoint for
+        consistent prediction at inference time.
     """
-    # Note: This function expects embeddings to be passed separately
-    # In practice, you'll use SLDataset directly with embeddings
-    raise NotImplementedError(
-        "Use SLDataset directly with embeddings tensor. "
-        "Example: dataset = SLDataset(embeddings, pairs, labels)"
-    )
+    train_gene_indices = np.unique(train_pairs.flatten())
+    train_emb = embeddings[train_gene_indices]
+
+    # Exclude zero vectors (genes with no embeddings) from statistics
+    non_zero_mask = train_emb.abs().sum(dim=1) > 0
+    if non_zero_mask.any():
+        non_zero = train_emb[non_zero_mask]
+        mean = non_zero.mean(dim=0)
+        std = non_zero.std(dim=0) + 1e-8
+        fold_stats = {"mean": mean, "std": std}
+        return (embeddings - mean) / std, fold_stats
+    # No valid training genes — return identity stats
+    dim = embeddings.shape[1]
+    fold_stats = {"mean": torch.zeros(dim), "std": torch.ones(dim)}
+    return embeddings, fold_stats
 
 
 def create_fold_dataloaders(
@@ -398,7 +429,7 @@ def create_fold_dataloaders(
     fold_data: Dict,
     batch_size: int = 256,
     num_workers: int = 0,
-) -> Tuple[DataLoader, DataLoader]:
+) -> Tuple[DataLoader, DataLoader, Dict]:
     """
     Create train and test DataLoaders for a CV fold.
 
@@ -409,15 +440,20 @@ def create_fold_dataloaders(
         num_workers: Number of data loading workers
 
     Returns:
-        (train_loader, test_loader)
+        (train_loader, test_loader, fold_stats) where fold_stats contains
+        the standardization mean/std for saving in checkpoints.
     """
+    # Per-fold standardization: compute mean/std from training genes only
+    fold_embeddings, fold_stats = _standardize_for_fold(
+        embeddings, fold_data["train"]["pairs"])
+
     train_dataset = SLDataset(
-        embeddings=embeddings,
+        embeddings=fold_embeddings,
         pairs=fold_data["train"]["pairs"],
         labels=fold_data["train"]["labels"],
     )
     test_dataset = SLDataset(
-        embeddings=embeddings,
+        embeddings=fold_embeddings,
         pairs=fold_data["test"]["pairs"],
         labels=fold_data["test"]["labels"],
     )
@@ -440,4 +476,4 @@ def create_fold_dataloaders(
         pin_memory=use_pin_memory,
     )
 
-    return train_loader, test_loader
+    return train_loader, test_loader, fold_stats

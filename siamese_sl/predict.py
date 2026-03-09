@@ -5,17 +5,17 @@ Predict Synthetic Lethality for gene pairs using trained Siamese model.
 Usage:
     # Predict for a single pair
     python predict.py --model checkpoints/fold_0_best.pt \
-                      --embeddings ../data/all_genes_esm.pt \
+                      --embeddings ../data/all_genes_go.pt \
                       --gene1 BRCA1 --gene2 PARP1
 
     # Predict for multiple pairs from file
     python predict.py --model checkpoints/fold_0_best.pt \
-                      --embeddings ../data/all_genes_esm.pt \
+                      --embeddings ../data/all_genes_go.pt \
                       --pairs_file pairs.txt --output predictions.csv
 
     # Predict all pairs for a gene (find SL partners)
     python predict.py --model checkpoints/fold_0_best.pt \
-                      --embeddings ../data/all_genes_esm.pt \
+                      --embeddings ../data/all_genes_go.pt \
                       --gene1 BRCA1 --top_k 100
 """
 
@@ -80,8 +80,8 @@ def _infer_kernel_dims(state_dict: dict) -> dict:
         # Try candidates and verify both equations hold.
         encoder_rank = bottleneck1  # fallback
         for candidate in [bottleneck1, bottleneck2 * 2]:
-            if (max(candidate, input_dim // 8) == bottleneck1 and
-                    max(candidate // 2, latent_dim // 4) == bottleneck2):
+            if (max(candidate, input_dim // 8) == bottleneck1
+                    and max(candidate // 2, latent_dim // 4) == bottleneck2):
                 encoder_rank = candidate
                 break
     elif encoder_type == "gated":
@@ -117,7 +117,9 @@ def load_model(
     num_heads: Optional[int] = None,
 ) -> torch.nn.Module:
     """Load trained model from checkpoint."""
-    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    checkpoint = torch.load(checkpoint_path,
+                            map_location=device,
+                            weights_only=False)
 
     # Infer model params from state dict
     state_dict = checkpoint["model_state_dict"]
@@ -151,8 +153,13 @@ def load_model(
         hilbert_key = _find_key(state_dict, ["hilbert_map.linear_map.weight"])
         bilinear_rank = state_dict[hilbert_key].shape[0]
 
-        rff_keys = [k for k in state_dict.keys() if "hilbert_map.rff.omega" in k]
+        rff_keys = [
+            k for k in state_dict.keys() if "hilbert_map.rff.omega" in k
+        ]
         rff_features = state_dict[rff_keys[0]].shape[1] if rff_keys else 0
+
+        predictor_key = _find_key(state_dict, ["predictor.0.weight"])
+        predictor_hidden = state_dict[predictor_key].shape[0]
 
         model = SiameseSLKernel(
             input_dim=kernel_dims["input_dim"],
@@ -160,6 +167,7 @@ def load_model(
             latent_dim=kernel_dims["latent_dim"],
             bilinear_rank=bilinear_rank,
             rff_features=rff_features,
+            predictor_hidden=predictor_hidden,
             encoder_type=kernel_dims["encoder_type"],
             encoder_rank=kernel_dims["encoder_rank"],
         )
@@ -177,14 +185,17 @@ def load_model(
             if "config" in checkpoint:
                 num_heads = checkpoint["config"].get("num_heads", 4)
             else:
-                config_path = Path(checkpoint_path).parent.parent / "config.json"
+                config_path = Path(
+                    checkpoint_path).parent.parent / "config.json"
                 if config_path.exists():
                     with open(config_path) as f:
                         config = json.load(f)
                     num_heads = config.get("num_heads", 4)
                 else:
                     num_heads = 4
-                    print(f"Warning: no config in checkpoint or {config_path}, using num_heads={num_heads}")
+                    print(
+                        f"Warning: no config in checkpoint or {config_path}, using num_heads={num_heads}"
+                    )
 
         model = SiameseSLWithAttention(
             input_dim=input_dim,
@@ -197,17 +208,23 @@ def load_model(
     model.to(device)
     model.eval()
 
-    return model
+    # Extract fold_stats for standardization at inference time
+    fold_stats = checkpoint.get("fold_stats", None)
+
+    return model, fold_stats
 
 
-def load_embeddings(
-    embeddings_path: str,
-) -> Tuple[torch.Tensor, dict, dict]:
-    """Load gene embeddings and gene mappings."""
+def load_embeddings(embeddings_path: str, ) -> Tuple[torch.Tensor, dict, dict]:
+    """Load gene embeddings and gene mappings.
+
+    Prefers raw_embeddings (pre-standardization) so that the fold's
+    standardization stats from the checkpoint can be applied consistently.
+    """
     data = torch.load(embeddings_path, map_location="cpu", weights_only=False)
 
     if isinstance(data, dict):
-        embeddings = data["embeddings"]
+        # Prefer raw embeddings for per-fold standardization consistency
+        embeddings = data.get("raw_embeddings", data["embeddings"])
         if "gene_order" in data:
             gene_order = data["gene_order"]
         elif "gene_to_idx" in data:
@@ -217,14 +234,19 @@ def load_embeddings(
             gene_order = [""] * n
             for gene, idx in g2i.items():
                 if not (0 <= idx < n):
-                    raise ValueError(f"gene_to_idx has out-of-range index {idx} for {gene} (expected 0..{n-1})")
+                    raise ValueError(
+                        f"gene_to_idx has out-of-range index {idx} for {gene} (expected 0..{n-1})"
+                    )
                 gene_order[idx] = gene
             if "" in gene_order:
-                raise ValueError("gene_to_idx has non-contiguous indices (gaps detected)")
+                raise ValueError(
+                    "gene_to_idx has non-contiguous indices (gaps detected)")
         else:
-            raise ValueError("Embeddings file must contain gene_order or gene_to_idx")
+            raise ValueError(
+                "Embeddings file must contain gene_order or gene_to_idx")
     else:
-        raise ValueError("Embeddings file must be a dict with 'embeddings' key")
+        raise ValueError(
+            "Embeddings file must be a dict with 'embeddings' key")
 
     gene_to_idx = {gene: idx for idx, gene in enumerate(gene_order)}
     idx_to_gene = {idx: gene for idx, gene in enumerate(gene_order)}
@@ -242,7 +264,15 @@ class SLPredictor:
         gene_to_idx: dict,
         idx_to_gene: dict,
         device: str = "cpu",
+        fold_stats: dict = None,
     ):
+        # Apply the same per-fold standardization used during training
+        # Move stats to CPU to match embeddings (checkpoint may load to GPU)
+        if fold_stats is not None:
+            mean = fold_stats["mean"].cpu()
+            std = fold_stats["std"].cpu()
+            embeddings = (embeddings - mean) / std
+
         self.model = model
         self.embeddings = embeddings.to(device)
         self.gene_to_idx = gene_to_idx
@@ -292,8 +322,9 @@ class SLPredictor:
                 })
 
         # Batch predict
-        for i in tqdm(range(0, len(valid_pairs), batch_size), desc="Predicting"):
-            batch = valid_pairs[i:i+batch_size]
+        for i in tqdm(range(0, len(valid_pairs), batch_size),
+                      desc="Predicting"):
+            batch = valid_pairs[i:i + batch_size]
 
             idx1 = [self.gene_to_idx[g1] for g1, g2 in batch]
             idx2 = [self.gene_to_idx[g2] for g1, g2 in batch]
@@ -335,8 +366,9 @@ class SLPredictor:
         all_idx = list(range(len(self.embeddings)))
         all_idx.remove(gene_idx)
 
-        for i in tqdm(range(0, len(all_idx), batch_size), desc=f"Scoring partners for {gene}"):
-            batch_idx = all_idx[i:i+batch_size]
+        for i in tqdm(range(0, len(all_idx), batch_size),
+                      desc=f"Scoring partners for {gene}"):
+            batch_idx = all_idx[i:i + batch_size]
             batch_emb = self.embeddings[batch_idx]
 
             # Expand gene embedding to match batch
@@ -360,39 +392,43 @@ class SLPredictor:
 def main():
     parser = argparse.ArgumentParser(description="Predict SL for gene pairs")
 
-    parser.add_argument(
-        "--model", type=str, required=True,
-        help="Path to trained model checkpoint"
-    )
-    parser.add_argument(
-        "--embeddings", type=str, required=True,
-        help="Path to gene embeddings file"
-    )
-    parser.add_argument(
-        "--model_type", type=str, default="siamese",
-        choices=["siamese", "attention", "kernel"],
-        help="Model architecture"
-    )
+    parser.add_argument("--model",
+                        type=str,
+                        required=True,
+                        help="Path to trained model checkpoint")
+    parser.add_argument("--embeddings",
+                        type=str,
+                        required=True,
+                        help="Path to gene embeddings file")
+    parser.add_argument("--model_type",
+                        type=str,
+                        default="siamese",
+                        choices=["siamese", "attention", "kernel"],
+                        help="Model architecture")
 
     # Prediction modes
     parser.add_argument("--gene1", type=str, help="First gene")
     parser.add_argument("--gene2", type=str, help="Second gene")
-    parser.add_argument(
-        "--pairs_file", type=str,
-        help="File with gene pairs (gene1 TAB gene2 per line)"
-    )
-    parser.add_argument(
-        "--top_k", type=int, default=None,
-        help="Find top K SL partners for gene1"
-    )
-    parser.add_argument(
-        "--output", type=str, default=None,
-        help="Output file for results"
-    )
+    parser.add_argument("--pairs_file",
+                        type=str,
+                        help="File with gene pairs (gene1 TAB gene2 per line)")
+    parser.add_argument("--top_k",
+                        type=int,
+                        default=None,
+                        help="Find top K SL partners for gene1")
+    parser.add_argument("--output",
+                        type=str,
+                        default=None,
+                        help="Output file for results")
 
     # Model overrides (for old checkpoints without embedded config)
-    parser.add_argument("--num_heads", type=int, default=None,
-                        help="Attention heads override (auto-detected from checkpoint if available)")
+    parser.add_argument(
+        "--num_heads",
+        type=int,
+        default=None,
+        help=
+        "Attention heads override (auto-detected from checkpoint if available)"
+    )
 
     # Runtime
     parser.add_argument("--device", type=str, default="cpu")
@@ -402,19 +438,22 @@ def main():
     args = parser.parse_args()
     set_seed(args.seed)
 
-    # Load model and embeddings
+    # Load model and fold standardization stats
     print("Loading model...")
-    model = load_model(args.model, args.model_type, args.device, args.num_heads)
+    model, fold_stats = load_model(args.model, args.model_type, args.device,
+                                   args.num_heads)
 
     print("Loading embeddings...")
     embeddings, gene_to_idx, idx_to_gene = load_embeddings(args.embeddings)
 
-    predictor = SLPredictor(model, embeddings, gene_to_idx, idx_to_gene, args.device)
+    predictor = SLPredictor(model, embeddings, gene_to_idx, idx_to_gene,
+                            args.device, fold_stats)
 
     # Run predictions
     if args.top_k and args.gene1:
         # Find SL partners mode
-        results = predictor.find_sl_partners(args.gene1, args.top_k, args.batch_size)
+        results = predictor.find_sl_partners(args.gene1, args.top_k,
+                                             args.batch_size)
         df = pd.DataFrame(results)
         df["query_gene"] = args.gene1
 
@@ -447,7 +486,9 @@ def main():
         # Single pair mode
         prob = predictor.predict_pair(args.gene1, args.gene2)
         if prob is not None:
-            print(f"\nSL probability for {args.gene1} - {args.gene2}: {prob:.4f}")
+            print(
+                f"\nSL probability for {args.gene1} - {args.gene2}: {prob:.4f}"
+            )
         else:
             print("Prediction failed - check gene names")
 

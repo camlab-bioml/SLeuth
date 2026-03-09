@@ -42,24 +42,20 @@ nvidia-smi --query-gpu=name,memory.total,memory.used --format=csv,noheader
 echo ""
 
 # Load modules
-module purge 2>/dev/null || true
-module load gnu15 2>/dev/null || module load gnu14 2>/dev/null || true
-module load openmpi5 2>/dev/null || true
-module load EasyBuild 2>/dev/null || true
+module purge
+module load gnu15 openmpi5 EasyBuild cmake openblas fftw
 echo "Loaded modules:"
 module list 2>&1 || true
 
 # Python path
 PYTHON_PATH=/ddn_exa/campbell/kaiyang/pytorch/bin/python
 
-# Change to siamese_sl directory (absolute path)
-WORK_DIR="/ddn_exa/campbell/kaiyang/SLMGAE-pytorch/siamese_sl"
+# Base project directory and working directory
+BASE_DIR="/ddn_exa/campbell/kaiyang/SLMGAE-pytorch"
+WORK_DIR="$BASE_DIR/siamese_sl"
 cd "$WORK_DIR"
 echo "Working directory: $WORK_DIR"
 
-# Create directories inside siamese_sl
-mkdir -p results
-mkdir -p slurm/logs
 
 # Results file
 RESULTS_FILE="results/full_benchmark_results.txt"
@@ -76,8 +72,8 @@ echo "==========================================================================
 echo "STEP 1: ESM Embedding Generation"
 echo "============================================================================"
 
-# ESM embeddings stored inside siamese_sl/results/ (already exists)
-ESM_PATH="results/all_genes_esm.pt"
+# ESM embeddings in shared data directory
+ESM_PATH="$BASE_DIR/data/all_genes_esm.pt"
 
 if [ -f "$ESM_PATH" ]; then
     echo "ESM embeddings already exist, skipping generation..."
@@ -103,40 +99,41 @@ else
     echo "ESM embeddings created successfully"
 fi
 
-# Combine ESM + GO embeddings
-GAF_PATH="/ddn_exa/campbell/kaiyang/SLMGAE-pytorch/uniprot_GO/goa_human.gaf.gz"
-COMBINED_PATH="results/all_genes_esm_go.pt"
+# Generate GO-only embeddings
+GAF_PATH="$BASE_DIR/uniprot_GO/goa_human.gaf.gz"
+GO_PATH="$BASE_DIR/data/all_genes_go.pt"
 
-if [ -f "$COMBINED_PATH" ]; then
-    echo "Combined ESM+GO embeddings already exist, skipping..."
+if [ -f "$GO_PATH" ]; then
+    echo "GO-only embeddings already exist, skipping..."
     $PYTHON_PATH -c "
 import torch
-data = torch.load('$COMBINED_PATH', map_location='cpu', weights_only=False)
+data = torch.load('$GO_PATH', map_location='cpu', weights_only=False)
 print(f'  Embeddings: {data[\"embeddings\"].shape}')
-print(f'  ESM dim: {data[\"esm_dim\"]}, GO dim: {data[\"go_dim\"]}')
+print(f'  GO dim: {data[\"go_dim\"]}')
 print(f'  GO coverage: {data[\"num_genes_with_go\"]}/{data[\"num_genes\"]}')
 "
 else
-    echo "Generating combined ESM + GO embeddings..."
+    echo "Generating GO-only embeddings..."
     $PYTHON_PATH generate_go_esm_embeddings.py \
+        --go_only \
         --esm_embeddings "$ESM_PATH" \
         --gaf "$GAF_PATH" \
-        --output "$COMBINED_PATH"
+        --output "$GO_PATH"
 
-    if [ ! -f "$COMBINED_PATH" ]; then
-        echo "FAILED: Combined embeddings not created"
+    if [ ! -f "$GO_PATH" ]; then
+        echo "FAILED: GO-only embeddings not created"
         exit 1
     fi
-    echo "Combined ESM+GO embeddings created successfully"
+    echo "GO-only embeddings created successfully"
 fi
 
-# Use combined embeddings for training, infer input_dim dynamically
-EMB_PATH="$COMBINED_PATH"
+# Use GO-only embeddings for training, infer input_dim dynamically
+EMB_PATH="$GO_PATH"
 INPUT_DIM=$($PYTHON_PATH -c "import torch; print(torch.load('$EMB_PATH', map_location='cpu', weights_only=False)['embeddings'].shape[1])")
 echo "Input dimension: $INPUT_DIM"
 
-# SL pairs read from parent data directory (read-only)
-SL_PATH="/ddn_exa/campbell/kaiyang/SLMGAE-pytorch/data/SL_Human_Approved.txt"
+# SL pairs in shared data directory
+SL_PATH="$BASE_DIR/data/SL_Human_Approved.txt"
 
 if [ ! -f "$SL_PATH" ]; then
     echo "FAILED: SL pairs file not found at $SL_PATH"
@@ -145,12 +142,12 @@ fi
 echo "SL pairs file found: $SL_PATH"
 
 echo "" >> $RESULTS_FILE
-echo "Combined ESM+GO Embeddings:" >> $RESULTS_FILE
+echo "GO-Only Embeddings:" >> $RESULTS_FILE
 $PYTHON_PATH -c "
 import torch
 data = torch.load('$EMB_PATH', map_location='cpu', weights_only=False)
 print(f'  Shape: {data[\"embeddings\"].shape}')
-print(f'  ESM dim: {data[\"esm_dim\"]}, GO dim: {data[\"go_dim\"]}')
+print(f'  GO dim: {data[\"go_dim\"]}')
 print(f'  Standardized: {data.get(\"standardized\", False)}')
 print(f'  GO coverage: {data[\"num_genes_with_go\"]}/{data[\"num_genes\"]}')
 " >> $RESULTS_FILE
@@ -175,7 +172,7 @@ CV_TYPES=("cv1" "cv2" "cv3")
 EPOCHS=300
 BATCH_SIZE=256
 LR=0.001
-L1_LAMBDA=0.1
+L1_LAMBDA=0.01
 PATIENCE=20
 NUM_FOLDS=5
 SEED=42
@@ -195,7 +192,6 @@ for MODEL in "${MODELS[@]}"; do
         echo "Start: $(date)"
 
         OUTPUT_DIR="results/${MODEL}_${CV}"
-        mkdir -p "$OUTPUT_DIR/checkpoints"
 
         # Model-specific parameters
         if [ "$MODEL" == "kernel" ]; then

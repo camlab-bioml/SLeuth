@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 """
-Siamese network for Synthetic Lethality prediction using ESM embeddings.
+Siamese network for Synthetic Lethality prediction using gene embeddings.
 
 Architecture:
-  - Input: Two gene embeddings (e.g. 1280-dim ESM or 1480-dim ESM+GO)
+  - Input: Two gene embeddings (e.g. 200-dim GO-only, 1280-dim ESM, or 1480-dim ESM+GO)
   - Encoder: Shared MLP projecting embeddings to latent space
   - Predictor: Combines encoded representations to predict SL probability
 
 This implementation:
-  - Uses ESM embeddings as the ONLY node features (no graph structure needed)
-  - Works with any gene that has a protein sequence (not limited to SL dataset genes)
+  - Uses gene embeddings as the ONLY node features (no graph structure needed)
+  - Works with any gene that has embeddings (not limited to SL dataset genes)
   - Is fully reproducible with fixed random seeds
 """
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 from typing import Tuple, Optional
 
@@ -33,6 +32,7 @@ def set_seed(seed: int = 42) -> None:
 # Efficient MLP Encoder Variants
 # =============================================================================
 
+
 class LowRankLinear(nn.Module):
     """
     Low-rank factorized linear layer: W ≈ UV where U ∈ ℝ^{out×r}, V ∈ ℝ^{r×in}
@@ -42,7 +42,11 @@ class LowRankLinear(nn.Module):
     Reference: "Low-Rank Matrix Approximation for Neural Network Compression"
     """
 
-    def __init__(self, in_features: int, out_features: int, rank: int, bias: bool = True):
+    def __init__(self,
+                 in_features: int,
+                 out_features: int,
+                 rank: int,
+                 bias: bool = True):
         super().__init__()
         self.rank = rank
         # Factorize: W = U @ V where W is (out, in)
@@ -102,63 +106,6 @@ class BottleneckMLP(nn.Module):
         return self.net(x)
 
 
-class LoRALinear(nn.Module):
-    """
-    LoRA-style linear layer: W' = W + BA where B ∈ ℝ^{out×r}, A ∈ ℝ^{r×in}
-
-    Keeps original W frozen, learns low-rank adaptation.
-    At inference, can merge: W_merged = W + BA (no extra latency).
-
-    Reference: Hu et al. (2021) "LoRA: Low-Rank Adaptation of Large Language Models"
-    """
-
-    def __init__(
-        self,
-        in_features: int,
-        out_features: int,
-        rank: int = 8,
-        alpha: float = 16.0,  # Scaling factor
-        freeze_base: bool = True,
-    ):
-        super().__init__()
-        self.rank = rank
-        self.alpha = alpha
-        self.scaling = alpha / rank
-
-        # Base weight (can be frozen or trainable)
-        self.base = nn.Linear(in_features, out_features)
-        if freeze_base:
-            for p in self.base.parameters():
-                p.requires_grad = False
-
-        # Low-rank adaptation: BA
-        self.lora_A = nn.Linear(in_features, rank, bias=False)
-        self.lora_B = nn.Linear(rank, out_features, bias=False)
-
-        # Initialize A with Kaiming, B with zeros (start at base weights)
-        nn.init.kaiming_normal_(self.lora_A.weight)
-        nn.init.zeros_(self.lora_B.weight)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        base_out = self.base(x)
-        lora_out = self.lora_B(self.lora_A(x)) * self.scaling
-        return base_out + lora_out
-
-    def merge_weights(self) -> nn.Linear:
-        """Merge LoRA weights into base for inference (no extra latency)."""
-        merged = nn.Linear(
-            self.base.in_features,
-            self.base.out_features,
-            bias=self.base.bias is not None,
-        )
-        # W_merged = W + scaling * B @ A
-        delta = self.scaling * (self.lora_B.weight @ self.lora_A.weight)
-        merged.weight.data = self.base.weight.data + delta
-        if self.base.bias is not None:
-            merged.bias.data = self.base.bias.data
-        return merged
-
-
 class GatedLinearUnit(nn.Module):
     """
     Gated Linear Unit (GLU): split input, one half gates the other.
@@ -178,35 +125,6 @@ class GatedLinearUnit(nn.Module):
         return x * torch.sigmoid(gate)
 
 
-class SpatialGatingUnit(nn.Module):
-    """
-    Spatial Gating Unit from gMLP.
-
-    Captures cross-token interactions without attention.
-    out = U ⊙ f(V) where f is spatial projection.
-
-    Reference: Liu et al. "Pay Attention to MLPs"
-    """
-
-    def __init__(self, dim: int, seq_len: int = 1):
-        super().__init__()
-        self.norm = nn.LayerNorm(dim // 2)
-        # For our case seq_len=1 (single embedding), this becomes identity-like
-        self.spatial_proj = nn.Linear(seq_len, seq_len)
-        nn.init.ones_(self.spatial_proj.weight)
-        nn.init.zeros_(self.spatial_proj.bias)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (batch, dim) -> treat as (batch, 1, dim) for spatial
-        u, v = x.chunk(2, dim=-1)
-        v = self.norm(v)
-        # Spatial projection (trivial for single embeddings)
-        v = v.unsqueeze(1)  # (batch, 1, dim//2)
-        v = self.spatial_proj(v.transpose(-1, -2)).transpose(-1, -2)
-        v = v.squeeze(1)  # (batch, dim//2)
-        return u * v
-
-
 class EfficientEncoder(nn.Module):
     """
     Efficient MLP encoder with configurable architecture.
@@ -218,7 +136,7 @@ class EfficientEncoder(nn.Module):
     - 'gated': Gated Linear Units (GLU)
 
     Args:
-        input_dim: Input dimension (e.g., 1280 for ESM or 1480 for ESM+GO)
+        input_dim: Input dimension (e.g., 200 for GO-only, 1280 for ESM, or 1480 for ESM+GO)
         hidden_dim: Hidden layer dimension
         output_dim: Output dimension
         encoder_type: Architecture type
@@ -400,11 +318,12 @@ class SiameseSL(nn.Module):
 
         # Combine representations using ONLY symmetric features
         # These are order-invariant: f(z1, z2) = f(z2, z1)
-        sum_emb = z1 + z2                              # (batch, latent) - symmetric
-        product = z1 * z2                              # (batch, latent) - symmetric
-        diff = torch.abs(z1 - z2)                      # (batch, latent) - symmetric
+        sum_emb = z1 + z2  # (batch, latent) - symmetric
+        product = z1 * z2  # (batch, latent) - symmetric
+        diff = torch.abs(z1 - z2)  # (batch, latent) - symmetric
 
-        combined = torch.cat([sum_emb, product, diff], dim=1)  # (batch, 3*latent)
+        combined = torch.cat([sum_emb, product, diff],
+                             dim=1)  # (batch, 3*latent)
 
         # Predict SL probability
         logits = self.predictor(combined)
@@ -500,11 +419,12 @@ class SiameseSLWithAttention(nn.Module):
 
         # Combine representations using ONLY symmetric features
         # These are order-invariant: f(z1, z2) = f(z2, z1)
-        sum_emb = z1 + z2                              # (batch, latent) - symmetric
-        product = z1 * z2                              # (batch, latent) - symmetric
-        diff = torch.abs(z1 - z2)                      # (batch, latent) - symmetric
+        sum_emb = z1 + z2  # (batch, latent) - symmetric
+        product = z1 * z2  # (batch, latent) - symmetric
+        diff = torch.abs(z1 - z2)  # (batch, latent) - symmetric
 
-        combined = torch.cat([sum_emb, product, diff], dim=1)  # (batch, 3*latent)
+        combined = torch.cat([sum_emb, product, diff],
+                             dim=1)  # (batch, 3*latent)
 
         return self.predictor(combined)
 
@@ -540,18 +460,19 @@ class RandomFourierFeatures(nn.Module):
         # Random frequencies ω ~ N(0, 1/σ²)
         # We sample from N(0, 1) and scale by 1/σ at forward time
         self.register_buffer(
-            "omega", torch.randn(input_dim, num_features, dtype=torch.float32)
-        )
+            "omega", torch.randn(input_dim, num_features, dtype=torch.float32))
         # Random phase shifts b ~ Uniform(0, 2π)
         self.register_buffer(
-            "bias", torch.rand(num_features, dtype=torch.float32) * 2 * np.pi
-        )
+            "bias",
+            torch.rand(num_features, dtype=torch.float32) * 2 * np.pi)
 
         # Learnable bandwidth (log-scale for numerical stability)
         if learn_sigma:
-            self.log_sigma = nn.Parameter(torch.tensor(np.log(sigma), dtype=torch.float32))
+            self.log_sigma = nn.Parameter(
+                torch.tensor(np.log(sigma), dtype=torch.float32))
         else:
-            self.register_buffer("log_sigma", torch.tensor(np.log(sigma), dtype=torch.float32))
+            self.register_buffer(
+                "log_sigma", torch.tensor(np.log(sigma), dtype=torch.float32))
 
         # Scaling factor √(2/D)
         self.scale = np.sqrt(2.0 / num_features)
@@ -571,62 +492,6 @@ class RandomFourierFeatures(nn.Module):
         projection = x @ (self.omega / sigma) + self.bias
         # Apply cosine and scale
         return self.scale * torch.cos(projection)
-
-
-class LowRankBilinear(nn.Module):
-    """
-    Low-rank bilinear similarity layer.
-
-    Computes s(x, y) = (Ux)ᵀ(Vy) where U, V ∈ ℝ^{rank × dim}
-
-    This is equivalent to learning a Mahalanobis-like metric M = UᵀV
-    with rank constraint, giving O(rank × dim) parameters instead of O(dim²).
-
-    For symmetric similarity, set symmetric=True to use U=V.
-
-    Args:
-        input_dim: Dimension of input features
-        rank: Rank of the bilinear form (lower = more efficient)
-        symmetric: If True, U=V for symmetric similarity
-    """
-
-    def __init__(
-        self,
-        input_dim: int,
-        rank: int = 64,
-        symmetric: bool = True,
-    ):
-        super().__init__()
-        self.symmetric = symmetric
-        self.rank = rank
-
-        # Projection matrices (initialized with Xavier)
-        self.U = nn.Linear(input_dim, rank, bias=False)
-        if symmetric:
-            self.V = self.U  # Weight sharing
-        else:
-            self.V = nn.Linear(input_dim, rank, bias=False)
-
-        # Initialize for stable gradients
-        nn.init.xavier_normal_(self.U.weight)
-        if not symmetric:
-            nn.init.xavier_normal_(self.V.weight)
-
-    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """
-        Compute bilinear similarity between x and y.
-
-        Args:
-            x: First input (batch_size, input_dim)
-            y: Second input (batch_size, input_dim)
-
-        Returns:
-            similarity: Bilinear similarity scores (batch_size,)
-        """
-        Ux = self.U(x)  # (batch, rank)
-        Vy = self.V(y)  # (batch, rank)
-        # Inner product in low-rank space
-        return (Ux * Vy).sum(dim=-1)
 
 
 class HilbertSpaceMap(nn.Module):
@@ -662,7 +527,8 @@ class HilbertSpaceMap(nn.Module):
         # Learnable linear map to Hilbert space (Mahalanobis-like)
         # This learns a basis where inner products are meaningful
         self.linear_map = nn.Linear(input_dim, hilbert_dim, bias=False)
-        nn.init.orthogonal_(self.linear_map.weight)  # Start with orthonormal basis
+        nn.init.orthogonal_(
+            self.linear_map.weight)  # Start with orthonormal basis
 
         # RFF for Gaussian RKHS component
         if rff_dim > 0:
@@ -717,11 +583,12 @@ class SiameseSLKernel(nn.Module):
     - arXiv:2508.04476: Metric Learning in an RKHS
 
     Args:
-        input_dim: Gene embedding dimension (e.g. 1280 ESM or 1480 ESM+GO)
+        input_dim: Gene embedding dimension (e.g. 200 GO-only, 1280 ESM, or 1480 ESM+GO)
         hidden_dim: Encoder hidden dimension
         latent_dim: Latent space dimension (before Hilbert mapping)
         rff_features: RFF dimension (Gaussian RKHS component)
         bilinear_rank: Hilbert space linear projection dimension
+        predictor_hidden: Predictor hidden dimension
         dropout: Dropout rate
         sigma: Initial RBF kernel bandwidth
         encoder_type: Encoder architecture ('standard', 'lowrank', 'bottleneck', 'gated')
@@ -729,16 +596,18 @@ class SiameseSLKernel(nn.Module):
     """
 
     def __init__(
-        self,
-        input_dim: int = 1280,
-        hidden_dim: int = 512,
-        latent_dim: int = 256,
-        rff_features: int = 128,  # RFF dimension
-        bilinear_rank: int = 128,  # Hilbert linear projection dim
-        dropout: float = 0.2,
-        sigma: float = 1.0,
-        encoder_type: str = 'standard',  # 'standard', 'lowrank', 'bottleneck', 'gated'
-        encoder_rank: int = 64,  # Rank for lowrank encoder
+            self,
+            input_dim: int = 1280,
+            hidden_dim: int = 512,
+            latent_dim: int = 256,
+            rff_features: int = 128,  # RFF dimension
+            bilinear_rank: int = 128,  # Hilbert linear projection dim
+            predictor_hidden: int = 128,
+            dropout: float = 0.2,
+            sigma: float = 1.0,
+            encoder_type:
+        str = 'standard',  # 'standard', 'lowrank', 'bottleneck', 'gated'
+            encoder_rank: int = 64,  # Rank for lowrank encoder
     ):
         super().__init__()
 
@@ -764,14 +633,15 @@ class SiameseSLKernel(nn.Module):
             sigma=sigma,
         )
 
-        # Step 3: Predictor from SYMMETRIC kernel features
-        # Input: inner product ⟨φ(z1), φ(z2)⟩ + symmetric norm features
-        # NOTE: [k_val, norm1, norm2] is NOT symmetric (order matters)
-        # Using symmetric aggregations: sum and product of norms
+        # Step 3: Predictor from SYMMETRIC Hilbert space features
+        # Same symmetric aggregation as SiameseSL: [sum, product, abs_diff]
+        total_hilbert_dim = hilbert_dim + rff_dim
         self.predictor = nn.Sequential(
-            nn.Linear(3, 32),  # [inner_product, norm_sum, norm_product]
+            nn.Linear(total_hilbert_dim * 3, predictor_hidden),
+            nn.LayerNorm(predictor_hidden),
             nn.GELU(),
-            nn.Linear(32, 1),
+            nn.Dropout(dropout),
+            nn.Linear(predictor_hidden, 1),
         )
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
@@ -820,20 +690,14 @@ class SiameseSLKernel(nn.Module):
         phi1 = self.hilbert_map(z1)  # (batch, H_dim)
         phi2 = self.hilbert_map(z2)  # (batch, H_dim)
 
-        # Step 3: Compute kernel as inner product in H
-        k_val = self.kernel(phi1, phi2)  # (batch,) - symmetric
+        # Step 3: Symmetric features in Hilbert space
+        sum_emb = phi1 + phi2
+        product = phi1 * phi2
+        diff = torch.abs(phi1 - phi2)
+        combined = torch.cat([sum_emb, product, diff], dim=1)
 
-        # Compute SYMMETRIC norm features
-        # NOTE: [norm1, norm2] is NOT symmetric (order matters when swapped)
-        # Using symmetric aggregations instead
-        norm1 = phi1.norm(dim=-1)  # (batch,)
-        norm2 = phi2.norm(dim=-1)  # (batch,)
-        norm_sum = norm1 + norm2      # symmetric
-        norm_product = norm1 * norm2  # symmetric
-
-        # Step 4: Predict from SYMMETRIC kernel features
-        kernel_features = torch.stack([k_val, norm_sum, norm_product], dim=-1)  # (batch, 3)
-        return self.predictor(kernel_features)
+        # Step 4: Predict
+        return self.predictor(combined)
 
     def predict_proba(
         self,
@@ -850,10 +714,7 @@ class SiameseSLKernel(nn.Module):
         return float('nan')
 
 
-def get_model(
-    model_type: str = "siamese",
-    **kwargs
-) -> nn.Module:
+def get_model(model_type: str = "siamese", **kwargs) -> nn.Module:
     """
     Factory function to create SL prediction models.
 

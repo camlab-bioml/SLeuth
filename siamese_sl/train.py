@@ -3,9 +3,9 @@
 Training script for Siamese SL prediction model.
 
 Usage:
-    python train.py --embeddings_path ../data/all_genes_esm.pt \
+    python train.py --embeddings_path ../data/all_genes_go.pt \
                     --sl_path ../data/SL_Human_Approved.txt \
-                    --output_dir results/siamese_esm
+                    --output_dir results/siamese_go
 
 Features:
     - Full reproducibility via seeding
@@ -36,7 +36,7 @@ from data_loader import SLDataManager, create_fold_dataloaders
 # ── L1 proximal regularization ──────────────────────────────────────────
 # Default L1 lambda for soft-thresholding (overridden by --l1_lambda CLI arg).
 # Set to 0.0 to disable.
-L1_LAMBDA_DEFAULT = 0.1
+L1_LAMBDA_DEFAULT = 0.01
 
 
 def calculate_optimal_f1(labels: np.ndarray, scores: np.ndarray) -> float:
@@ -98,6 +98,7 @@ class Trainer:
                 latent_dim=self.args.latent_dim,
                 rff_features=self.args.rff_features,
                 bilinear_rank=self.args.bilinear_rank,
+                predictor_hidden=self.args.predictor_hidden,
                 dropout=self.args.dropout,
                 sigma=self.args.kernel_sigma,
                 encoder_type=self.args.encoder_type,
@@ -138,17 +139,33 @@ class Trainer:
 
             # Proximal L1: soft-thresholding outside autograd
             # Skip biases and LayerNorm params (only regularize weight matrices)
-            # Use current LR from scheduler (not fixed CLI arg)
+            # Use per-parameter adaptive threshold from Adam's second moment
             if self.args.l1_lambda > 0:
                 current_lr = optimizer.param_groups[0]["lr"]
-                thresh = self.args.l1_lambda * current_lr
+                eps = optimizer.defaults.get("eps", 1e-8)
+                beta2 = optimizer.defaults["betas"][1]
                 with torch.no_grad():
                     for _, param in model.named_parameters():
                         if param.dim() < 2:
                             continue
+                        state = optimizer.state.get(param, {})
+                        if "exp_avg_sq" in state:
+                            # Per-element adaptive threshold: λ₁ * η / (√v̂ + ε)
+                            step = state["step"]
+                            if isinstance(step, torch.Tensor):
+                                step = step.item()
+                            v_hat = state["exp_avg_sq"] / (1 - beta2**step)
+                            # Clamp denominator to prevent threshold blow-up
+                            # when gradients are near zero (avoids cascading
+                            # weight death where zeroed weights → zero grads →
+                            # huge threshold → more zeroed weights)
+                            denom = torch.clamp(v_hat.sqrt(), min=1e-1) + eps
+                            thresh = self.args.l1_lambda * current_lr / denom
+                        else:
+                            # Fallback before optimizer state is initialized
+                            thresh = self.args.l1_lambda * current_lr
                         param.data = torch.sign(param.data) * torch.clamp(
-                            param.data.abs() - thresh, min=0
-                        )
+                            param.data.abs() - thresh, min=0)
 
             total_loss += loss.item()
             num_batches += 1
@@ -182,8 +199,14 @@ class Trainer:
         # Guard against single-class test set (can happen in edge cases)
         unique_labels = np.unique(all_labels)
         if len(unique_labels) < 2:
-            print(f"Warning: Single-class test set (only class {unique_labels[0]}), metrics undefined")
-            return {"auroc": float("nan"), "aupr": float("nan"), "f1": float("nan")}
+            print(
+                f"Warning: Single-class test set (only class {unique_labels[0]}), metrics undefined"
+            )
+            return {
+                "auroc": float("nan"),
+                "aupr": float("nan"),
+                "f1": float("nan")
+            }
 
         # Compute metrics
         auroc = roc_auc_score(all_labels, all_scores)
@@ -203,8 +226,8 @@ class Trainer:
         print(f"Training Fold {fold_idx + 1}")
         print(f"{'='*60}")
 
-        # Create dataloaders
-        train_loader, test_loader = create_fold_dataloaders(
+        # Create dataloaders (fold_stats saved in checkpoint for prediction)
+        train_loader, test_loader, fold_stats = create_fold_dataloaders(
             embeddings=self.data_manager.embeddings,
             fold_data=fold_data,
             batch_size=self.args.batch_size,
@@ -219,7 +242,9 @@ class Trainer:
         )
         # Cosine annealing with warm restarts (AdamWR)
         scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            optimizer, T_0=self.args.warmrestart_T0, T_mult=self.args.warmrestart_Tmult,
+            optimizer,
+            T_0=self.args.warmrestart_T0,
+            T_mult=self.args.warmrestart_Tmult,
         )
         criterion = nn.BCEWithLogitsLoss()
 
@@ -232,7 +257,8 @@ class Trainer:
         pbar = tqdm(range(self.args.epochs), desc=f"Fold {fold_idx}")
         for epoch in pbar:
             # Train
-            train_loss = self.train_epoch(model, train_loader, optimizer, criterion)
+            train_loss = self.train_epoch(model, train_loader, optimizer,
+                                          criterion)
             scheduler.step()
 
             # Evaluate periodically
@@ -251,13 +277,16 @@ class Trainer:
                     best_metrics = metrics.copy()
                     patience_counter = 0
 
-                    torch.save({
-                        "epoch": epoch + 1,
-                        "model_state_dict": model.state_dict(),
-                        "optimizer_state_dict": optimizer.state_dict(),
-                        "metrics": metrics,
-                        "config": vars(self.args),
-                    }, self.output_dir / "checkpoints" / f"fold_{fold_idx}_best.pt")
+                    torch.save(
+                        {
+                            "epoch": epoch + 1,
+                            "model_state_dict": model.state_dict(),
+                            "optimizer_state_dict": optimizer.state_dict(),
+                            "metrics": metrics,
+                            "config": vars(self.args),
+                            "fold_stats": fold_stats,
+                        }, self.output_dir / "checkpoints" /
+                        f"fold_{fold_idx}_best.pt")
                 else:
                     patience_counter += 1
                     if patience_counter >= self.args.patience:
@@ -266,22 +295,28 @@ class Trainer:
 
         # Handle case where no evaluation occurred (epochs < eval_interval)
         if not best_metrics:
-            print(f"\nWarning: No evaluation performed (epochs={self.args.epochs} < eval_interval={self.args.eval_interval})")
+            print(
+                f"\nWarning: No evaluation performed (epochs={self.args.epochs} < eval_interval={self.args.eval_interval})"
+            )
             best_metrics = self.evaluate(model, test_loader)
             best_epoch = self.args.epochs
             # Save checkpoint so nonzero counting and downstream loading work
-            torch.save({
-                "epoch": best_epoch,
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-                "metrics": best_metrics,
-                "config": vars(self.args),
-            }, self.output_dir / "checkpoints" / f"fold_{fold_idx}_best.pt")
+            torch.save(
+                {
+                    "epoch": best_epoch,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "metrics": best_metrics,
+                    "config": vars(self.args),
+                    "fold_stats": fold_stats,
+                },
+                self.output_dir / "checkpoints" / f"fold_{fold_idx}_best.pt")
 
         # Count nonzero parameters from best checkpoint (exclude buffers)
         ckpt = torch.load(
             self.output_dir / "checkpoints" / f"fold_{fold_idx}_best.pt",
-            map_location="cpu", weights_only=False,
+            map_location="cpu",
+            weights_only=False,
         )
         sd = ckpt["model_state_dict"]
         param_names = {n for n, _ in model.named_parameters()}
@@ -293,11 +328,14 @@ class Trainer:
         wt_nonzero = sum(int(p.ne(0).sum()) for p in params if p.dim() >= 2)
         wt_sparsity = 100 * (1 - wt_nonzero / wt_total) if wt_total > 0 else 0
 
-        print(f"\nFold {fold_idx} Best (epoch {best_epoch}): "
-              f"AUROC={best_metrics['auroc']:.4f}, AUPR={best_metrics['aupr']:.4f}, "
-              f"F1={best_metrics['f1']:.4f}")
-        print(f"  Params: {nonzero_params:,}/{total_params:,} nonzero "
-              f"| Weights: {wt_nonzero:,}/{wt_total:,} nonzero ({wt_sparsity:.2f}% sparse)")
+        print(
+            f"\nFold {fold_idx} Best (epoch {best_epoch}): "
+            f"AUROC={best_metrics['auroc']:.4f}, AUPR={best_metrics['aupr']:.4f}, "
+            f"F1={best_metrics['f1']:.4f}")
+        print(
+            f"  Params: {nonzero_params:,}/{total_params:,} nonzero "
+            f"| Weights: {wt_nonzero:,}/{wt_total:,} nonzero ({wt_sparsity:.2f}% sparse)"
+        )
 
         best_metrics["total_params"] = total_params
         best_metrics["nonzero_params"] = nonzero_params
@@ -307,12 +345,12 @@ class Trainer:
 
     def train(self):
         """Run full cross-validation training."""
-        print("="*60)
+        print("=" * 60)
         print(f"Siamese SL Training")
         print(f"Model: {self.args.model_type}")
         print(f"CV Type: {self.args.cv_type}")
         print(f"Folds: {self.args.num_folds}")
-        print("="*60)
+        print("=" * 60)
 
         # Get CV splits
         if self.args.cv_type == "cv1":
@@ -349,38 +387,56 @@ class Trainer:
             "cv3": "CV3 (pair-based)",
         }
 
-        print("\n" + "="*60)
-        print(f"Cross-Validation Results: {cv_desc.get(self.args.cv_type, self.args.cv_type)}")
-        print("="*60)
+        print("\n" + "=" * 60)
+        print(
+            f"Cross-Validation Results: {cv_desc.get(self.args.cv_type, self.args.cv_type)}"
+        )
+        print("=" * 60)
 
         # Per-fold results
         print(f"\n{'Fold':<6} {'AUROC':>10} {'AUPR':>10} {'F1':>10}")
         print("-" * 40)
         for i, m in enumerate(all_metrics):
-            print(f"{i+1:<6} {m['auroc']:>10.4f} {m['aupr']:>10.4f} {m['f1']:>10.4f}")
+            print(
+                f"{i+1:<6} {m['auroc']:>10.4f} {m['aupr']:>10.4f} {m['f1']:>10.4f}"
+            )
         print("-" * 40)
-        print(f"{'Mean':<6} {np.nanmean(auroc_scores):>10.4f} {np.nanmean(aupr_scores):>10.4f} {np.nanmean(f1_scores):>10.4f}")
-        print(f"{'Std':<6} {np.nanstd(auroc_scores):>10.4f} {np.nanstd(aupr_scores):>10.4f} {np.nanstd(f1_scores):>10.4f}")
+        print(
+            f"{'Mean':<6} {np.nanmean(auroc_scores):>10.4f} {np.nanmean(aupr_scores):>10.4f} {np.nanmean(f1_scores):>10.4f}"
+        )
+        print(
+            f"{'Std':<6} {np.nanstd(auroc_scores):>10.4f} {np.nanstd(aupr_scores):>10.4f} {np.nanstd(f1_scores):>10.4f}"
+        )
 
         # Sparsity summary
-        sparsity_scores = np.array([m.get("weight_sparsity", 0) for m in all_metrics])
-        avg_nonzero = int(np.mean([m.get("nonzero_params", 0) for m in all_metrics]))
-        avg_total = int(np.mean([m.get("total_params", 0) for m in all_metrics]))
+        sparsity_scores = np.array(
+            [m.get("weight_sparsity", 0) for m in all_metrics])
+        avg_nonzero = int(
+            np.mean([m.get("nonzero_params", 0) for m in all_metrics]))
+        avg_total = int(
+            np.mean([m.get("total_params", 0) for m in all_metrics]))
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("Summary:")
-        print(f"  AUROC: {np.nanmean(auroc_scores):.4f} ± {np.nanstd(auroc_scores):.4f}")
-        print(f"  AUPR:  {np.nanmean(aupr_scores):.4f} ± {np.nanstd(aupr_scores):.4f}")
-        print(f"  F1:    {np.nanmean(f1_scores):.4f} ± {np.nanstd(f1_scores):.4f}")
+        print(
+            f"  AUROC: {np.nanmean(auroc_scores):.4f} ± {np.nanstd(auroc_scores):.4f}"
+        )
+        print(
+            f"  AUPR:  {np.nanmean(aupr_scores):.4f} ± {np.nanstd(aupr_scores):.4f}"
+        )
+        print(
+            f"  F1:    {np.nanmean(f1_scores):.4f} ± {np.nanstd(f1_scores):.4f}"
+        )
         print(f"  Params: {avg_nonzero:,}/{avg_total:,} nonzero "
               f"(weight sparsity: {np.mean(sparsity_scores):.2f}%)")
-        print("="*60)
+        print("=" * 60)
 
         # Save summary
         summary = {
             "timestamp": datetime.now().isoformat(),
             "cv_type": self.args.cv_type,
-            "cv_description": cv_desc.get(self.args.cv_type, self.args.cv_type),
+            "cv_description": cv_desc.get(self.args.cv_type,
+                                          self.args.cv_type),
             "config": vars(self.args),
             "fold_metrics": all_metrics,
             "summary": {
@@ -403,53 +459,78 @@ class Trainer:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Train Siamese network for SL prediction"
-    )
+        description="Train Siamese network for SL prediction")
 
     # Data paths
-    parser.add_argument(
-        "--embeddings_path", type=str, required=True,
-        help="Path to gene embeddings file (.pt)"
-    )
-    parser.add_argument(
-        "--sl_path", type=str, default="../data/SL_Human_Approved.txt",
-        help="Path to SL pairs file"
-    )
-    parser.add_argument(
-        "--gene_list_path", type=str, default=None,
-        help="Path to gene list file (for ordering)"
-    )
-    parser.add_argument(
-        "--output_dir", type=str, default="results/siamese_esm",
-        help="Output directory"
-    )
+    parser.add_argument("--embeddings_path",
+                        type=str,
+                        required=True,
+                        help="Path to gene embeddings file (.pt)")
+    parser.add_argument("--sl_path",
+                        type=str,
+                        default="../data/SL_Human_Approved.txt",
+                        help="Path to SL pairs file")
+    parser.add_argument("--gene_list_path",
+                        type=str,
+                        default=None,
+                        help="Path to gene list file (for ordering)")
+    parser.add_argument("--output_dir",
+                        type=str,
+                        default="results/siamese_esm",
+                        help="Output directory")
 
     # Model architecture
     parser.add_argument(
-        "--model_type", type=str, default="kernel",
+        "--model_type",
+        type=str,
+        default="kernel",
         choices=["siamese", "attention", "kernel"],
-        help="Model: siamese (MLP), attention (cross-attn), kernel (RKHS-based, default)"
+        help=
+        "Model: siamese (MLP), attention (cross-attn), kernel (RKHS-based, default)"
     )
-    parser.add_argument("--input_dim", type=int, default=1280, help="Input embedding dim")
-    parser.add_argument("--hidden_dim", type=int, default=512, help="Hidden dim")
-    parser.add_argument("--latent_dim", type=int, default=256, help="Latent dim")
+    parser.add_argument("--input_dim",
+                        type=int,
+                        default=1280,
+                        help="Input embedding dim")
+    parser.add_argument("--hidden_dim",
+                        type=int,
+                        default=512,
+                        help="Hidden dim")
+    parser.add_argument("--latent_dim",
+                        type=int,
+                        default=256,
+                        help="Latent dim")
     parser.add_argument("--predictor_hidden", type=int, default=128)
-    parser.add_argument("--num_heads", type=int, default=4, help="Attention heads")
+    parser.add_argument("--num_heads",
+                        type=int,
+                        default=4,
+                        help="Attention heads")
     parser.add_argument("--dropout", type=float, default=0.2)
 
     # RKHS/Kernel model specific
-    parser.add_argument("--rff_features", type=int, default=128,
-                        help="Random Fourier features for kernel approximation")
-    parser.add_argument("--bilinear_rank", type=int, default=128,
+    parser.add_argument(
+        "--rff_features",
+        type=int,
+        default=128,
+        help="Random Fourier features for kernel approximation")
+    parser.add_argument("--bilinear_rank",
+                        type=int,
+                        default=128,
                         help="Hilbert space linear projection dimension")
-    parser.add_argument("--kernel_sigma", type=float, default=1.0,
+    parser.add_argument("--kernel_sigma",
+                        type=float,
+                        default=1.0,
                         help="Initial RBF kernel bandwidth")
 
     # Efficient encoder options
-    parser.add_argument("--encoder_type", type=str, default="standard",
+    parser.add_argument("--encoder_type",
+                        type=str,
+                        default="standard",
                         choices=["standard", "lowrank", "bottleneck", "gated"],
                         help="Encoder architecture for efficiency")
-    parser.add_argument("--encoder_rank", type=int, default=64,
+    parser.add_argument("--encoder_rank",
+                        type=int,
+                        default=64,
                         help="Rank for lowrank encoder factorization")
 
     # Training
@@ -457,20 +538,35 @@ def main():
     parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--learning_rate", type=float, default=1e-3)
     parser.add_argument("--weight_decay", type=float, default=1e-5)
-    parser.add_argument("--l1_lambda", type=float, default=L1_LAMBDA_DEFAULT,
-                        help="L1 proximal regularization strength (0 to disable)")
+    parser.add_argument(
+        "--l1_lambda",
+        type=float,
+        default=L1_LAMBDA_DEFAULT,
+        help="L1 proximal regularization strength (0 to disable)")
     parser.add_argument("--eval_interval", type=int, default=10)
-    parser.add_argument("--patience", type=int, default=20, help="Early stopping")
-    parser.add_argument("--warmrestart_T0", type=int, default=50,
-                        help="CosineAnnealingWarmRestarts: initial cycle length (epochs)")
-    parser.add_argument("--warmrestart_Tmult", type=int, default=2,
-                        help="CosineAnnealingWarmRestarts: cycle length multiplier")
+    parser.add_argument("--patience",
+                        type=int,
+                        default=20,
+                        help="Early stopping")
+    parser.add_argument(
+        "--warmrestart_T0",
+        type=int,
+        default=50,
+        help="CosineAnnealingWarmRestarts: initial cycle length (epochs)")
+    parser.add_argument(
+        "--warmrestart_Tmult",
+        type=int,
+        default=2,
+        help="CosineAnnealingWarmRestarts: cycle length multiplier")
 
     # Cross-validation
     parser.add_argument(
-        "--cv_type", type=str, default="cv1",
+        "--cv_type",
+        type=str,
+        default="cv1",
         choices=["cv1", "cv2", "cv3"],
-        help="CV type: cv1=edge-based, cv2=gene-based, cv3=pair-based (both genes unseen)"
+        help=
+        "CV type: cv1=edge-based, cv2=gene-based, cv3=pair-based (both genes unseen)"
     )
     parser.add_argument("--num_folds", type=int, default=5)
     parser.add_argument("--pos_neg_ratio", type=float, default=1.0)

@@ -1,6 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=siamese_summary
-#SBATCH --partition=cpu
+#SBATCH --partition=gpu_Prosmn
+#SBATCH --nodelist=gpu2
+#SBATCH --gres=gpu:1
 #SBATCH --mem=4G
 #SBATCH --cpus-per-task=1
 #SBATCH --time=0-00:30:00
@@ -13,8 +15,8 @@ echo "=================================================="
 echo "Time: $(date)"
 echo "=================================================="
 
-# Change to siamese_sl directory
-cd "$(dirname "$0")/.."
+# Change to siamese_sl directory (where sbatch was called from)
+cd "$SLURM_SUBMIT_DIR"
 
 # Python path
 PYTHON_PATH=/ddn_exa/campbell/kaiyang/pytorch/bin/python

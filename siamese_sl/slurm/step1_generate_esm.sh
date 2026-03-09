@@ -24,19 +24,14 @@ echo "=================================================="
 
 # Load modules
 module purge
-module load gnu14 openmpi5 EasyBuild cmake openblas fftw
-source /opt/rh/gcc-toolset-13/enable
+module load gnu15 openmpi5 EasyBuild cmake openblas fftw
 
 # Python path
 PYTHON_PATH=/ddn_exa/campbell/kaiyang/pytorch/bin/python
 
-# Change to siamese_sl directory
-cd "$(dirname "$0")/.."
+# Change to siamese_sl directory (where sbatch was called from)
+cd "$SLURM_SUBMIT_DIR"
 
-# Create necessary directories
-mkdir -p ../data
-mkdir -p slurm/logs
-mkdir -p results
 
 echo "Configuration:"
 echo "  - Pooling: Pool PaRTI (PageRank-based attention)"
@@ -85,5 +80,6 @@ fi
 
 echo "=================================================="
 echo "ESM generation completed at: $(date)"
-echo "Next: Run step1b_generate_go_esm.sh, then step2_train_cv{1,2,3}.sh"
+echo "Next: Run step1b_generate_go_esm.sh (uses ESM file for gene list),"
+echo "      then step2_train_cv{1,2,3}.sh"
 echo "=================================================="

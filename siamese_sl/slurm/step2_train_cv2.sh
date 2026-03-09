@@ -24,24 +24,20 @@ echo "=================================================="
 
 # Load modules
 module purge
-module load gnu14 openmpi5 EasyBuild cmake openblas fftw
-source /opt/rh/gcc-toolset-13/enable
+module load gnu15 openmpi5 EasyBuild cmake openblas fftw
 
 # Python path
 PYTHON_PATH=/ddn_exa/campbell/kaiyang/pytorch/bin/python
 
-# Change to siamese_sl directory
-cd "$(dirname "$0")/.."
+# Change to siamese_sl directory (where sbatch was called from)
+cd "$SLURM_SUBMIT_DIR"
 
-# Create output directories
-mkdir -p slurm/logs
-mkdir -p results/cv2/checkpoints
 
 # Embeddings path and dynamic input_dim
-EMB_PATH="../data/all_genes_esm_go.pt"
+EMB_PATH="../data/all_genes_go.pt"
 
 if [ ! -f "$EMB_PATH" ]; then
-    echo "❌ Combined ESM+GO embeddings not found. Run step1b_generate_go_esm.sh first"
+    echo "GO-only embeddings not found. Run step1b_generate_go_esm.sh first"
     exit 1
 fi
 
@@ -74,7 +70,7 @@ $PYTHON_PATH train.py \
     --epochs 300 \
     --batch_size 256 \
     --learning_rate 0.001 \
-    --l1_lambda 0.1 \
+    --l1_lambda 0.01 \
     --patience 20 \
     --num_folds 5 \
     --seed 42

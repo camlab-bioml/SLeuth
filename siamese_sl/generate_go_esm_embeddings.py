@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 """
-Combine ESM-2 embeddings with anc2vec Gene Ontology embeddings.
+Generate GO embeddings (GO-only or combined ESM+GO).
 
-Takes pre-generated ESM embeddings (.pt) and appends anc2vec GO embeddings
-(200-dim, sum-pooled over annotated GO terms) to produce combined features.
+Builds anc2vec GO embeddings (200-dim, sum-pooled over annotated GO terms)
+and optionally concatenates with ESM embeddings.
 
 anc2vec Reference:
   Edera et al. "anc2vec: embedding Gene Ontology terms by preserving
   ancestors relationships" Briefings in Bioinformatics, 2022.
 
 Usage:
+    # GO-only (200-dim)
+    python generate_go_esm_embeddings.py --go_only \
+        --esm_embeddings ../data/all_genes_esm.pt \
+        --gaf ../uniprot_GO/goa_human.gaf.gz \
+        --output ../data/all_genes_go.pt
+
+    # Combined ESM+GO (1480-dim)
     python generate_go_esm_embeddings.py \
         --esm_embeddings ../data/all_genes_esm.pt \
         --gaf ../uniprot_GO/goa_human.gaf.gz \
@@ -26,7 +33,6 @@ import numpy as np
 import requests
 from tqdm import tqdm
 
-
 ANC2VEC_URL = "https://github.com/aedera/anc2vec/raw/main/anc2vec/data/embeddings.npz"
 
 
@@ -35,7 +41,9 @@ def load_anc2vec(npz_path: str) -> dict:
     print(f"Loading anc2vec embeddings from {npz_path}...")
     npz = np.load(npz_path, allow_pickle=True)
     go_embeds = npz["embds"].item()  # dict: GO term ID -> 200-dim vector
-    print(f"Loaded {len(go_embeds)} GO term embeddings (dim={next(iter(go_embeds.values())).shape[0]})")
+    print(
+        f"Loaded {len(go_embeds)} GO term embeddings (dim={next(iter(go_embeds.values())).shape[0]})"
+    )
     return go_embeds
 
 
@@ -91,7 +99,8 @@ def parse_gaf(gaf_path: str) -> dict:
     return dict(gene_to_go)
 
 
-def build_go_embeddings(gene_order: list, gene_to_go: dict, go_embeds: dict) -> tuple:
+def build_go_embeddings(gene_order: list, gene_to_go: dict,
+                        go_embeds: dict) -> tuple:
     """
     Build per-gene GO vectors via sum pooling of anc2vec embeddings.
 
@@ -144,28 +153,34 @@ def standardize(matrix: np.ndarray) -> np.ndarray:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Combine ESM embeddings with anc2vec GO embeddings"
-    )
+        description="Combine ESM embeddings with anc2vec GO embeddings")
     parser.add_argument(
-        "--esm_embeddings", type=str, required=True,
+        "--esm_embeddings",
+        type=str,
+        required=True,
         help="Path to ESM embeddings .pt file (from generate_all_genes_esm.py)"
     )
     parser.add_argument(
-        "--gaf", type=str, required=True,
-        help="Path to GAF annotation file (e.g. goa_human.gaf.gz)"
-    )
+        "--gaf",
+        type=str,
+        required=True,
+        help="Path to GAF annotation file (e.g. goa_human.gaf.gz)")
+    parser.add_argument("--output",
+                        type=str,
+                        required=True,
+                        help="Output path for combined embeddings (.pt file)")
+    parser.add_argument("--cache_dir",
+                        type=str,
+                        default="../data/cache",
+                        help="Directory to cache anc2vec download")
     parser.add_argument(
-        "--output", type=str, required=True,
-        help="Output path for combined embeddings (.pt file)"
-    )
-    parser.add_argument(
-        "--cache_dir", type=str, default="../data/cache",
-        help="Directory to cache anc2vec download"
-    )
-    parser.add_argument(
-        "--anc2vec_path", type=str, default=None,
-        help="Path to local anc2vec embeddings.npz (skips download)"
-    )
+        "--anc2vec_path",
+        type=str,
+        default=None,
+        help="Path to local anc2vec embeddings.npz (skips download)")
+    parser.add_argument("--go_only",
+                        action="store_true",
+                        help="Output GO-only embeddings (200-dim) without ESM")
     args = parser.parse_args()
 
     # 1. Load anc2vec GO embeddings (local path or download)
@@ -175,13 +190,13 @@ def main():
         anc2vec_cache = Path(args.cache_dir) / "anc2vec_embeddings.npz"
         go_embeds = download_anc2vec(str(anc2vec_cache))
 
-    # 2. Load existing ESM embeddings (already standardized)
-    print(f"\nLoading ESM embeddings from {args.esm_embeddings}...")
-    esm_data = torch.load(args.esm_embeddings, map_location="cpu", weights_only=False)
-    esm_matrix = esm_data["embeddings"].numpy()
+    # 2. Load ESM file for gene_order (and ESM embeddings if not --go_only)
+    print(f"\nLoading ESM data from {args.esm_embeddings}...")
+    esm_data = torch.load(args.esm_embeddings,
+                          map_location="cpu",
+                          weights_only=False)
     gene_order = esm_data["gene_order"]
-    esm_dim = esm_matrix.shape[1]
-    print(f"ESM: {esm_matrix.shape[0]} genes x {esm_dim}-dim")
+    print(f"Gene universe: {len(gene_order)} genes")
 
     # 3. Parse GAF annotations
     print(f"\nParsing GAF: {args.gaf}")
@@ -189,38 +204,77 @@ def main():
 
     # 4. Build per-gene GO vectors (sum pooling)
     print("\nBuilding GO embeddings (sum pooling)...")
-    go_matrix, num_genes_with_go = build_go_embeddings(gene_order, gene_to_go, go_embeds)
+    go_matrix, num_genes_with_go = build_go_embeddings(gene_order, gene_to_go,
+                                                       go_embeds)
     go_dim = go_matrix.shape[1]
 
-    # 5. Standardize GO embeddings independently
-    print("\nStandardizing GO embeddings (zero mean, unit variance per feature)...")
+    # 5. Save raw GO before standardization (for per-fold standardization)
+    go_matrix_raw = go_matrix.copy()
+
+    # Standardize GO embeddings
+    print(
+        "\nStandardizing GO embeddings (zero mean, unit variance per feature)..."
+    )
     go_matrix = standardize(go_matrix)
 
-    # 6. Concatenate [ESM ; GO]
-    combined = np.concatenate([esm_matrix, go_matrix], axis=1)
-    combined_tensor = torch.from_numpy(combined).float()
-    print(f"\nCombined shape: {combined_tensor.shape}")
-
-    # 7. Save
+    # 6. Build output embeddings
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    torch.save({
-        "embeddings": combined_tensor,
-        "gene_order": gene_order,
-        "esm_dim": esm_dim,
-        "go_dim": go_dim,
-        "standardized": True,
-        "go_source": "anc2vec",
-        "go_pooling": "sum",
-        "num_genes": len(gene_order),
-        "num_genes_with_go": num_genes_with_go,
-    }, output_path)
+    if args.go_only:
+        # GO-only: 200-dim
+        out_tensor = torch.from_numpy(go_matrix).float()
+        raw_tensor = torch.from_numpy(go_matrix_raw).float()
+        print(f"\nGO-only shape: {out_tensor.shape}")
 
-    print(f"\nSaved combined embeddings to {output_path}")
-    print(f"  Shape: {combined_tensor.shape}")
-    print(f"  ESM dim: {esm_dim}, GO dim: {go_dim}")
-    print(f"  Genes with GO coverage: {num_genes_with_go}/{len(gene_order)}")
+        torch.save(
+            {
+                "embeddings": out_tensor,
+                "raw_embeddings": raw_tensor,
+                "gene_order": gene_order,
+                "go_dim": go_dim,
+                "standardized": True,
+                "go_source": "anc2vec",
+                "go_pooling": "sum",
+                "num_genes": len(gene_order),
+                "num_genes_with_go": num_genes_with_go,
+            }, output_path)
+
+        print(f"\nSaved GO-only embeddings to {output_path}")
+        print(f"  Shape: {out_tensor.shape}")
+        print(
+            f"  Genes with GO coverage: {num_genes_with_go}/{len(gene_order)}")
+    else:
+        # Combined [ESM ; GO]: 1480-dim
+        esm_matrix = esm_data["embeddings"].numpy()
+        esm_dim = esm_matrix.shape[1]
+        combined = np.concatenate([esm_matrix, go_matrix], axis=1)
+
+        esm_raw = esm_data.get("raw_embeddings",
+                               esm_data["embeddings"]).numpy()
+        raw_combined = np.concatenate([esm_raw, go_matrix_raw], axis=1)
+        combined_tensor = torch.from_numpy(combined).float()
+        print(f"\nCombined shape: {combined_tensor.shape}")
+
+        torch.save(
+            {
+                "embeddings": combined_tensor,
+                "raw_embeddings": torch.from_numpy(raw_combined).float(),
+                "gene_order": gene_order,
+                "esm_dim": esm_dim,
+                "go_dim": go_dim,
+                "standardized": True,
+                "go_source": "anc2vec",
+                "go_pooling": "sum",
+                "num_genes": len(gene_order),
+                "num_genes_with_go": num_genes_with_go,
+            }, output_path)
+
+        print(f"\nSaved combined embeddings to {output_path}")
+        print(f"  Shape: {combined_tensor.shape}")
+        print(f"  ESM dim: {esm_dim}, GO dim: {go_dim}")
+        print(
+            f"  Genes with GO coverage: {num_genes_with_go}/{len(gene_order)}")
 
 
 if __name__ == "__main__":
