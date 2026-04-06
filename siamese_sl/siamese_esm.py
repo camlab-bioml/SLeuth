@@ -3,7 +3,7 @@
 Siamese network for Synthetic Lethality prediction using gene embeddings.
 
 Architecture:
-  - Input: Two gene embeddings (e.g. 200-dim GO-only, 1280-dim ESM, or 1480-dim ESM+GO)
+  - Input: Two gene embeddings (any supported type or multi-modal concatenation)
   - Encoder: Shared MLP projecting embeddings to latent space
   - Predictor: Combines encoded representations to predict SL probability
 
@@ -16,14 +16,15 @@ This implementation:
 import torch
 import torch.nn as nn
 import numpy as np
-from typing import Tuple, Optional
 
 
 def set_seed(seed: int = 42) -> None:
     """Set all random seeds for reproducibility."""
+    import random
+    random.seed(seed)
+    np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
@@ -129,6 +130,10 @@ class EfficientEncoder(nn.Module):
     """
     Efficient MLP encoder with configurable architecture.
 
+    A learnable per-feature input bias is added before the first layer to
+    compensate for location information lost during normalization (column
+    median centering).
+
     Supports:
     - 'standard': Regular MLP
     - 'lowrank': Low-rank factorized layers
@@ -136,7 +141,7 @@ class EfficientEncoder(nn.Module):
     - 'gated': Gated Linear Units (GLU)
 
     Args:
-        input_dim: Input dimension (e.g., 200 for GO-only, 1280 for ESM, or 1480 for ESM+GO)
+        input_dim: Input dimension (auto-detected from loaded embeddings)
         hidden_dim: Hidden layer dimension
         output_dim: Output dimension
         encoder_type: Architecture type
@@ -155,6 +160,10 @@ class EfficientEncoder(nn.Module):
     ):
         super().__init__()
         self.encoder_type = encoder_type
+
+        # Learnable per-feature input bias: compensates for location
+        # information lost when normalization centers each column by median.
+        self.input_bias = nn.Parameter(torch.zeros(input_dim))
 
         if encoder_type == 'standard':
             self.net = nn.Sequential(
@@ -204,7 +213,7 @@ class EfficientEncoder(nn.Module):
             raise ValueError(f"Unknown encoder_type: {encoder_type}")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
+        return self.net(x + self.input_bias)
 
     def count_parameters(self) -> int:
         """Count trainable parameters."""
@@ -215,83 +224,134 @@ class SiameseEncoder(nn.Module):
     """
     Shared encoder that projects gene embeddings to a latent space.
 
-    Architecture: input_dim -> hidden -> latent
+    Architecture is defined by a list of layer dimensions.
+    Example: encoder_dims=[256, 128, 64] builds:
+        input + bias -> Linear(256)->LN->LReLU->Drop -> Linear(128)->LN->LReLU->Drop -> Linear(64)
+
+    A learnable per-feature input bias is added before the first layer to
+    compensate for location information lost during normalization (column
+    median centering). The first Linear has bias=False and LayerNorm
+    re-centers activations, so without this input bias the per-feature
+    DC offset is irrecoverable.
+
+    Hidden layers: Linear -> LayerNorm -> LeakyReLU -> Dropout.
+    Last layer: bare Linear projection (Xavier init, no activation).
+
+    The encoder is split into hidden layers and projection so that
+    both h (hidden output) and z (projection output) are accessible.
     """
 
     def __init__(
         self,
-        input_dim: int = 1280,
-        hidden_dim: int = 512,
-        latent_dim: int = 256,
+        input_dim: int,
+        encoder_dims: list,
         dropout: float = 0.2,
+        last_layer_bias: bool = True,
     ):
         super().__init__()
 
-        self.encoder = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
-            nn.LeakyReLU(0.2),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_dim, latent_dim),
-            nn.LayerNorm(latent_dim),
-            nn.LeakyReLU(0.2),
-        )
+        if not encoder_dims:
+            raise ValueError("encoder_dims must be non-empty")
+
+        # Learnable per-feature input bias: compensates for location
+        # information lost when normalization centers each column by median.
+        # Initialized to zero (no shift); the model learns the optimal
+        # per-feature offset during training.
+        self.input_bias = nn.Parameter(torch.zeros(input_dim))
+
+        # Hidden layers (all except last)
+        # bias=False because LayerNorm has its own learnable shift (beta)
+        hidden_layers = []
+        in_dim = input_dim
+        for i, out_dim in enumerate(encoder_dims[:-1]):
+            hidden_layers.append(nn.Linear(in_dim, out_dim, bias=False))
+            hidden_layers.append(nn.LayerNorm(out_dim))
+            hidden_layers.append(nn.LeakyReLU(0.2))
+            hidden_layers.append(nn.Dropout(dropout))
+            in_dim = out_dim
+        self.hidden = nn.Sequential(*hidden_layers)
+
+        # Projection layer (bare linear, Xavier init)
+        proj_in = encoder_dims[-2] if len(encoder_dims) > 1 else input_dim
+        self.projection = nn.Linear(proj_in,
+                                    encoder_dims[-1],
+                                    bias=last_layer_bias)
+        nn.init.xavier_uniform_(self.projection.weight)
+        if self.projection.bias is not None:
+            nn.init.zeros_(self.projection.bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Encode gene embedding to latent representation."""
-        return self.encoder(x)
+        """Encode gene embedding to projection output z."""
+        h = self.hidden(x + self.input_bias)
+        return self.projection(h)
+
+    def forward_with_hidden(self, x: torch.Tensor):
+        """Return both projection output z and hidden output h."""
+        h = self.hidden(x + self.input_bias)
+        z = self.projection(h)
+        return z, h
 
 
 class SiameseSL(nn.Module):
     """
     Siamese network for Synthetic Lethality prediction.
 
-    Takes two gene embeddings and predicts their SL probability.
+    Takes two gene embeddings and predicts their SL probability
+    using inner product with a learnable temperature.
 
-    Architecture:
-      gene1_esm -+-> SharedEncoder -> z1 -+
-                 |                         +-> Predictor -> P(SL)
-      gene2_esm -+-> SharedEncoder -> z2 -+
+    Architecture example (encoder_dims=[256, 128, 64]):
+      gene1 -+-> Linear->LN->LReLU->Drop -> Linear->LN->LReLU->Drop -> Linear -> z1
+             |            (hidden layers)                               (projection) |
+             |                                                                       |
+             |          logit = τ · (z1ᵀz2 + ε · h1ᵀh2) + b -> sigmoid -> P(SL)    |
+             |                                                                       |
+      gene2 -+-> (same shared encoder) -------------------------------------------> z2
 
-    The predictor combines z1 and z2 using SYMMETRIC features only:
-      - Element-wise sum: z1 + z2
-      - Element-wise product: z1 * z2
-      - Absolute difference: |z1 - z2|
+    The score is h1ᵀ(WᵀW + εI)h2, where W is the projection matrix.
+    WᵀW + εI is strictly positive definite (ε > 0 prevents degeneracy
+    when L1 pushes columns of W to zero).
 
-    NOTE: We avoid concat([z1, z2]) because it's NOT symmetric.
-    SL is a symmetric relationship: SL(A,B) = SL(B,A).
+    Last layer is a bare linear projection (Xavier init, no activation).
+    Use last_layer_bias=False to remove the gene-specific baseline
+    (node degree prior: some genes are SL with many partners).
+    Symmetric by construction.
     """
 
     def __init__(
-        self,
-        input_dim: int = 1280,
-        hidden_dim: int = 512,
-        latent_dim: int = 256,
-        predictor_hidden: int = 128,
-        dropout: float = 0.2,
+            self,
+            input_dim: int = 1280,
+            encoder_dims: list = None,
+            dropout: float = 0.2,
+            last_layer_bias: bool = True,
+            pd_epsilon: float = 0.001,
+            **kwargs,  # ignore hidden_dim/latent_dim etc. for backward compat
     ):
         super().__init__()
+
+        if encoder_dims is None:
+            encoder_dims = [256, 128, 64]
+
+        self.pd_epsilon = pd_epsilon
 
         # Shared encoder for both genes
         self.encoder = SiameseEncoder(
             input_dim=input_dim,
-            hidden_dim=hidden_dim,
-            latent_dim=latent_dim,
+            encoder_dims=encoder_dims,
             dropout=dropout,
+            last_layer_bias=last_layer_bias,
         )
 
-        # Predictor MLP: takes SYMMETRIC features only
-        # Input: z1+z2, z1*z2, |z1-z2| = 3 * latent_dim
-        # NOTE: concat([z1,z2]) is NOT symmetric, so we don't use it
-        predictor_input_dim = latent_dim * 3
+        # Learnable temperature (log-space for positivity and numerical stability)
+        # For inner product with bare last layer: z1ᵀz2 ~ N(0, d).
+        # Init τ = 1/√d so initial logits have std ≈ 1.
+        latent_dim = encoder_dims[-1]
+        self.log_temperature = nn.Parameter(
+            torch.tensor(-0.5 * np.log(float(latent_dim)),
+                         dtype=torch.float32))
 
-        self.predictor = nn.Sequential(
-            nn.Linear(predictor_input_dim, predictor_hidden),
-            nn.LayerNorm(predictor_hidden),
-            nn.LeakyReLU(0.2),
-            nn.Dropout(dropout),
-            nn.Linear(predictor_hidden, 1),
-        )
+        # Scoring bias: shifts the decision boundary.
+        # Accounts for SL base rate (SL is rare, so optimal boundary ≠ 0).
+        self.scoring_bias = nn.Parameter(torch.tensor(0.0))
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         """Encode a batch of gene embeddings."""
@@ -313,22 +373,19 @@ class SiameseSL(nn.Module):
             SL probability logits (batch_size, 1)
         """
         # Encode both genes with shared weights
-        z1 = self.encoder(x1)  # (batch, latent_dim)
-        z2 = self.encoder(x2)  # (batch, latent_dim)
+        z1, h1 = self.encoder.forward_with_hidden(x1)
+        z2, h2 = self.encoder.forward_with_hidden(x2)
 
-        # Combine representations using ONLY symmetric features
-        # These are order-invariant: f(z1, z2) = f(z2, z1)
-        sum_emb = z1 + z2  # (batch, latent) - symmetric
-        product = z1 * z2  # (batch, latent) - symmetric
-        diff = torch.abs(z1 - z2)  # (batch, latent) - symmetric
+        # Kernel: h1ᵀ(WᵀW + εI)h2
+        #   z1ᵀz2   = h1ᵀ(WᵀW)h2  — main term (projection inner product)
+        #   ε·h1ᵀh2 = h1ᵀ(εI)h2   — PD regularizer (hidden inner product)
+        inner = (z1 * z2).sum(dim=1) + self.pd_epsilon * (h1 * h2).sum(dim=1)
 
-        combined = torch.cat([sum_emb, product, diff],
-                             dim=1)  # (batch, 3*latent)
+        # Scale by learnable temperature + scoring bias
+        temperature = torch.exp(self.log_temperature)
+        logits = temperature * inner + self.scoring_bias
 
-        # Predict SL probability
-        logits = self.predictor(combined)
-
-        return logits
+        return logits.unsqueeze(1)  # (batch, 1)
 
     def predict_proba(
         self,
@@ -365,6 +422,10 @@ class SiameseSLWithAttention(nn.Module):
         dropout: float = 0.2,
     ):
         super().__init__()
+
+        # Learnable per-feature input bias: compensates for location
+        # information lost when normalization centers each column by median.
+        self.input_bias = nn.Parameter(torch.zeros(input_dim))
 
         # Initial projection
         self.proj = nn.Sequential(
@@ -405,6 +466,10 @@ class SiameseSLWithAttention(nn.Module):
         x2: torch.Tensor,
     ) -> torch.Tensor:
         """Predict SL with cross-attention."""
+        # Apply input bias before projection
+        x1 = x1 + self.input_bias
+        x2 = x2 + self.input_bias
+
         # Project to hidden dim
         h1 = self.proj(x1).unsqueeze(1)  # (batch, 1, hidden)
         h2 = self.proj(x2).unsqueeze(1)  # (batch, 1, hidden)
@@ -583,7 +648,7 @@ class SiameseSLKernel(nn.Module):
     - arXiv:2508.04476: Metric Learning in an RKHS
 
     Args:
-        input_dim: Gene embedding dimension (e.g. 200 GO-only, 1280 ESM, or 1480 ESM+GO)
+        input_dim: Gene embedding dimension (auto-detected from loaded embeddings)
         hidden_dim: Encoder hidden dimension
         latent_dim: Latent space dimension (before Hilbert mapping)
         rff_features: RFF dimension (Gaussian RKHS component)

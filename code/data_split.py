@@ -71,6 +71,7 @@ class SLDataSplitter:
             "unified_id_B":
             pos_edges[:, 1]
         })
+        preprocess_benchmarking_paper.setup_all_seeds = random_state
 
     def cv1_split(self, k: int = 5, pos_neg_ratio: float = 1.0) -> List[Dict]:
         """Call their cv1() function and convert output."""

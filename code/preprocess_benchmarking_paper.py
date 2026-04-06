@@ -21,8 +21,8 @@ from sklearn.metrics import (
 
 setup_all_seeds = 123
 
-random.seed(123)
-np.random.seed(123)
+random.seed(setup_all_seeds)
+np.random.seed(setup_all_seeds)
 
 ############################### Unify ###############################
 
@@ -194,8 +194,8 @@ def cv1_all(
     # print(len(init_neg_index))
     # random.shuffle(init_pos_index)
     # random.shuffle(init_neg_index)
-    random.seed(123)
-    np.random.seed(123)
+    random.seed(setup_all_seeds)
+    np.random.seed(setup_all_seeds)
     pos_position = pos_position[random.sample(init_pos_index, training_size)]
     neg_position = neg_position[random.sample(init_neg_index,
                                               int(training_size * xtimes))]
@@ -228,7 +228,7 @@ def cv1_all(
     )
 
     index_pos = np.array(range(len(pos_position)))
-    kf = KFold(n_splits=kfold, shuffle=True, random_state=123)
+    kf = KFold(n_splits=kfold, shuffle=True, random_state=setup_all_seeds)
 
     for train_index, test_index in kf.split(index_pos):
         train_pos_set = pos_position
@@ -242,7 +242,7 @@ def cv1_all(
         graph_test_pos_kfold.append(test_pos_spm)
 
     index_neg = np.array(range(len(neg_position)))
-    kf = KFold(n_splits=kfold, shuffle=True, random_state=123)
+    kf = KFold(n_splits=kfold, shuffle=True, random_state=setup_all_seeds)
 
     for train_index, test_index in kf.split(index_neg):
         train_neg_set = neg_position
@@ -326,8 +326,8 @@ def cv1(
 
         training_size = int(len(init_pos_index) * training_rat)
         print(training_size)
-        random.seed(123)
-        np.random.seed(123)
+        random.seed(setup_all_seeds)
+        np.random.seed(setup_all_seeds)
         pos_position = pos_position[random.sample(init_pos_index,
                                                   training_size)]
         if xtimes == 1000:
@@ -375,7 +375,7 @@ def cv1(
     )
 
     index_pos = np.array(range(len(pos_position)))
-    kf = KFold(n_splits=kfold, shuffle=True, random_state=123)
+    kf = KFold(n_splits=kfold, shuffle=True, random_state=setup_all_seeds)
 
     for train_index, test_index in kf.split(index_pos):
         train_pos_set = pos_position[train_index]
@@ -389,7 +389,7 @@ def cv1(
         graph_test_pos_kfold.append(test_pos_spm)
 
     index_neg = np.array(range(len(neg_position)))
-    kf = KFold(n_splits=kfold, shuffle=True, random_state=123)
+    kf = KFold(n_splits=kfold, shuffle=True, random_state=setup_all_seeds)
 
     for train_index, test_index in kf.split(index_neg):
         train_neg_set = neg_position[train_index]
@@ -442,8 +442,8 @@ def cv2_division(
     if neg:
         ind = list(range(len(cv2_set)))
         if neg_num < len(cv2_set):
-            random.seed(123)
-            np.random.seed(123)
+            random.seed(setup_all_seeds)
+            np.random.seed(setup_all_seeds)
             cv2_set = cv2_set[random.sample(ind, neg_num)]
         else:
             cv2_set = cv2_set
@@ -577,7 +577,7 @@ def cv2(
     )
 
     index_pos = np.array(range(len(train_col)))
-    kf = KFold(n_splits=kfold, shuffle=True, random_state=123)
+    kf = KFold(n_splits=kfold, shuffle=True, random_state=setup_all_seeds)
 
     for train_index, test_index in kf.split(index_pos):
         train_ind_set = train_col[train_index]
@@ -677,8 +677,8 @@ def cv3_division(pos_set,
     if neg:
         ind = list(range(len(cv3_set)))
         if neg_num < len(cv3_set):
-            random.seed(123)
-            np.random.seed(123)
+            random.seed(setup_all_seeds)
+            np.random.seed(setup_all_seeds)
             cv3_set = cv3_set[random.sample(ind, neg_num)]
         else:
             cv3_set = cv3_set
@@ -813,7 +813,7 @@ def cv3(
     )
 
     index_pos = np.array(range(len(train_col)))
-    kf = KFold(n_splits=kfold, shuffle=True, random_state=123)
+    kf = KFold(n_splits=kfold, shuffle=True, random_state=setup_all_seeds)
 
     for train_index, test_index in kf.split(index_pos):
         train_ind_set = train_col[train_index]

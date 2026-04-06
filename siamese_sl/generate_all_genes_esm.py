@@ -27,19 +27,18 @@ Usage:
     python generate_all_genes_esm.py --device cuda:0 --batch_size 16 --output out.pt
 """
 
-import os
-import sys
 import gzip
 import argparse
 import requests
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from collections import defaultdict
-import time
 
 import torch
 import numpy as np
 from tqdm import tqdm
+
+from gene_name_utils import get_mapper
 
 try:
     import networkx as nx
@@ -159,7 +158,25 @@ def parse_fasta(fasta_path: str) -> Dict[str, Tuple[str, str]]:
             f"  (resolved {len(duplicates)} duplicates by keeping longest sequence)"
         )
 
-    return gene_seqs
+    # Normalize gene names (custom corrections + HGNC alias/previous symbol)
+    mapper = get_mapper()
+    normalized = {}
+    renamed = 0
+    for gene, val in gene_seqs.items():
+        new_name = mapper.gene_name_normalize(gene)
+        if new_name != gene.upper():
+            renamed += 1
+        # If two old names map to the same current symbol, keep longest sequence
+        if new_name in normalized:
+            if len(val[1]) > len(normalized[new_name][1]):
+                normalized[new_name] = val
+        else:
+            normalized[new_name] = val
+    if renamed:
+        print(f"  Gene name normalization: {renamed} renamed")
+    print(f"  Final: {len(normalized)} unique genes after normalization")
+
+    return normalized
 
 
 class PoolPaRTI:
@@ -317,9 +334,8 @@ class ESMEmbeddingGenerator:
         try:
             import esm
         except ImportError:
-            print("Installing fair-esm...")
-            os.system("pip install fair-esm")
-            import esm
+            raise ImportError(
+                "fair-esm not installed. Run: uv pip install fair-esm")
 
         self.model, self.alphabet = esm.pretrained.load_model_and_alphabet(
             model_name)
@@ -380,7 +396,7 @@ class ESMEmbeddingGenerator:
     def generate_embeddings(
         self,
         gene_seqs: Dict[str, Tuple[str, str]],
-    ) -> Tuple[torch.Tensor, List[str], List[str]]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, List[str], List[str]]:
         """
         Generate embeddings for all genes.
 
@@ -403,11 +419,12 @@ class ESMEmbeddingGenerator:
         for gene in pbar:
             _, seq = gene_seqs[gene]
 
-            # Skip invalid sequences
+            # Skip invalid sequences — mark as NaN for Huber imputation
             if not seq or len(seq) < 10:
                 failed_genes.append(gene)
-                all_embeddings[gene] = np.zeros(self.embed_dim,
-                                                dtype=np.float32)
+                all_embeddings[gene] = np.full(self.embed_dim,
+                                               np.nan,
+                                               dtype=np.float32)
                 continue
 
             # Truncate long sequences
@@ -425,8 +442,9 @@ class ESMEmbeddingGenerator:
                     print(f"\nBatch failed: {e}")
                     for g, _ in batch:
                         failed_genes.append(g)
-                        all_embeddings[g] = np.zeros(self.embed_dim,
-                                                     dtype=np.float32)
+                        all_embeddings[g] = np.full(self.embed_dim,
+                                                    np.nan,
+                                                    dtype=np.float32)
                 batch = []
 
         # Process remaining
@@ -438,34 +456,23 @@ class ESMEmbeddingGenerator:
                 print(f"\nFinal batch failed: {e}")
                 for g, _ in batch:
                     failed_genes.append(g)
-                    all_embeddings[g] = np.zeros(self.embed_dim,
-                                                 dtype=np.float32)
+                    all_embeddings[g] = np.full(self.embed_dim,
+                                                np.nan,
+                                                dtype=np.float32)
 
-        # Stack into tensor
+        # Stack into tensor (failed genes have NaN, imputed at load time)
         embedding_matrix = np.stack([all_embeddings[g] for g in gene_order])
 
-        # Save raw embeddings before standardization (for per-fold standardization)
-        raw_matrix = embedding_matrix.copy()
-
-        # Standardize: zero mean, unit variance per feature
-        print(
-            "\nStandardizing embeddings (zero mean, unit variance per feature)..."
-        )
-        non_zero_mask = np.any(embedding_matrix != 0, axis=1)
-        if np.any(non_zero_mask):
-            non_zero = embedding_matrix[non_zero_mask]
-            mean = non_zero.mean(axis=0, keepdims=True)
-            std = non_zero.std(axis=0,
-                               keepdims=True) + 1e-8  # Avoid division by zero
-            embedding_matrix[non_zero_mask] = (non_zero - mean) / std
-
+        n_failed = len(failed_genes)
+        n_ok = len(gene_order) - n_failed
         print(f"\nGenerated {len(gene_order)} embeddings")
-        print(f"  - Successful: {len(gene_order) - len(failed_genes)}")
-        print(f"  - Failed (zero): {len(failed_genes)}")
+        print(f"  - Successful: {n_ok}")
+        print(f"  - Failed (NaN, Huber-imputed at load time): {n_failed}")
 
+        embeddings = torch.from_numpy(embedding_matrix).float()
         return (
-            torch.from_numpy(embedding_matrix).float(),
-            torch.from_numpy(raw_matrix).float(),
+            embeddings,
+            embeddings,  # raw_embeddings = embeddings (no standardization)
             gene_order,
             failed_genes,
         )
@@ -513,9 +520,7 @@ def main():
     # Default: reviewed (Swiss-Prot) only (~20k proteins)
     reviewed_only = not args.include_unreviewed
 
-    # Create cache directory
     cache_dir = Path(args.cache_dir)
-    cache_dir.mkdir(parents=True, exist_ok=True)
 
     # Get FASTA file (distinct cache per mode to avoid reviewed/unreviewed mismatch)
     if args.fasta:
@@ -544,7 +549,6 @@ def main():
 
     # Save
     output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     torch.save(
         {
@@ -554,7 +558,8 @@ def main():
             "model_name": args.model,
             "dimension": embeddings.shape[1],
             "pooling": args.pooling,
-            "standardized": True,  # Zero mean, unit variance per feature
+            "standardized":
+            False,  # Raw embeddings, Huber-imputed at load time
             "failed_genes": failed,
             "source": str(fasta_path),
             "num_genes": len(gene_order),

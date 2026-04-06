@@ -33,6 +33,8 @@ import numpy as np
 import requests
 from tqdm import tqdm
 
+from gene_name_utils import get_mapper
+
 ANC2VEC_URL = "https://github.com/aedera/anc2vec/raw/main/anc2vec/data/embeddings.npz"
 
 
@@ -52,7 +54,6 @@ def download_anc2vec(cache_path: str) -> dict:
     cache_path = Path(cache_path)
     if not cache_path.exists():
         print(f"Downloading anc2vec embeddings to {cache_path}...")
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
         resp = requests.get(ANC2VEC_URL, stream=True)
         resp.raise_for_status()
         with open(cache_path, "wb") as f:
@@ -93,10 +94,19 @@ def parse_gaf(gaf_path: str) -> dict:
             go_term = fields[4]
             gene_to_go[gene_symbol].add(go_term)
 
+    # Normalize gene names (custom corrections + HGNC)
+    mapper = get_mapper()
+    normalized = defaultdict(set)
+    for gene, terms in gene_to_go.items():
+        normalized[mapper.gene_name_normalize(gene)].update(terms)
+
     print(f"Parsed GAF: {len(gene_to_go)} genes with GO annotations")
+    if len(normalized) != len(gene_to_go):
+        print(
+            f"  After gene name normalization: {len(normalized)} unique genes")
     if not_excluded:
         print(f"  Excluded {not_excluded} NOT-qualified annotations")
-    return dict(gene_to_go)
+    return dict(normalized)
 
 
 def build_go_embeddings(gene_order: list, gene_to_go: dict,
@@ -105,10 +115,11 @@ def build_go_embeddings(gene_order: list, gene_to_go: dict,
     Build per-gene GO vectors via sum pooling of anc2vec embeddings.
 
     For each gene, sums the anc2vec vectors of all its annotated GO terms.
-    Genes with no annotations or no anc2vec coverage get zero vectors.
+    Genes with no annotations or no anc2vec coverage get NaN vectors
+    (Huber-imputed at load time by data_loader.py).
     """
     go_dim = next(iter(go_embeds.values())).shape[0]
-    go_matrix = np.zeros((len(gene_order), go_dim), dtype=np.float32)
+    go_matrix = np.full((len(gene_order), go_dim), np.nan, dtype=np.float32)
 
     genes_with_go = 0
     total_terms_used = 0
@@ -139,15 +150,18 @@ def build_go_embeddings(gene_order: list, gene_to_go: dict,
 
 def standardize(matrix: np.ndarray) -> np.ndarray:
     """
-    Per-feature z-score standardization, excluding zero-vector rows from
-    mean/std computation. Same pattern as generate_all_genes_esm.py L431-438.
+    Global per-feature z-score standardization, excluding NaN and zero-vector
+    rows from mean/std computation. Applied at embedding generation time.
+    Note: data_loader.py does NOT re-standardize; it only does NaN Huber
+    M-estimator imputation at load time.
     """
-    non_zero_mask = np.any(matrix != 0, axis=1)
-    if np.any(non_zero_mask):
-        non_zero = matrix[non_zero_mask]
-        mean = non_zero.mean(axis=0, keepdims=True)
-        std = non_zero.std(axis=0, keepdims=True) + 1e-8
-        matrix[non_zero_mask] = (non_zero - mean) / std
+    # Exclude NaN rows (missing genes) first, then zero-vector rows
+    valid_mask = ~np.isnan(matrix).any(axis=1) & np.any(matrix != 0, axis=1)
+    if np.any(valid_mask):
+        valid = matrix[valid_mask]
+        mean = valid.mean(axis=0, keepdims=True)
+        std = valid.std(axis=0, keepdims=True) + 1e-8
+        matrix[valid_mask] = (valid - mean) / std
     return matrix
 
 
@@ -208,10 +222,11 @@ def main():
                                                        go_embeds)
     go_dim = go_matrix.shape[1]
 
-    # 5. Save raw GO before standardization (for per-fold standardization)
+    # 5. Save raw GO before standardization
+    # (data_loader.py uses raw_embeddings and applies NaN Huber imputation at load time)
     go_matrix_raw = go_matrix.copy()
 
-    # Standardize GO embeddings
+    # Global standardization of GO embeddings (optional preprocessing)
     print(
         "\nStandardizing GO embeddings (zero mean, unit variance per feature)..."
     )
@@ -219,7 +234,6 @@ def main():
 
     # 6. Build output embeddings
     output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if args.go_only:
         # GO-only: 200-dim
@@ -261,8 +275,10 @@ def main():
                 "embeddings": combined_tensor,
                 "raw_embeddings": torch.from_numpy(raw_combined).float(),
                 "gene_order": gene_order,
+                "component_dims": [esm_dim, go_dim],
                 "esm_dim": esm_dim,
                 "go_dim": go_dim,
+                "embedding_type": "esm2+go",
                 "standardized": True,
                 "go_source": "anc2vec",
                 "go_pooling": "sum",

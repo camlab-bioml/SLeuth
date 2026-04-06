@@ -2,16 +2,21 @@
 """
 Training script for Siamese SL prediction model.
 
+All embeddings go through the same pipeline per modality:
+  impute (Huber) → robust PCA (optional) → normalize (median center, MAD scale)
+then concatenate along the feature axis.
+
 Usage:
-    python train.py --embeddings_path ../data/all_genes_go.pt \
+    # Single embedding
+    python train.py --embeddings_paths ../data/all_genes_go.pt \
                     --sl_path ../data/SL_Human_Approved.txt \
                     --output_dir results/siamese_go
 
-Features:
-    - Full reproducibility via seeding
-    - Cross-validation with multiple strategies
-    - Early stopping and model checkpointing
-    - Comprehensive metrics logging
+    # Multi-modal (concatenated)
+    python train.py --embeddings_paths ../data/all_genes_bioconceptvec.pt \
+                        ../data/all_genes_go.pt ../data/all_genes_node2vec_ppi.pt \
+                    --sl_path ../data/SL_Human_Approved.txt \
+                    --output_dir results/multi_bio_go_ppi
 """
 
 import json
@@ -32,11 +37,6 @@ from tqdm import tqdm
 
 from siamese_esm import SiameseSL, SiameseSLWithAttention, SiameseSLKernel, set_seed
 from data_loader import SLDataManager, create_fold_dataloaders
-
-# ── L1 proximal regularization ──────────────────────────────────────────
-# Default L1 lambda for soft-thresholding (overridden by --l1_lambda CLI arg).
-# Set to 0.0 to disable.
-L1_LAMBDA_DEFAULT = 0.01
 
 
 def calculate_optimal_f1(labels: np.ndarray, scores: np.ndarray) -> float:
@@ -64,22 +64,34 @@ class Trainer:
             self.device = torch.device("cpu")
             print("Using CPU")
 
-        # Output directory
+        # Output directory (must already exist — server does not allow mkdir)
         self.output_dir = Path(args.output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        (self.output_dir / "checkpoints").mkdir(exist_ok=True)
+        ckpt_dir = self.output_dir / "checkpoints"
+        if not self.output_dir.is_dir() or not ckpt_dir.is_dir():
+            raise FileNotFoundError(f"Output dirs must be pre-created:\n"
+                                    f"  {self.output_dir}\n  {ckpt_dir}")
 
         # Save config
         with open(self.output_dir / "config.json", "w") as f:
             json.dump(vars(args), f, indent=2)
 
-        # Load data
+        # Load data (unified pipeline: impute → PCA → normalize → concat)
         self.data_manager = SLDataManager(
-            embeddings_path=args.embeddings_path,
+            embeddings_paths=args.embeddings_paths,
             sl_pairs_path=args.sl_path,
             gene_list_path=args.gene_list_path,
             seed=args.seed,
+            pca_dims=args.pca_dims,
         )
+
+        # Auto-detect input_dim from loaded embeddings
+        actual_dim = self.data_manager.embeddings.shape[1]
+        if args.input_dim is not None and args.input_dim != actual_dim:
+            print(f"Warning: --input_dim={args.input_dim} overrides "
+                  f"detected dim={actual_dim}")
+        else:
+            args.input_dim = actual_dim
+        print(f"Input dim: {args.input_dim}")
 
     def create_model(self) -> nn.Module:
         """Create the model."""
@@ -105,12 +117,15 @@ class Trainer:
                 encoder_rank=self.args.encoder_rank,
             )
         else:
+            encoder_dims = self.args.encoder_dims or [
+                self.args.hidden_dim, self.args.latent_dim
+            ]
             model = SiameseSL(
                 input_dim=self.args.input_dim,
-                hidden_dim=self.args.hidden_dim,
-                latent_dim=self.args.latent_dim,
-                predictor_hidden=self.args.predictor_hidden,
+                encoder_dims=encoder_dims,
                 dropout=self.args.dropout,
+                last_layer_bias=self.args.last_layer_bias,
+                pd_epsilon=self.args.pd_epsilon,
             )
         return model.to(self.device)
 
@@ -137,40 +152,37 @@ class Trainer:
             loss.backward()
             optimizer.step()
 
-            # Proximal L1: soft-thresholding outside autograd
-            # Skip biases and LayerNorm params (only regularize weight matrices)
-            # Use per-parameter adaptive threshold from Adam's second moment
-            if self.args.l1_lambda > 0:
+            # Proximal L1: per-layer soft-thresholding outside autograd
+            # Each weight matrix (dim >= 2) gets its own lambda from --l1_lambdas
+            # Biases and LayerNorm params (dim < 2) are never penalized
+            if self._l1_map:
                 current_lr = optimizer.param_groups[0]["lr"]
                 eps = optimizer.defaults.get("eps", 1e-8)
                 beta2 = optimizer.defaults["betas"][1]
                 with torch.no_grad():
-                    for _, param in model.named_parameters():
-                        if param.dim() < 2:
+                    for name, param in model.named_parameters():
+                        if name not in self._l1_map:
+                            continue
+                        lam = self._l1_map[name]
+                        if lam <= 0:
                             continue
                         state = optimizer.state.get(param, {})
                         if "exp_avg_sq" in state:
-                            # Per-element adaptive threshold: λ₁ * η / (√v̂ + ε)
                             step = state["step"]
                             if isinstance(step, torch.Tensor):
                                 step = step.item()
                             v_hat = state["exp_avg_sq"] / (1 - beta2**step)
-                            # Clamp denominator to prevent threshold blow-up
-                            # when gradients are near zero (avoids cascading
-                            # weight death where zeroed weights → zero grads →
-                            # huge threshold → more zeroed weights)
                             denom = torch.clamp(v_hat.sqrt(), min=1e-1) + eps
-                            thresh = self.args.l1_lambda * current_lr / denom
+                            thresh = lam * current_lr / denom
                         else:
-                            # Fallback before optimizer state is initialized
-                            thresh = self.args.l1_lambda * current_lr
+                            thresh = lam * current_lr
                         param.data = torch.sign(param.data) * torch.clamp(
                             param.data.abs() - thresh, min=0)
 
             total_loss += loss.item()
             num_batches += 1
 
-        return total_loss / num_batches
+        return total_loss / num_batches if num_batches > 0 else 0.0
 
     @torch.no_grad()
     def evaluate(
@@ -226,8 +238,8 @@ class Trainer:
         print(f"Training Fold {fold_idx + 1}")
         print(f"{'='*60}")
 
-        # Create dataloaders (fold_stats saved in checkpoint for prediction)
-        train_loader, test_loader, fold_stats = create_fold_dataloaders(
+        # Create dataloaders
+        train_loader, test_loader = create_fold_dataloaders(
             embeddings=self.data_manager.embeddings,
             fold_data=fold_data,
             batch_size=self.args.batch_size,
@@ -235,6 +247,22 @@ class Trainer:
 
         # Create model and optimizer
         model = self.create_model()
+
+        # Build per-layer L1 lambda map: param_name -> lambda
+        # Only weight matrices (dim >= 2) are penalized
+        self._l1_map = {}
+        if self.args.l1_lambdas:
+            weight_params = [(n, p) for n, p in model.named_parameters()
+                             if p.dim() >= 2]
+            if len(self.args.l1_lambdas) != len(weight_params):
+                raise ValueError(
+                    f"--l1_lambdas has {len(self.args.l1_lambdas)} values but "
+                    f"model has {len(weight_params)} weight matrices: "
+                    f"{[n for n, _ in weight_params]}")
+            for (name, _), lam in zip(weight_params, self.args.l1_lambdas):
+                self._l1_map[name] = lam
+                print(f"  L1 λ={lam} for {name}")
+
         optimizer = optim.AdamW(
             model.parameters(),
             lr=self.args.learning_rate,
@@ -284,7 +312,6 @@ class Trainer:
                             "optimizer_state_dict": optimizer.state_dict(),
                             "metrics": metrics,
                             "config": vars(self.args),
-                            "fold_stats": fold_stats,
                         }, self.output_dir / "checkpoints" /
                         f"fold_{fold_idx}_best.pt")
                 else:
@@ -308,7 +335,6 @@ class Trainer:
                     "optimizer_state_dict": optimizer.state_dict(),
                     "metrics": best_metrics,
                     "config": vars(self.args),
-                    "fold_stats": fold_stats,
                 },
                 self.output_dir / "checkpoints" / f"fold_{fold_idx}_best.pt")
 
@@ -337,9 +363,22 @@ class Trainer:
             f"| Weights: {wt_nonzero:,}/{wt_total:,} nonzero ({wt_sparsity:.2f}% sparse)"
         )
 
+        # Per-layer sparsity breakdown
+        layer_sparsities = {}
+        for name in sd:
+            if name in param_names and sd[name].dim() >= 2:
+                t = sd[name]
+                total = t.numel()
+                nz = int(t.ne(0).sum())
+                sp = 100 * (1 - nz / total)
+                layer_sparsities[name] = sp
+                print(
+                    f"    {name}: {nz:,}/{total:,} nonzero ({sp:.1f}% sparse)")
+
         best_metrics["total_params"] = total_params
         best_metrics["nonzero_params"] = nonzero_params
         best_metrics["weight_sparsity"] = wt_sparsity
+        best_metrics["layer_sparsities"] = layer_sparsities
 
         return best_metrics
 
@@ -446,6 +485,9 @@ class Trainer:
                 "aupr_std": float(np.nanstd(aupr_scores)),
                 "f1_mean": float(np.nanmean(f1_scores)),
                 "f1_std": float(np.nanstd(f1_scores)),
+                "total_params": avg_total,
+                "nonzero_params": avg_nonzero,
+                "weight_sparsity": float(np.mean(sparsity_scores)),
             },
         }
 
@@ -464,8 +506,17 @@ def main():
     # Data paths
     parser.add_argument("--embeddings_path",
                         type=str,
-                        required=True,
-                        help="Path to gene embeddings file (.pt)")
+                        default=None,
+                        help="(Deprecated: use --embeddings_paths) "
+                        "Single embedding file, equivalent to "
+                        "--embeddings_paths with one file.")
+    parser.add_argument("--embeddings_paths",
+                        type=str,
+                        nargs='+',
+                        default=None,
+                        help="One or more .pt embedding files. Each modality "
+                        "is imputed, optionally PCA-reduced, and "
+                        "MAD-normalized before concatenation.")
     parser.add_argument("--sl_path",
                         type=str,
                         default="../data/SL_Human_Approved.txt",
@@ -483,15 +534,15 @@ def main():
     parser.add_argument(
         "--model_type",
         type=str,
-        default="kernel",
+        default="siamese",
         choices=["siamese", "attention", "kernel"],
         help=
-        "Model: siamese (MLP), attention (cross-attn), kernel (RKHS-based, default)"
+        "Model: siamese (inner product, default), attention (cross-attn), kernel (RKHS-based)"
     )
     parser.add_argument("--input_dim",
                         type=int,
-                        default=1280,
-                        help="Input embedding dim")
+                        default=None,
+                        help="Input embedding dim (auto-detected if omitted)")
     parser.add_argument("--hidden_dim",
                         type=int,
                         default=512,
@@ -506,6 +557,23 @@ def main():
                         default=4,
                         help="Attention heads")
     parser.add_argument("--dropout", type=float, default=0.2)
+    parser.add_argument("--no-last-layer-bias",
+                        dest="last_layer_bias",
+                        action="store_false",
+                        default=True,
+                        help="Remove last layer bias (gene node degree prior)")
+    parser.add_argument(
+        "--pd_epsilon",
+        type=float,
+        default=0.001,
+        help="PD regularizer: ε in kernel K = WᵀW + εI (0 to disable)")
+    parser.add_argument(
+        "--encoder_dims",
+        type=int,
+        nargs='+',
+        default=None,
+        help="Encoder layer dims for siamese model (e.g., 256 128 64). "
+        "Falls back to --hidden_dim/--latent_dim if not set.")
 
     # RKHS/Kernel model specific
     parser.add_argument(
@@ -539,10 +607,19 @@ def main():
     parser.add_argument("--learning_rate", type=float, default=1e-3)
     parser.add_argument("--weight_decay", type=float, default=1e-5)
     parser.add_argument(
-        "--l1_lambda",
+        "--pca_dims",
+        type=int,
+        nargs='+',
+        default=None,
+        help="Per-modality PCA target dimensions (one per embedding file, "
+        "e.g., 50 64 64). Robust PCA after imputation, before normalization. "
+        "Values >= original dim are no-ops.")
+    parser.add_argument(
+        "--l1_lambdas",
         type=float,
-        default=L1_LAMBDA_DEFAULT,
-        help="L1 proximal regularization strength (0 to disable)")
+        nargs='+',
+        default=None,
+        help="Per-layer L1 lambdas (one per weight matrix, e.g., 0.1 0.05)")
     parser.add_argument("--eval_interval", type=int, default=10)
     parser.add_argument("--patience",
                         type=int,
@@ -576,6 +653,14 @@ def main():
     parser.add_argument("--cpu", action="store_true", help="Force CPU")
 
     args = parser.parse_args()
+
+    # Unify: --embeddings_path is a convenience alias for a single-element list
+    if args.embeddings_paths and args.embeddings_path:
+        parser.error("Use --embeddings_path OR --embeddings_paths, not both")
+    if args.embeddings_path:
+        args.embeddings_paths = [args.embeddings_path]
+    if not args.embeddings_paths:
+        parser.error("--embeddings_paths is required (or --embeddings_path)")
 
     trainer = Trainer(args)
     trainer.train()

@@ -5,18 +5,24 @@ Predict Synthetic Lethality for gene pairs using trained Siamese model.
 Usage:
     # Predict for a single pair
     python predict.py --model checkpoints/fold_0_best.pt \
-                      --embeddings ../data/all_genes_go.pt \
+                      --embeddings_paths ../data/all_genes_go.pt \
                       --gene1 BRCA1 --gene2 PARP1
 
     # Predict for multiple pairs from file
     python predict.py --model checkpoints/fold_0_best.pt \
-                      --embeddings ../data/all_genes_go.pt \
+                      --embeddings_paths ../data/all_genes_go.pt \
                       --pairs_file pairs.txt --output predictions.csv
 
     # Predict all pairs for a gene (find SL partners)
     python predict.py --model checkpoints/fold_0_best.pt \
-                      --embeddings ../data/all_genes_go.pt \
+                      --embeddings_paths ../data/all_genes_go.pt \
                       --gene1 BRCA1 --top_k 100
+
+    # Multi-modal prediction (must match training modalities)
+    python predict.py --model checkpoints/fold_0_best.pt \
+                      --embeddings_paths ../data/all_genes_bioconceptvec.pt \
+                          ../data/all_genes_go.pt ../data/all_genes_node2vec_ppi.pt \
+                      --gene1 BRCA1 --gene2 PARP1
 """
 
 import json
@@ -29,6 +35,8 @@ import pandas as pd
 from tqdm import tqdm
 
 from siamese_esm import SiameseSL, SiameseSLWithAttention, SiameseSLKernel, set_seed
+from data_loader import load_multimodal_embeddings
+from gene_name_utils import get_mapper
 
 
 def _find_key(state_dict: dict, contains: list) -> str:
@@ -131,21 +139,34 @@ def load_model(
         model_type = "attention"
 
     if model_type == "siamese":
-        first_layer_key = _find_key(state_dict, ["encoder.encoder.0.weight"])
-        input_dim = state_dict[first_layer_key].shape[1]
-        hidden_dim = state_dict[first_layer_key].shape[0]
+        # Infer encoder_dims from state dict
+        # Hidden layers: encoder.hidden.{idx}.weight (2D)
+        # Projection: encoder.projection.weight (2D)
+        hidden_keys = sorted(
+            [
+                k for k in state_dict if k.startswith("encoder.hidden.")
+                and k.endswith(".weight") and state_dict[k].dim() == 2
+            ],
+            key=lambda k: int(k.split("encoder.hidden.")[1].split(".")[0]))
+        proj_key = "encoder.projection.weight"
 
-        latent_key = _find_key(state_dict, ["encoder.encoder.4.weight"])
-        latent_dim = state_dict[latent_key].shape[0]
+        input_dim = state_dict[hidden_keys[0]].shape[1] if hidden_keys else \
+            state_dict[proj_key].shape[1]
+        encoder_dims = [state_dict[k].shape[0] for k in hidden_keys]
+        encoder_dims.append(state_dict[proj_key].shape[0])
 
-        predictor_key = _find_key(state_dict, ["predictor.0.weight"])
-        predictor_hidden = state_dict[predictor_key].shape[0]
+        # Infer last_layer_bias
+        has_bias = "encoder.projection.bias" in state_dict
+
+        # Infer pd_epsilon from checkpoint config (default 0.001)
+        config = checkpoint.get("config", {})
+        pd_eps = config.get("pd_epsilon", 0.001)
 
         model = SiameseSL(
             input_dim=input_dim,
-            hidden_dim=hidden_dim,
-            latent_dim=latent_dim,
-            predictor_hidden=predictor_hidden,
+            encoder_dims=encoder_dims,
+            last_layer_bias=has_bias,
+            pd_epsilon=pd_eps,
         )
     elif model_type == "kernel":
         kernel_dims = _infer_kernel_dims(state_dict)
@@ -204,58 +225,24 @@ def load_model(
             num_heads=num_heads,
         )
 
+    # Backward compatibility: old checkpoints lack input_bias (added later).
+    # Inject missing keys as zero tensors so load_state_dict doesn't fail.
+    for key, param in model.named_parameters():
+        if key not in state_dict and "input_bias" in key:
+            state_dict[key] = torch.zeros_like(param)
+
     model.load_state_dict(state_dict)
     model.to(device)
     model.eval()
 
-    # Extract fold_stats for standardization at inference time
-    fold_stats = checkpoint.get("fold_stats", None)
-
-    return model, fold_stats
-
-
-def load_embeddings(embeddings_path: str, ) -> Tuple[torch.Tensor, dict, dict]:
-    """Load gene embeddings and gene mappings.
-
-    Prefers raw_embeddings (pre-standardization) so that the fold's
-    standardization stats from the checkpoint can be applied consistently.
-    """
-    data = torch.load(embeddings_path, map_location="cpu", weights_only=False)
-
-    if isinstance(data, dict):
-        # Prefer raw embeddings for per-fold standardization consistency
-        embeddings = data.get("raw_embeddings", data["embeddings"])
-        if "gene_order" in data:
-            gene_order = data["gene_order"]
-        elif "gene_to_idx" in data:
-            # Reconstruct gene_order from gene_to_idx (must be contiguous 0..N-1)
-            g2i = data["gene_to_idx"]
-            n = len(g2i)
-            gene_order = [""] * n
-            for gene, idx in g2i.items():
-                if not (0 <= idx < n):
-                    raise ValueError(
-                        f"gene_to_idx has out-of-range index {idx} for {gene} (expected 0..{n-1})"
-                    )
-                gene_order[idx] = gene
-            if "" in gene_order:
-                raise ValueError(
-                    "gene_to_idx has non-contiguous indices (gaps detected)")
-        else:
-            raise ValueError(
-                "Embeddings file must contain gene_order or gene_to_idx")
-    else:
-        raise ValueError(
-            "Embeddings file must be a dict with 'embeddings' key")
-
-    gene_to_idx = {gene: idx for idx, gene in enumerate(gene_order)}
-    idx_to_gene = {idx: gene for idx, gene in enumerate(gene_order)}
-
-    return embeddings, gene_to_idx, idx_to_gene
+    return model
 
 
 class SLPredictor:
-    """Predictor for Synthetic Lethality."""
+    """Predictor for Synthetic Lethality.
+
+    Embeddings are already imputed and normalized by load_multimodal_embeddings().
+    """
 
     def __init__(
         self,
@@ -264,15 +251,7 @@ class SLPredictor:
         gene_to_idx: dict,
         idx_to_gene: dict,
         device: str = "cpu",
-        fold_stats: dict = None,
     ):
-        # Apply the same per-fold standardization used during training
-        # Move stats to CPU to match embeddings (checkpoint may load to GPU)
-        if fold_stats is not None:
-            mean = fold_stats["mean"].cpu()
-            std = fold_stats["std"].cpu()
-            embeddings = (embeddings - mean) / std
-
         self.model = model
         self.embeddings = embeddings.to(device)
         self.gene_to_idx = gene_to_idx
@@ -281,6 +260,9 @@ class SLPredictor:
 
     def predict_pair(self, gene1: str, gene2: str) -> Optional[float]:
         """Predict SL probability for a single gene pair."""
+        mapper = get_mapper()
+        gene1 = mapper.gene_name_normalize(gene1)
+        gene2 = mapper.gene_name_normalize(gene2)
         if gene1 not in self.gene_to_idx:
             print(f"Warning: {gene1} not found in embeddings")
             return None
@@ -305,26 +287,33 @@ class SLPredictor:
         pairs: List[Tuple[str, str]],
         batch_size: int = 256,
     ) -> List[dict]:
-        """Predict SL for multiple gene pairs."""
-        results = []
+        """Predict SL for multiple gene pairs (order-preserving)."""
+        mapper = get_mapper()
+        results = [None] * len(pairs)
 
-        # Filter valid pairs
+        # Normalize gene names and partition into valid/invalid
+        valid_indices = []  # indices into original pairs list
         valid_pairs = []
-        for g1, g2 in pairs:
-            if g1 in self.gene_to_idx and g2 in self.gene_to_idx:
-                valid_pairs.append((g1, g2))
+        for i, (g1, g2) in enumerate(pairs):
+            g1_norm = mapper.gene_name_normalize(g1)
+            g2_norm = mapper.gene_name_normalize(g2)
+            if g1_norm in self.gene_to_idx and g2_norm in self.gene_to_idx:
+                valid_indices.append(i)
+                valid_pairs.append((g1_norm, g2_norm))
             else:
-                results.append({
+                results[i] = {
                     "gene1": g1,
                     "gene2": g2,
                     "probability": None,
                     "error": "Gene not found",
-                })
+                }
 
         # Batch predict
-        for i in tqdm(range(0, len(valid_pairs), batch_size),
-                      desc="Predicting"):
-            batch = valid_pairs[i:i + batch_size]
+        for batch_start in tqdm(range(0, len(valid_pairs), batch_size),
+                                desc="Predicting"):
+            batch = valid_pairs[batch_start:batch_start + batch_size]
+            batch_orig_idx = valid_indices[batch_start:batch_start +
+                                           batch_size]
 
             idx1 = [self.gene_to_idx[g1] for g1, g2 in batch]
             idx2 = [self.gene_to_idx[g2] for g1, g2 in batch]
@@ -336,13 +325,14 @@ class SLPredictor:
                 logits = self.model(x1, x2)
                 probs = torch.sigmoid(logits).cpu().numpy().flatten()
 
-            for j, (g1, g2) in enumerate(batch):
-                results.append({
+            for j, orig_i in enumerate(batch_orig_idx):
+                g1, g2 = pairs[orig_i]
+                results[orig_i] = {
                     "gene1": g1,
                     "gene2": g2,
                     "probability": float(probs[j]),
                     "error": None,
-                })
+                }
 
         return results
 
@@ -353,6 +343,8 @@ class SLPredictor:
         batch_size: int = 512,
     ) -> List[dict]:
         """Find top SL partners for a given gene."""
+        mapper = get_mapper()
+        gene = mapper.gene_name_normalize(gene)
         if gene not in self.gene_to_idx:
             print(f"Error: {gene} not found in embeddings")
             return []
@@ -398,8 +390,15 @@ def main():
                         help="Path to trained model checkpoint")
     parser.add_argument("--embeddings",
                         type=str,
-                        required=True,
-                        help="Path to gene embeddings file")
+                        default=None,
+                        help="(Deprecated: use --embeddings_paths) "
+                        "Single embedding file.")
+    parser.add_argument("--embeddings_paths",
+                        type=str,
+                        nargs='+',
+                        default=None,
+                        help="One or more .pt embedding files "
+                        "(must match training modalities).")
     parser.add_argument("--model_type",
                         type=str,
                         default="siamese",
@@ -430,24 +429,42 @@ def main():
         "Attention heads override (auto-detected from checkpoint if available)"
     )
 
+    # Embedding pipeline options
+    parser.add_argument(
+        "--pca_dims",
+        type=int,
+        nargs='+',
+        default=None,
+        help=
+        "Per-modality PCA target dimensions (must match training --pca_dims)")
+
     # Runtime
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--seed", type=int, default=42)
 
     args = parser.parse_args()
+
+    # Unify: --embeddings is a convenience alias for a single-element list
+    if args.embeddings_paths and args.embeddings:
+        parser.error("Use --embeddings OR --embeddings_paths, not both")
+    if args.embeddings:
+        args.embeddings_paths = [args.embeddings]
+    if not args.embeddings_paths:
+        parser.error("--embeddings_paths is required (or --embeddings)")
+
     set_seed(args.seed)
 
-    # Load model and fold standardization stats
     print("Loading model...")
-    model, fold_stats = load_model(args.model, args.model_type, args.device,
-                                   args.num_heads)
+    model = load_model(args.model, args.model_type, args.device,
+                       args.num_heads)
 
     print("Loading embeddings...")
-    embeddings, gene_to_idx, idx_to_gene = load_embeddings(args.embeddings)
+    embeddings, gene_to_idx, idx_to_gene = load_multimodal_embeddings(
+        args.embeddings_paths, pca_dims=args.pca_dims)
 
     predictor = SLPredictor(model, embeddings, gene_to_idx, idx_to_gene,
-                            args.device, fold_stats)
+                            args.device)
 
     # Run predictions
     if args.top_k and args.gene1:
