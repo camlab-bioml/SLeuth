@@ -104,6 +104,8 @@ Gene embeddings come from various sources (one embedding type per benchmark run)
 | GO | Onto2Vec | 128 | Word2Vec on GO axiom sentences |
 | KG | KG-ComplEx | 256 | ComplEx on STRING PPI + GO triples |
 
+**Gene identifiers**: All `.pt` files use NCBI Entrez Gene IDs (strings) as the canonical identifier in `gene_order`. A static reference mapping is at `data/gene_id_mapping.tsv` (derived from HGNC). At runtime, `gene_name_utils.py` downloads the HGNC complete set for symbol/Entrez mapping.
+
 **Missing gene handling**: Genes without embeddings receive NaN vectors in the `.pt` file. At load time, `data_loader.py` replaces NaN with per-dimension Huber M-estimates across all non-missing genes (robust imputation, c=1.345 for 95% normal efficiency). No per-fold standardization is applied.
 
 ---
@@ -115,6 +117,7 @@ Gene embeddings come from various sources (one embedding type per benchmark run)
 | Hidden Linear weight 1 | (256, input_dim) | Yes ($\lambda_1$) | Input feature selection |
 | Hidden Linear weight 2 | (128, 256) | Yes ($\lambda_2$) | Feature refinement |
 | Projection weight $\mathbf{W}$ | (64, 128) | Yes ($\lambda_3$) | Defines kernel $\mathbf{K} = \mathbf{W}^\top\mathbf{W} + \varepsilon\mathbf{I}$ |
+| Input bias $b_0$ | (input_dim,) | No | Learnable per-feature offset |
 | Hidden LayerNorm weight + bias | (256,)×2, (128,)×2 | No | Per-layer normalization |
 | Projection bias | (64,) optional | No | Gene node-degree prior |
 | Temperature $\tau$ | scalar | No | Sharpness of sigmoid |
@@ -168,11 +171,16 @@ Recommended schedule: $\lambda_1 > \lambda_2 > \lambda_3$ (strongest on input la
 --l1_lambdas 0.02 0.01 0.002   # Per-layer L1 (must match encoder_dims count)
 
 # Training
---epochs 2000                   # Max training epochs
+--epochs 200                    # Max training epochs
 --batch_size 256                # Gene pairs per mini-batch
 --learning_rate 0.001           # AdamW learning rate
---eval_interval 30              # Evaluate test set every N epochs
---patience 10                   # Early stopping (in eval intervals)
+--weight_decay 1e-5             # AdamW weight decay (decoupled L2)
+--warmrestart_T0 50             # CosineAnnealingWarmRestarts initial cycle length (epochs)
+--warmrestart_Tmult 2           # CosineAnnealingWarmRestarts cycle length multiplier
+--pos_neg_ratio 1.0             # Positive-to-negative sampling ratio
+--eval_interval 10              # Evaluate test set every N epochs
+--patience 20                   # Early stopping (in eval intervals)
 --num_folds 5                   # Cross-validation folds
 --seed 42                       # Random seed
+--cpu                           # Force CPU (flag, default: off)
 ```

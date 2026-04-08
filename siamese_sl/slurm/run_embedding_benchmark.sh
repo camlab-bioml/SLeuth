@@ -1,267 +1,156 @@
 #!/bin/bash
-#SBATCH --job-name=siamese_emb_bench
+#SBATCH --job-name=bench_emb
 #SBATCH --partition=gpu_Prosmn
-#SBATCH --nodelist=gpu2
+#SBATCH --nodelist=gpu2,gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=12
-#SBATCH --time=14-00:00:00
-#SBATCH --output=%x_%j.out
-#SBATCH --error=%x_%j.err
+#SBATCH --time=1-00:00:00
+#SBATCH --output=slurm/logs/bench_%A_%a.out
+#SBATCH --error=slurm/logs/bench_%A_%a.err
 
 # ============================================================================
-# Complete Siamese SL Pipeline + Embedding Benchmark
+# Embedding Benchmark — SLURM Array Worker
 # ============================================================================
-# Runs everything in one job:
-#   1. Generate ESM + GO embeddings (if not exist)
-#   2. Generate all embeddings (auto-download / extraction)
-#   3. Train siamese model on each available embedding x 3 CV types
-#   4. Print comparison table
+# Each array task trains the siamese model on ONE (embedding, CV) combination
+# at native dimensions (no PCA).
 #
-# Up to 19 embedding types x 3 CVs = 57 training runs
+# SLURM_ARRAY_TASK_ID is mapped to (embedding_index, cv_index) using:
+#   embedding_index = task_id / num_cvs
+#   cv_index        = task_id % num_cvs
 #
-# Usage:
-#   cd siamese_sl
-#   sbatch slurm/run_embedding_benchmark.sh
+# Array size is set dynamically by submit_pipeline.sh based on the number of
+# embeddings in ALL_EMBEDDINGS[] and CV types in CV_TYPES[].
+#
+# NOTE: --array is NOT set here. It is passed by submit_pipeline.sh:
+#   sbatch --array=0-<N-1>%<MAX_CONCURRENT> slurm/run_embedding_benchmark.sh
+#
+# Prerequisites:
+#   - Embedding .pt files must exist (run_generate_embeddings.sh)
+#   - Submit via submit_pipeline.sh, not directly
+#
+# Output: results/<embedding_type>_<cv_type>/results.json
 # ============================================================================
 
 set -e
 source "$SLURM_SUBMIT_DIR/slurm/config.sh"
-
-echo "SIAMESE SL - FULL PIPELINE + EMBEDDING BENCHMARK"
-echo ""
+source "$SLURM_SUBMIT_DIR/slurm/run_embedding_benchmark.conf"
 
 # ============================================================================
-# STEP 1: Generate ESM Embeddings
+# Validate: must be running as an array task
 # ============================================================================
-echo "--- STEP 1: ESM Embeddings ---"
-
-if [ -f "$ESM_PATH" ]; then
-    echo "Already exist, skipping"
-    $PYTHON_PATH -c "
-import torch
-d = torch.load('$ESM_PATH', map_location='cpu', weights_only=False)
-e = d.get('raw_embeddings', d.get('embeddings'))
-print(f'  Shape: {e.shape}, Pooling: {d.get(\"pooling\", \"?\")}')" || true
-else
-    echo "Generating ESM embeddings with Pool PaRTI..."
-    $PYTHON_PATH generate_all_genes_esm.py \
-        --output "$ESM_PATH" \
-        --pooling pool_parti \
-        --batch_size 8 \
-        --device cuda:0
-    [ -f "$ESM_PATH" ] || { echo "FAILED"; exit 1; }
+if [ -z "$SLURM_ARRAY_TASK_ID" ]; then
+    echo "ERROR: This script must be submitted as a SLURM array job."
+    echo "Use submit_pipeline.sh to launch the pipeline, or pass --array=0-N."
+    exit 1
 fi
-echo ""
 
 # ============================================================================
-# STEP 2: Generate GO Embeddings
+# Map task ID → (embedding, CV)
 # ============================================================================
-echo "--- STEP 2: GO Embeddings ---"
+# The task ID encodes both the embedding index and CV index:
+#   task_id = embedding_index * num_cvs + cv_index
 
-if [ -f "$GO_PATH" ]; then
-    echo "Already exist, skipping"
-else
-    if [ -f "$GAF_PATH" ]; then
-        set +e
-        $PYTHON_PATH generate_go_esm_embeddings.py \
-            --go_only \
-            --esm_embeddings "$ESM_PATH" \
-            --gaf "$GAF_PATH" \
-            --output "$GO_PATH"
-        set -e
-        [ -f "$GO_PATH" ] || echo "WARNING: GO generation failed, continuing"
-    else
-        echo "WARNING: GAF not found at $GAF_PATH, skipping GO"
-    fi
+NUM_CVS=${#CV_TYPES[@]}
+EMB_INDEX=$((SLURM_ARRAY_TASK_ID / NUM_CVS))
+CV_INDEX=$((SLURM_ARRAY_TASK_ID % NUM_CVS))
+
+# Bounds check (in case --array range exceeds catalog size)
+if [ "$EMB_INDEX" -ge "${#ALL_EMBEDDINGS[@]}" ]; then
+    echo "SKIP: task $SLURM_ARRAY_TASK_ID exceeds embedding count (${#ALL_EMBEDDINGS[@]})"
+    exit 0
 fi
+
+# Extract embedding info and CV type
+ENTRY="${ALL_EMBEDDINGS[$EMB_INDEX]}"
+CV="${CV_TYPES[$CV_INDEX]}"
+IFS=':' read -r ETYPE EFILE ENAME <<< "$ENTRY"
+EMB_PATH="$DATA_DIR/$EFILE"
+
+echo "Task $SLURM_ARRAY_TASK_ID: $ENAME / $CV"
+echo "  Embedding: $EMB_PATH"
 echo ""
 
 # ============================================================================
-# STEP 3: Generate All Precomputed Embeddings
+# Skip if embedding file doesn't exist
 # ============================================================================
-echo "--- STEP 3: Generate All Embeddings ---"
+# Some embeddings may fail to generate (e.g., missing dependencies).
+# Exit cleanly so the summary job still runs.
 
-for etype in "${PRECOMPUTED_TYPES[@]}"; do
-    OUTPUT="$DATA_DIR/all_genes_${etype}.pt"
-    if [ -f "$OUTPUT" ]; then
-        echo "[$etype] Already exists"
-    else
-        echo "[$etype] Generating..."
-        set +e
-        $PYTHON_PATH generate_embeddings.py \
-            --type "$etype" \
-            --gene_list "$ESM_PATH" \
-            --output "$OUTPUT" \
-            --cache_dir "$CACHE_DIR"
-        set -e
-        [ -f "$OUTPUT" ] && echo "[$etype] Done" || echo "[$etype] Skipped (not available)"
-    fi
-done
-echo ""
-echo "Steps 1-3 completed at: $(date)"
-echo ""
+if [ ! -f "$EMB_PATH" ]; then
+    echo "SKIP: $EFILE not found in $DATA_DIR"
+    exit 0
+fi
 
 # ============================================================================
-# STEP 4: Detect Available Embeddings & Train
+# Skip if already completed (resume-safe)
 # ============================================================================
-echo "--- STEP 4: Embedding Benchmark ---"
+OUTPUT_DIR="results/${ETYPE}_${CV}"
 
-AVAILABLE_EMBEDDINGS=()
-echo "Checking available embeddings..."
-for entry in "${ALL_EMBEDDINGS[@]}"; do
-    IFS=':' read -r etype efile ename <<< "$entry"
-    if [ -f "$DATA_DIR/$efile" ]; then
-        echo "  [FOUND] $ename"
-        AVAILABLE_EMBEDDINGS+=("$entry")
-    else
-        echo "  [SKIP]  $ename"
-    fi
-done
-echo ""
-
-[ ${#AVAILABLE_EMBEDDINGS[@]} -gt 0 ] || { echo "ERROR: No embeddings found"; exit 1; }
-
-TOTAL_RUNS=$((${#AVAILABLE_EMBEDDINGS[@]} * ${#CV_TYPES[@]}))
-echo "Training: ${#AVAILABLE_EMBEDDINGS[@]} embeddings x ${#CV_TYPES[@]} CVs = $TOTAL_RUNS runs"
-echo "Config: encoder=[$ENCODER_DIMS], epochs=$EPOCHS, patience=$PATIENCE, folds=$NUM_FOLDS"
-echo ""
-
-RESULTS_FILE="results/embedding_benchmark_results.txt"
-echo "EMBEDDING BENCHMARK RESULTS — $(date)" > $RESULTS_FILE
-
-declare -A RESULTS_AUROC RESULTS_AUPR RESULTS_F1
-FAILED_RUNS=0
-SUCCESSFUL_RUNS=0
-
-for entry in "${AVAILABLE_EMBEDDINGS[@]}"; do
-    IFS=':' read -r ETYPE EFILE ENAME <<< "$entry"
-    EMB_PATH="$DATA_DIR/$EFILE"
-
-    echo "============================================================================"
-    echo "Embedding: $ENAME"
-    echo "============================================================================"
-
-    for CV in "${CV_TYPES[@]}"; do
-        echo "  --- $ETYPE / $CV --- $(date)"
-        OUTPUT_DIR="results/${ETYPE}_${CV}"
-
-        # Pre-create output dirs (server may not have mkdir in PATH)
-        $PYTHON_PATH -c "from pathlib import Path; Path('$OUTPUT_DIR/checkpoints').mkdir(parents=True, exist_ok=True)"
-
-        set +e
-        $PYTHON_PATH train.py \
-            --embeddings_paths "$EMB_PATH" \
-            --sl_path "$SL_PATH" \
-            --output_dir "$OUTPUT_DIR" \
-            --cv_type "$CV" \
-            $MODEL_ARGS \
-            --encoder_dims $ENCODER_DIMS \
-            --dropout $DROPOUT \
-            --epochs $EPOCHS \
-            --batch_size $BATCH_SIZE \
-            --learning_rate $LR \
-            --weight_decay $WEIGHT_DECAY \
-            --l1_lambdas $L1_LAMBDAS \
-            --pd_epsilon $PD_EPSILON \
-            --eval_interval $EVAL_INTERVAL \
-            --patience $PATIENCE \
-            --warmrestart_T0 $WARMRESTART_T0 \
-            --warmrestart_Tmult $WARMRESTART_TMULT \
-            --num_folds $NUM_FOLDS \
-            --pos_neg_ratio $POS_NEG_RATIO \
-            --seed $SEED
-
-        if [ -f "$OUTPUT_DIR/results.json" ]; then
-            AUROC=$($PYTHON_PATH -c "import json; d=json.load(open('$OUTPUT_DIR/results.json'))['summary']; print(f\"{d['auroc_mean']:.4f} +/- {d['auroc_std']:.4f}\")" 2>/dev/null)
-            AUPR=$($PYTHON_PATH -c "import json; d=json.load(open('$OUTPUT_DIR/results.json'))['summary']; print(f\"{d['aupr_mean']:.4f} +/- {d['aupr_std']:.4f}\")" 2>/dev/null)
-            F1=$($PYTHON_PATH -c "import json; d=json.load(open('$OUTPUT_DIR/results.json'))['summary']; print(f\"{d['f1_mean']:.4f} +/- {d['f1_std']:.4f}\")" 2>/dev/null)
-            PARAMS=$($PYTHON_PATH -c "import json; d=json.load(open('$OUTPUT_DIR/results.json'))['summary']; print(f\"{d.get('nonzero_params',0):,}/{d.get('total_params',0):,} ({d.get('weight_sparsity',0):.1f}% sparse)\")" 2>/dev/null)
-            echo "  AUROC=$AUROC  AUPR=$AUPR  F1=$F1  Params=$PARAMS"
-            RESULTS_AUROC["${ETYPE}_${CV}"]="$AUROC"
-            RESULTS_AUPR["${ETYPE}_${CV}"]="$AUPR"
-            RESULTS_F1["${ETYPE}_${CV}"]="$F1"
-            SUCCESSFUL_RUNS=$((SUCCESSFUL_RUNS + 1))
-        else
-            echo "  FAILED"
-            RESULTS_AUROC["${ETYPE}_${CV}"]="FAILED"
-            RESULTS_AUPR["${ETYPE}_${CV}"]="FAILED"
-            RESULTS_F1["${ETYPE}_${CV}"]="FAILED"
-            FAILED_RUNS=$((FAILED_RUNS + 1))
-        fi
-        set -e
-
-        # Brief pause between runs to let the disk flush
-        sleep 10
-    done
-    echo ""
-done
+if [ -f "$OUTPUT_DIR/results.json" ]; then
+    echo "SKIP: $OUTPUT_DIR/results.json already exists"
+    exit 0
+fi
 
 # ============================================================================
-# STEP 5: Summary
+# Train
 # ============================================================================
-EMB_TYPES_FOUND=()
-for entry in "${AVAILABLE_EMBEDDINGS[@]}"; do
-    IFS=':' read -r etype _ _ <<< "$entry"
-    EMB_TYPES_FOUND+=("$etype")
-done
 
-SUMMARY_TMP=$(mktemp)
-{
-echo ""
-echo "============================================================================"
-echo "                    EMBEDDING BENCHMARK RESULTS"
-echo "============================================================================"
-echo ""
-printf "%-20s | %-20s | %-20s | %-20s\n" "Embedding" "CV1 (Edge)" "CV2 (Gene)" "CV3 (Pair)"
-echo "-------------------------------------------------------------------------------------"
-for ETYPE in "${EMB_TYPES_FOUND[@]}"; do
-    printf "%-20s | %-20s | %-20s | %-20s\n" \
-        "$ETYPE" \
-        "${RESULTS_AUROC[${ETYPE}_cv1]:-N/A}" \
-        "${RESULTS_AUROC[${ETYPE}_cv2]:-N/A}" \
-        "${RESULTS_AUROC[${ETYPE}_cv3]:-N/A}"
-done
-echo ""
-echo "Runs: $SUCCESSFUL_RUNS successful, $FAILED_RUNS failed (of $TOTAL_RUNS)"
-echo "============================================================================"
-} > "$SUMMARY_TMP"
+# Create output directory
+$PYTHON_PATH -c "from pathlib import Path; Path('$OUTPUT_DIR/checkpoints').mkdir(parents=True, exist_ok=True)"
 
-cat "$SUMMARY_TMP"
-cat "$SUMMARY_TMP" >> $RESULTS_FILE
-rm -f "$SUMMARY_TMP"
+echo "Training: $ETYPE / $CV"
+echo "  Output: $OUTPUT_DIR"
+echo "  Config: encoder=[$ENCODER_DIMS], epochs=$EPOCHS, patience=$PATIENCE"
+echo ""
 
-# JSON summary
-$PYTHON_PATH << 'PYTHON_SCRIPT'
+set +e
+$PYTHON_PATH train.py \
+    --embeddings_paths "$EMB_PATH" \
+    --sl_path "$SL_PATH" \
+    --output_dir "$OUTPUT_DIR" \
+    --cv_type "$CV" \
+    $MODEL_ARGS \
+    --encoder_dims $ENCODER_DIMS \
+    --dropout $DROPOUT \
+    --epochs $EPOCHS \
+    --batch_size $BATCH_SIZE \
+    --learning_rate $LR \
+    --weight_decay $WEIGHT_DECAY \
+    --l1_lambdas $L1_LAMBDAS \
+    --pd_epsilon $PD_EPSILON \
+    --eval_interval $EVAL_INTERVAL \
+    --patience $PATIENCE \
+    --warmrestart_T0 $WARMRESTART_T0 \
+    --warmrestart_Tmult $WARMRESTART_TMULT \
+    --num_folds $NUM_FOLDS \
+    --pos_neg_ratio $POS_NEG_RATIO \
+    --seed $SEED
+TRAIN_EXIT=$?
+set -e
+
+# ============================================================================
+# Report result
+# ============================================================================
+echo ""
+if [ $TRAIN_EXIT -ne 0 ] || [ ! -f "$OUTPUT_DIR/results.json" ]; then
+    echo "FAILED: $ETYPE / $CV (exit code $TRAIN_EXIT)"
+    exit 1
+fi
+
+AUROC=$($PYTHON_PATH -c "
 import json
-from pathlib import Path
-from datetime import datetime
+d = json.load(open('$OUTPUT_DIR/results.json'))['summary']
+v, s = d['auroc_mean'], d['auroc_std']
+print(f'{v:.4f} +/- {s:.4f}' if v is not None else 'N/A')
+" 2>/dev/null || echo "N/A")
 
-cv_types = ["cv1", "cv2", "cv3"]
-emb_types = sorted({d.name.rsplit("_cv", 1)[0] for d in Path("results").iterdir()
-                     if d.is_dir() and "_cv" in d.name})
+PARAMS=$($PYTHON_PATH -c "
+import json
+d = json.load(open('$OUTPUT_DIR/results.json'))['summary']
+print(f\"{d.get('nonzero_params',0):,}/{d.get('total_params',0):,} ({d.get('weight_sparsity',0):.1f}% sparse)\")
+" 2>/dev/null || echo "N/A")
 
-summary = {"timestamp": datetime.now().isoformat(), "results": {}}
-for etype in emb_types:
-    summary["results"][etype] = {}
-    for cv in cv_types:
-        f = Path(f"results/{etype}_{cv}/results.json")
-        if f.exists():
-            d = json.load(open(f))["summary"]
-            summary["results"][etype][cv] = {
-                "auroc": f"{d['auroc_mean']:.4f} +/- {d['auroc_std']:.4f}",
-                "aupr": f"{d['aupr_mean']:.4f} +/- {d['aupr_std']:.4f}",
-                "f1": f"{d['f1_mean']:.4f} +/- {d['f1_std']:.4f}",
-                "total_params": d.get("total_params", 0),
-                "nonzero_params": d.get("nonzero_params", 0),
-                "weight_sparsity": round(d.get("weight_sparsity", 0), 2),
-            }
-        else:
-            summary["results"][etype][cv] = {"error": "not found"}
-
-json.dump(summary, open("results/embedding_benchmark_summary.json", "w"), indent=2)
-print("JSON saved to: results/embedding_benchmark_summary.json")
-PYTHON_SCRIPT
-
-echo ""
-echo "Completed at: $(date)"
+echo "SUCCESS: $ETYPE / $CV"
+echo "  AUROC=$AUROC  Params=$PARAMS"
+echo "  Completed at: $(date)"

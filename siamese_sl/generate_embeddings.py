@@ -15,6 +15,7 @@ Supported embedding types (precomputed, auto-download/extract):
   ppi_svd       (256d)  SVD of STRING PPI adjacency
   prot_t5       (1024d) ProtT5-XL protein sequence embeddings
   esm1b         (1280d) ESM-1b protein sequence embeddings
+  esmc          (1152d) ESM Cambrian 600M protein sequence embeddings
   scprint       (auto)  scPRINT single-cell foundation model
   seqvec        (1024d) SeqVec ELMo-style protein embeddings
   text_embed    (1024d) Open-source text embeddings (mxbai, GenePT alternative)
@@ -187,6 +188,23 @@ EMBEDDING_REGISTRY = {
         "format": "pkl_dict",
         "download_url": None,
         "notes": "Predecessor to ESM-2; 650M params trained on UniRef50.",
+    },
+    "esmc": {
+        "dim":
+        1152,
+        "description":
+        "ESM Cambrian 600M protein sequence embeddings (1152d)",
+        "source":
+        "EvolutionaryScale (https://github.com/evolutionaryscale/esm)",
+        "filename":
+        "esmc_gene_embeddings.pkl",
+        "alt_filenames": [],
+        "format":
+        "pkl_dict",
+        "download_url":
+        None,
+        "notes":
+        "ESM C 600M; matches ESM2-3B quality. Requires esm>=3, GPU + UniProt sequences.",
     },
     "scprint": {
         "dim":
@@ -502,7 +520,8 @@ def _load_go_graph_and_annotations(
                 fields = line.rstrip("\n").split("\t")
                 if len(fields) < 5:
                     continue
-                if "NOT" in fields[3].upper():
+                if any(q.strip() == "NOT"
+                       for q in fields[3].upper().split("|")):
                     continue
                 gene = fields[2]
                 go_term = fields[4]
@@ -564,50 +583,34 @@ def align_embeddings(
 ) -> Tuple[torch.Tensor, dict]:
     """Align precomputed embeddings to a reference gene list.
 
-    Both the embedding dict keys and the reference gene names are
-    normalized to current HGNC symbols (via custom corrections +
-    HGNC alias/previous symbol lookup) before matching.
+    The reference gene_list contains Entrez Gene IDs (strings).
+    The emb_dict keys are gene symbols (from external sources).
 
-    Matching order for each reference gene:
-      1. Case-insensitive match on normalized embedding keys
-      2. Normalize the reference gene name and retry
-
-    Genes with no match receive NaN vectors. At load time,
-    ``data_loader.py`` imputes NaN with the per-dimension Huber
-    M-estimate across all non-missing genes.
+    Pipeline:
+      1. Convert emb_dict keys: symbol -> normalize -> Entrez ID
+      2. Match against gene_list (Entrez IDs)
+      3. Genes with no match receive NaN vectors (Huber-imputed at load time)
 
     Returns ``(embeddings_tensor, stats_dict)``.
     """
-    # Normalize embedding dict keys (custom corrections + HGNC)
+    # Convert embedding dict keys from symbols to Entrez IDs
     mapper = get_mapper()
-    emb_normalized = mapper.gene_name_normalize_dict(emb_dict, report=True)
-
-    # Case-insensitive lookup on normalized keys
-    emb_upper = {k.upper(): v for k, v in emb_normalized.items()}
+    emb_entrez = mapper.symbols_to_entrez_dict(emb_dict, report=True)
 
     embeddings = np.full((len(gene_list), embedding_dim),
                          np.nan,
                          dtype=np.float32)
     matched = 0
-    matched_via_alias = 0
     missing: List[str] = []
 
-    for i, gene in enumerate(gene_list):
-        gene_upper = gene.upper()
-        # Try case-insensitive match on normalized embedding keys
-        vec = emb_upper.get(gene_upper)
-        if vec is None:
-            # Also normalize the reference gene name and retry
-            normalized = mapper.gene_name_normalize(gene)
-            vec = emb_upper.get(normalized)
-            if vec is not None:
-                matched_via_alias += 1
+    for i, eid in enumerate(gene_list):
+        vec = emb_entrez.get(eid)
         if vec is not None:
             dim = min(len(vec), embedding_dim)
             embeddings[i, :dim] = vec[:dim]
             matched += 1
         else:
-            missing.append(gene)
+            missing.append(eid)
 
     coverage = matched / len(gene_list) * 100 if gene_list else 0.0
 
@@ -619,11 +622,9 @@ def align_embeddings(
     }
 
     print(f"  Gene coverage: {matched}/{len(gene_list)} ({coverage:.1f}%)")
-    if matched_via_alias:
-        print(f"  Matched via HGNC alias/previous symbol: {matched_via_alias}")
     if missing:
         shown = missing[:20]
-        print(f"  Missing genes (first {len(shown)}): {shown}")
+        print(f"  Missing Entrez IDs (first {len(shown)}): {shown}")
         if len(missing) > 20:
             print(f"  ... and {len(missing) - 20} more")
     print(f"  Missing genes receive NaN vectors "
@@ -734,6 +735,15 @@ def download_precomputed(embedding_type: str, cache_dir: str) -> Optional[str]:
                     # Move to expected filename if different
                     if extracted != target:
                         os.rename(extracted, target)
+                        # Clean up intermediate directory from zip extraction
+                        extracted_parent = os.path.dirname(extracted)
+                        if extracted_parent != str(
+                                cache_dir) and os.path.isdir(extracted_parent):
+                            try:
+                                os.rmdir(
+                                    extracted_parent)  # only removes if empty
+                            except OSError:
+                                pass
                     print(f"  Extracted: {target}")
                 else:
                     print(f"  WARNING: Could not find embedding file in zip")
@@ -971,6 +981,13 @@ def _load_string_ppi(cache_dir: str):
             parts = line.strip().split("\t")
             if len(parts) >= 2:
                 protein_to_gene[parts[0]] = parts[1]  # string_id -> symbol
+
+    # Normalize gene symbols through HGNC (consistent with other extractors)
+    mapper = get_mapper()
+    protein_to_gene = {
+        k: mapper.gene_name_normalize(v)
+        for k, v in protein_to_gene.items()
+    }
     print(f"  STRING protein info: {len(protein_to_gene)} proteins")
 
     # Load edges (high confidence >= 700)
@@ -1307,6 +1324,78 @@ def extract_esm1b(cache_dir: str) -> Optional[str]:
 
     except Exception as e:
         print(f"  ESM-1b generation failed: {e}")
+        return None
+
+
+def extract_esmc(cache_dir: str) -> Optional[str]:
+    """Generate ESM Cambrian (600M) gene embeddings from UniProt sequences.
+
+    Uses the ESM C 600M model from EvolutionaryScale. Mean-pooled over
+    residue positions (excluding BOS/EOS tokens) to get 1152d per gene.
+
+    Requires: esm>=3 (pip install esm), torch, GPU recommended.
+
+    NOTE: The EvolutionaryScale `esm` package (v3+) conflicts with Meta's
+    `fair-esm` package — both install into the `esm` namespace. They cannot
+    coexist. If you also need ESM-1b/ESM-2, use HuggingFace `transformers`
+    for those instead of `fair-esm`.
+
+    Processes one protein at a time (no batching) because ESM C has a known
+    bug where batched inference with padding produces different embeddings
+    than single-sequence inference (LayerNorm doesn't mask padded positions).
+    """
+    try:
+        from esm.models.esmc import ESMC
+        from esm.sdk.api import ESMProtein, LogitsConfig
+        import torch as _torch
+    except ImportError:
+        print("  esm>=3 not installed (pip install esm)")
+        return None
+
+    gene_seqs = _load_uniprot_sequences(cache_dir)
+    if not gene_seqs:
+        return None
+
+    print("  Loading ESM C 600M model...")
+    try:
+        device = _torch.device("cuda" if _torch.cuda.is_available() else "cpu")
+        model = ESMC.from_pretrained("esmc_600m").to(device)
+        model.eval()
+        print(f"  Device: {device}")
+
+        from tqdm import tqdm
+
+        emb_dict: Dict[str, np.ndarray] = {}
+        genes = sorted(gene_seqs.keys())
+
+        for gene in tqdm(genes, desc="  ESM-C"):
+            seq = gene_seqs[gene][:2048]
+            protein = ESMProtein(sequence=seq)
+            protein_tensor = model.encode(protein)
+
+            with _torch.no_grad():
+                output = model.logits(
+                    protein_tensor,
+                    LogitsConfig(sequence=True, return_embeddings=True),
+                )
+
+            # output.embeddings: (1, seq_len+2, 1152)
+            # Tokens: [<cls>, ...residues..., <eos>]
+            # Mean-pool over residue positions only (skip cls at 0, eos at -1)
+            emb = output.embeddings[0, 1:-1].float().mean(0).cpu().numpy()
+            emb_dict[gene.upper()] = emb.astype(np.float32)
+
+        dim = emb_dict[genes[0].upper()].shape[0] if emb_dict else 1152
+        print(f"  Generated {len(emb_dict)} ESM-C embeddings ({dim}d)")
+
+        output_path = os.path.join(cache_dir, "esmc_gene_embeddings.pkl")
+        with open(output_path, "wb") as f:
+            pickle.dump(emb_dict, f)
+        print(f"  Saved: {output_path}")
+        return output_path
+
+    except Exception as e:
+        print(f"  ESM-C generation failed: {e}")
         return None
 
 
@@ -1883,8 +1972,11 @@ def extract_kg_complex(cache_dir: str) -> Optional[str]:
         triples_array = np.array(triples, dtype=str)
         tf = TriplesFactory.from_labeled_triples(triples_array)
 
-        # PyKEEN requires train/test split
-        training_tf, testing_tf = tf.split([0.9, 0.1], random_state=42)
+        # Use all triples for training so every entity gets an embedding.
+        # A 90/10 split would leave ~10% of entities only in the test set,
+        # and PyKEEN doesn't learn embeddings for test-only entities.
+        # We only care about the learned embeddings, not evaluation metrics.
+        training_tf, testing_tf = tf.split([0.99, 0.01], random_state=42)
 
         print("  Training ComplEx (this may take 10-60 minutes)...")
         import torch as _torch
@@ -1899,7 +1991,6 @@ def extract_kg_complex(cache_dir: str) -> Optional[str]:
         )
 
         # Extract gene entity embeddings (real part for ComplEx)
-        # Model only knows training entities; ~10% test-only entities are lost
         model = result.model
         entity_to_id = training_tf.entity_to_id
 
@@ -1965,7 +2056,7 @@ def print_download_instructions(embedding_type: str, cache_dir: str) -> None:
             "    emb = ckpt['encoder.embedding.gene_encoder.embedding.weight']"
         )
         print("    gene_emb = {g: emb[i].numpy() for g, i in vocab.items()}")
-    if embedding_type == "genept":
+    elif embedding_type == "genept":
         print()
         print(
             "  NOTE: GenePT (Data Leakage with SL) -- use with caution for SL tasks"
@@ -1975,10 +2066,11 @@ def print_download_instructions(embedding_type: str, cache_dir: str) -> None:
         print("  scPRINT requires a checkpoint file placed manually:")
         print(f"    {cache_dir}/scprint_checkpoint.ckpt")
         print("  Download from: https://github.com/cantinilab/scPRINT")
-    elif embedding_type in ("prot_t5", "esm1b", "seqvec"):
+    elif embedding_type in ("prot_t5", "esm1b", "esmc", "seqvec"):
         pkgs = {
             "prot_t5": "transformers sentencepiece",
             "esm1b": "fair-esm",
+            "esmc": "esm",
             "seqvec": "allennlp",
         }
         print()
@@ -2057,6 +2149,9 @@ def generate_embedding(
 
     if filepath is None and embedding_type == "esm1b":
         filepath = extract_esm1b(cache_dir)
+
+    if filepath is None and embedding_type == "esmc":
+        filepath = extract_esmc(cache_dir)
 
     if filepath is None and embedding_type == "scprint":
         filepath = extract_scprint(cache_dir)

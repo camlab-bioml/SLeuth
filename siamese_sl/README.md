@@ -42,7 +42,7 @@ outperforming mean pooling especially for identifying functionally critical regi
 # Single modality (same pipeline as multi-modal: impute → normalize)
 python train.py \
     --embeddings_paths ../data/all_genes_esm.pt \
-    --sl_path ../data/SL_Human_Approved.txt \
+    --sl_path ../data/SL_SynLethDB_experimental.txt \
     --output_dir results/siamese_esm \
     --cv_type cv1 \
     --epochs 200 \
@@ -52,7 +52,7 @@ python train.py \
 python train.py \
     --embeddings_paths ../data/all_genes_bioconceptvec.pt \
         ../data/all_genes_go.pt ../data/all_genes_node2vec_ppi.pt \
-    --sl_path ../data/SL_Human_Approved.txt \
+    --sl_path ../data/SL_SynLethDB_experimental.txt \
     --output_dir results/multi_bio_go_ppi \
     --cv_type cv1
 
@@ -60,26 +60,25 @@ python train.py \
 python train.py \
     --embeddings_paths ../data/all_genes_bioconceptvec.pt \
         ../data/all_genes_go.pt ../data/all_genes_node2vec_ppi.pt \
-    --sl_path ../data/SL_Human_Approved.txt \
-    --output_dir results/multi_bio_go_ppi_pca64 \
-    --cv_type cv1 --pca_dims 64 64 64
+    --sl_path ../data/SL_SynLethDB_experimental.txt \
+    --output_dir results/multi_bio_go_ppi_pca \
+    --cv_type cv1 --pca_variance 0.8
 ```
 
 ### 3. Predict SL for gene pairs
 
 ```bash
-# Single pair
+# Single pair (accepts gene symbols or Entrez IDs)
 python predict.py \
     --model results/siamese_esm/checkpoints/fold_0_best.pt \
     --embeddings_paths ../data/all_genes_esm.pt \
     --gene1 BRCA1 --gene2 PARP1
 
-# Multi-modal (must match training modalities)
+# Using Entrez IDs directly
 python predict.py \
-    --model results/multi_bio_go_ppi/checkpoints/fold_0_best.pt \
-    --embeddings_paths ../data/all_genes_bioconceptvec.pt \
-        ../data/all_genes_go.pt ../data/all_genes_node2vec_ppi.pt \
-    --gene1 BRCA1 --gene2 PARP1
+    --model results/siamese_esm/checkpoints/fold_0_best.pt \
+    --embeddings_paths ../data/all_genes_esm.pt \
+    --gene1 672 --gene2 142
 
 # Find top SL partners for a gene
 python predict.py \
@@ -139,39 +138,93 @@ All random seeds are fixed:
 
 ## Running on Server (SLURM)
 
-The pipeline has two phases, each a single SLURM job:
+The pipeline has five SLURM jobs: environment reset, embedding generation, benchmark array, benchmark summary, best-per-category array, and best-per-category combo. The two training branches (benchmark and best-per-category) run in parallel after generation completes.
 
-### Phase 1: Embedding Benchmark (`run_embedding_benchmark.sh`)
+### Step 0: Reset Environment (`reset_env.sh`)
 
-Generates all embeddings (auto-downloads data) and benchmarks each one individually at native dimensionality across 3 CV types.
+Recreates the Python venv from scratch on a GPU node. Must run on a GPU node (gpu1/gpu2). Run this first if the environment is missing or broken.
 
 ```bash
 cd siamese_sl
-sbatch slurm/run_embedding_benchmark.sh   # Job does everything:
-# 1. Generate ESM-2 embeddings (downloads UniProt proteome)
-# 2. Generate GO embeddings (from GAF file)
-# 3. Generate all 17 other embedding types (auto-downloads STRING PPI, GO OBO, etc.)
-# 4. Train each embedding × 3 CVs = up to 57 runs
-# 5. Print comparison table
+sbatch slurm/reset_env.sh
+# Removes old venv, creates fresh one, installs all dependencies
+# (torch, fair-esm, robpy, transformers, pykeen, etc.)
+# Verifies all packages and pre-caches the HGNC gene name database
 ```
 
-### Phase 2: Best-per-Category Multi-Modal (`run_best_per_category.sh`)
+### Step 1: Generate Embeddings (`run_generate_embeddings.sh`)
 
-Retrains each embedding with PCA (default 64 dims), picks the best per category, then trains a multi-modal combo.
+Downloads source data and generates all .pt embedding files. Run this first.
 
 ```bash
-# Chain after Phase 1 completes
-sbatch --dependency=afterok:<PHASE1_JOB_ID> slurm/run_best_per_category.sh
-
-# Or override PCA dimensionality
-BEST_CAT_PCA_DIM=128 sbatch --dependency=afterok:<PHASE1_JOB_ID> slurm/run_best_per_category.sh
+cd siamese_sl
+GEN=$(sbatch --parsable slurm/run_generate_embeddings.sh)
+# 1. Download SynLethDB experimental SL pairs
+# 2. Generate ESM-2 embeddings (downloads UniProt proteome)
+# 3. Generate GO embeddings (from GAF file)
+# 4. Generate all 17 other embedding types (auto-downloads STRING PPI, GO OBO, etc.)
 ```
 
-Phase 2 steps:
-1. Train each embedding with PCA=64 × 3 CVs (apples-to-apples comparison)
+### Step 2a: Embedding Benchmark (`run_embedding_benchmark.sh`)
+
+Benchmarks each embedding individually at native dimensionality (no PCA) across 3 CV types.
+
+```bash
+# Chain after generation completes
+sbatch --array=0-56%4 --dependency=afterok:$GEN slurm/run_embedding_benchmark.sh
+# Trains each embedding × 3 CVs = up to 57 runs, prints comparison table
+# Note: submit_pipeline.sh computes the correct --array range automatically;
+# these manual commands are shown for reference only.
+```
+
+### Step 2b: Best-per-Category Multi-Modal (`run_best_per_category.sh`)
+
+Retrains each embedding with PCA (default 80% variance), picks the best per category, then trains a multi-modal combo. Can run in parallel with Step 2a.
+
+```bash
+# Chain after generation completes (runs in parallel with 2a)
+sbatch --array=0-53%4 --dependency=afterok:$GEN slurm/run_best_per_category.sh
+# Note: submit_pipeline.sh computes the correct --array range automatically;
+# these manual commands are shown for reference only.
+
+# Or override PCA variance target
+BEST_CAT_PCA_VARIANCE=0.9 sbatch --array=0-53%4 --dependency=afterok:$GEN slurm/run_best_per_category.sh
+```
+
+Step 2b sub-steps:
+1. Train each embedding with PCA (80% variance) × 3 CVs (apples-to-apples comparison)
 2. Select best embedding per category (expression, protein_seq, text, ppi, go, kg) per CV
-3. Train multi-modal combo from the winners (each at PCA=64) × 3 CVs
+3. Train multi-modal combo from the winners (each at 80% variance PCA) × 3 CVs
 4. Print summary comparing single-embedding vs multi-modal
+
+### Configuration Structure
+
+All scripts source `slurm/config.sh` (shared environment, training hyperparameters, embedding catalog), then their own `.conf` file for job-specific settings. Per-job `.conf` files can override any shared value if independent tuning is needed.
+
+```
+config.sh (shared by all jobs + login-node orchestrator)
+├── Environment: TRANSFORMERS_NO_TF, module loads (SLURM-only)
+├── Python: PYTHON_PATH
+├── Directories: WORK_DIR, BASE_DIR, DATA_DIR, CACHE_DIR
+├── Data files: ESM_PATH, GO_PATH, GAF_PATH, SL_PATH
+├── Training: ENCODER_DIMS, MODEL_ARGS, EPOCHS, BATCH_SIZE, LR,
+│             WEIGHT_DECAY, DROPOUT, EVAL_INTERVAL, PATIENCE,
+│             NUM_FOLDS, POS_NEG_RATIO, SEED, WARMRESTART_T0/TMULT
+├── Regularization: L1_LAMBDAS, PD_EPSILON
+├── CV_TYPES[]
+├── ALL_EMBEDDINGS[]      — type:filename:display_name
+└── Compute-node header: cd, timestamp, GPU info (guarded by SLURM_JOB_ID)
+
+run_generate_embeddings.conf
+└── PRECOMPUTED_TYPES[]   — embedding types for generate_embeddings.py
+
+run_embedding_benchmark.conf (overrides only — shared defaults from config.sh)
+└── (empty by default; uncomment to override shared training params)
+
+run_best_per_category.conf (PCA + multi-modal combo)
+├── PCA_VARIANCE           — override via BEST_CAT_PCA_VARIANCE env var
+└── EMB_CATALOG[]         — type:filename:category (genept excluded)
+```
 
 ### Supported Embeddings
 
@@ -197,22 +250,23 @@ Phase 2 steps:
 | GO | `onto2vec` | 128 | Word2Vec on GO axiom sentences |
 | KG | `kg_complex` | 256 | ComplEx on STRING PPI + GO triples |
 
-All embedding data is auto-downloaded by `generate_embeddings.py` and cached in `data/embeddings_cache/`. Gene names are normalized (custom corrections + HGNC) and aligned to a canonical gene order from the ESM embeddings.
+All embedding data is auto-downloaded by `generate_embeddings.py` and cached in `data/embeddings_cache/`. Gene symbols from external sources are normalized (custom corrections + HGNC) and converted to NCBI Entrez Gene IDs. All `.pt` files use Entrez IDs as the canonical gene identifier.
 
 ### Monitor Jobs
 ```bash
-squeue -u $USER                              # Check job status
-tail -f siamese_emb_bench_*.out              # Watch Phase 1
-tail -f slurm/logs/best_per_category_*.out   # Watch Phase 2
+squeue -u $USER                                        # Check job status
+tail -f slurm/logs/siamese_gen_emb_*.out               # Watch Step 1 (generation)
+tail -f slurm/logs/bench_*.out                         # Watch Step 2a (benchmark)
+tail -f slurm/logs/bestcat_*.out                       # Watch Step 2b (best-per-category)
 ```
 
 ### Output
-Phase 1 results:
+Step 2a results:
 - `results/<embedding>_<cv>/results.json` — per-embedding per-CV metrics
 - `results/embedding_benchmark_summary.json` — comparison table
 
-Phase 2 results:
-- `results/pca64_<embedding>_<cv>/results.json` — PCA single-embedding results
+Step 2b results:
+- `results/pcavar0.8_<embedding>_<cv>/results.json` — PCA single-embedding results
 - `results/best_per_category.json` — winning embedding per category per CV
 - `results/best_cat_<combo>_<cv>/results.json` — multi-modal combo results
 
@@ -224,7 +278,7 @@ siamese_sl/
 ├── data_loader.py              # Unified embedding pipeline, CV splits
 ├── train.py                    # Training with cross-validation
 ├── predict.py                  # Prediction for gene pairs
-├── gene_name_utils.py          # Gene name normalization (custom corrections + HGNC)
+├── gene_name_utils.py          # Gene ID utilities: symbol ↔ Entrez ID mapping + HGNC normalization
 ├── generate_all_genes_esm.py   # ESM embedding generation with Pool PaRTI
 ├── generate_go_esm_embeddings.py # anc2vec GO embeddings
 ├── generate_embeddings.py      # 17 embedding types (auto-download + generate)
@@ -234,10 +288,14 @@ siamese_sl/
 ├── CLAUDE.md                   # Claude Code guidance
 ├── README.md
 ├── slurm/                      # SLURM job scripts
-│   ├── config.sh               # Shared config (hyperparams, embedding lists, combos)
+│   ├── config.sh               # Shared config (env, modules, paths, data files)
 │   ├── reset_env.sh            # Recreate Python venv from scratch
-│   ├── run_embedding_benchmark.sh  # Phase 1: generate all embeddings + benchmark
-│   ├── run_best_per_category.sh    # Phase 2: PCA retraining + multi-modal combo
+│   ├── run_generate_embeddings.sh   # Step 1: download + generate all .pt files
+│   ├── run_generate_embeddings.conf # ↳ embedding type lists
+│   ├── run_embedding_benchmark.sh   # Step 2a: benchmark at native dims (no PCA)
+│   ├── run_embedding_benchmark.conf # ↳ training hyperparams, embedding list
+│   ├── run_best_per_category.sh     # Step 2b: PCA + best-per-category + multi-modal
+│   ├── run_best_per_category.conf   # ↳ training hyperparams, PCA dim, catalog
 │   └── logs/                   # Job output logs
 └── results/                    # Training outputs
 ```

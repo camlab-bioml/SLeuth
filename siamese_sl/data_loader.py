@@ -2,15 +2,12 @@
 """
 Data loading utilities for Siamese SL prediction.
 
-Symbol-based version (no Entrez ID conversion). Use this with the old
-gene_name_utils.py that lacks symbol_to_entrez().
-
 Unified embedding pipeline (applied per modality, then concatenated):
-  1. Load .pt file, normalize gene symbols (custom corrections + HGNC), deduplicate
+  1. Load .pt file, normalize gene names (custom corrections + HGNC), deduplicate
   2. Impute NaN via Huber M-estimates (per-dimension, global)
   3. Robust PCA (optional): robpy ROBPCA (Hubert et al., 2005) with
-     fallback to iterative Huber M-estimator of scatter
-  4. Normalize: center per-column median, scale by global MAD
+     fallback to plain PCA (median centering + SVD) if robpy unavailable
+  4. Normalize: center global median, scale by global MAD
   5. Concatenate along feature axis
 
 A single embedding file goes through the same pipeline as multiple files —
@@ -23,6 +20,7 @@ Cross-validation uses SLMGAE benchmark's splitting code for consistency:
 """
 
 import sys
+import warnings
 from pathlib import Path
 
 # Add SLMGAE code directory to path for importing benchmark code
@@ -75,6 +73,68 @@ def _huber_location(x: torch.Tensor,
     return mu
 
 
+def _remove_singular_dims(embeddings: torch.Tensor,
+                          n_components: int) -> tuple:
+    """Remove rank-deficient embedding dimensions before ROBPCA.
+
+    ROBPCA's MCD step inverts the covariance matrix over embedding
+    dimensions. If some dimensions are linearly dependent, that covariance
+    is singular and MCD fails with LinAlgError.
+
+    This uses torch.linalg.svd to find the effective rank of the feature
+    space and projects to the full-rank subspace, so ROBPCA always sees
+    invertible covariance.
+
+    Args:
+        embeddings: (n_genes, dim) tensor.
+        n_components: Desired number of PCA components.
+
+    Returns:
+        (reduced_embeddings, n_components, V_pre):
+        - reduced_embeddings: (n_genes, rank) in full-rank feature subspace
+        - n_components: unchanged (guaranteed < rank)
+        - V_pre: (dim, rank) projection matrix, or None if already full rank
+
+    Raises:
+        ValueError: If effective rank <= n_components (ROBPCA can't reduce).
+    """
+    n_genes, dim = embeddings.shape
+
+    # Center before SVD: MCD inverts the covariance, which is computed from
+    # centered data. The rank of raw X can exceed the rank of (X - mean) when
+    # some features are constant (zero variance). Centering reveals the true
+    # variance rank that determines covariance singularity.
+    center = embeddings.mean(dim=0)
+    centered = embeddings - center
+
+    # Single SVD on centered data: derive both rank and projection.
+    # Vh: (dim, dim) since n_genes >> dim; S: (dim,) singular values.
+    _, S, Vh = torch.linalg.svd(centered, full_matrices=False)
+    tol = S[0] * max(n_genes, dim) * torch.finfo(embeddings.dtype).eps
+    rank = int((S > tol).sum().item())
+
+    if rank >= dim:
+        return embeddings, n_components, None
+
+    # V_pre rotates into the full-rank subspace. Apply to un-centered data
+    # so ROBPCA can do its own robust centering internally.
+    V_pre = Vh[:rank].T  # (dim, rank) — keep only full-rank directions
+
+    reduced = embeddings @ V_pre  # (n_genes, rank)
+
+    print(f"    Rank-deficient: {dim}d has effective rank {rank}, "
+          f"projecting to {rank}d full-rank subspace")
+
+    if rank <= n_components:
+        # Can't reduce further — ROBPCA needs n_components < dim.
+        # Raise so apply_pca's retry logic falls back to plain PCA.
+        raise ValueError(
+            f"Effective rank ({rank}) <= requested components "
+            f"({n_components}); cannot reduce further with ROBPCA")
+
+    return reduced, n_components, V_pre
+
+
 def _robpca(embeddings: torch.Tensor,
             n_components: int,
             alpha: float = 0.75) -> torch.Tensor:
@@ -92,6 +152,9 @@ def _robpca(embeddings: torch.Tensor,
       5. FastMCD on scores for final robust eigenvectors
       6. Project: Z = X @ V (V computed from centered data; projection is linear)
 
+    If the embedding dimensions are rank-deficient, a pre-conditioning SVD
+    projects to the full-rank subspace first so MCD can invert covariance.
+
     Args:
         embeddings: (n_genes, dim) tensor with no NaN.
         n_components: Number of components to keep.
@@ -105,19 +168,56 @@ def _robpca(embeddings: torch.Tensor,
     from robpy.pca import ROBPCA
 
     orig_dim = embeddings.shape[1]
-    X_np = embeddings.numpy().astype(np.float64)
+
+    # Pre-condition: remove singular embedding dimensions so MCD's
+    # covariance inversion doesn't hit LinAlgError.
+    reduced_emb, n_components, V_pre = _remove_singular_dims(
+        embeddings, n_components)
+
+    X_np = reduced_emb.numpy().astype(np.float64)
 
     pca = ROBPCA(n_components=n_components, alpha=alpha, random_seed=42)
-    pca.fit(X_np)
+    # Suppress sklearn 1.6 FutureWarning about _validate_data (fired inside
+    # robpy, not our code) and the sqrt RuntimeWarning from robpy's
+    # Mahalanobis distance when the covariance is near-singular.
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r".*_validate_data.*",
+            category=FutureWarning,
+        )
+        warnings.filterwarnings(
+            "ignore",
+            message=r".*invalid value encountered in sqrt.*",
+            category=RuntimeWarning,
+        )
+        pca.fit(X_np)
 
     # robpy's ROBPCA stores components_ as (features, n_components) — columns are
     # eigenvectors (unlike sklearn's (n_components, features) convention).
-    V = torch.from_numpy(pca.components_).float()  # (p, n_components)
-    projected = embeddings @ V  # (n, k)
+    V_rob = torch.from_numpy(pca.components_).float()  # (rank, n_components)
 
-    # Variance explained
+    # Near-singular covariance can make robpy's Mahalanobis sqrt produce NaN,
+    # which propagates into the components.  Detect and raise to trigger retry.
+    if torch.isnan(V_rob).any():
+        raise ValueError("ROBPCA produced NaN components (near-singular "
+                         "covariance)")
+
+    # Compose projections: original dim -> full-rank subspace -> n_components
+    if V_pre is not None:
+        V_final = V_pre @ V_rob  # (orig_dim, n_components)
+    else:
+        V_final = V_rob  # (orig_dim, n_components)
+
+    projected = embeddings @ V_final  # (n_genes, n_components)
+
+    if torch.isnan(projected).any():
+        raise ValueError("ROBPCA projection contains NaN")
+
+    # Variance explained (against original data)
+    X_orig_np = embeddings.numpy().astype(np.float64)
+    total_var = float(np.var(X_orig_np, axis=0, ddof=1).sum())
     evals = pca.explained_variance_
-    total_var = float(np.var(X_np, axis=0, ddof=1).sum())
     retained_var = float(np.sum(evals))
     pct = (retained_var / total_var * 100) if total_var > 0 else 0.0
 
@@ -127,85 +227,84 @@ def _robpca(embeddings: torch.Tensor,
     return projected
 
 
-def _robpca_fallback(embeddings: torch.Tensor,
-                     n_components: int,
-                     c: float = 1.345,
-                     max_iter: int = 20,
-                     tol: float = 1e-4) -> torch.Tensor:
-    """Fallback robust PCA via iterative Huber M-estimator (low-rank).
+def _pca_fallback(embeddings: torch.Tensor, n_components: int) -> torch.Tensor:
+    """Plain PCA fallback (median centering + truncated SVD).
 
-    Used when robpy is not available (Python < 3.10). Implements a low-rank
-    approximation of the Huber M-estimator of scatter with iterative
-    Mahalanobis reweighting, following the same spirit as ROBPCA: compute
-    Mahalanobis distances in the current PC subspace rather than inverting
-    the full p×p covariance.
-
-    At each iteration:
-      1. Project centered data into current PC subspace (n_components dims)
-      2. Compute Mahalanobis distance per gene using PC eigenvalues
-      3. Assign Huber weights: w_i = min(1, c·MAD(d) / d_i)
-      4. Re-estimate PCs via weighted SVD: SVD(diag(sqrt(w)) @ centered)
+    Used only when robpy's ROBPCA is unavailable or fails. This is a
+    standard PCA with median centering (robust to outliers in location
+    but not in scatter). Huber M-estimator is NOT used here — Huber is
+    reserved for imputation only.
 
     Args:
         embeddings: (n_genes, dim) tensor with no NaN.
-        n_components: Number of components to keep. No-op if >= current dim.
-        c: Huber tuning constant (1.345 = 95% efficiency at normal).
-        max_iter: Maximum iterations for the M-estimator loop.
-        tol: Convergence tolerance on relative change in singular values.
+        n_components: Number of components to keep.
 
     Returns:
         (n_genes, n_components) projected tensor with location preserved.
     """
     orig_dim = embeddings.shape[1]
-    n_genes = embeddings.shape[0]
 
-    # Robust center via Huber M-estimate
-    center = _huber_location(embeddings)
+    # Robust center via column medians (no Huber — simple and reliable)
+    center = torch.median(embeddings, dim=0).values
     centered = embeddings - center.unsqueeze(0)
 
-    # Initial SVD (unweighted) to bootstrap Mahalanobis distances
+    # Single truncated SVD
     U, S, V = torch.pca_lowrank(centered, q=n_components, center=False)
-    S_prev = S.clone()
-    weighted = centered  # fallback if max_iter=0
-    n_down = 0
-    iteration = -1  # will be incremented in loop
 
-    # Iterative Huber M-estimator of scatter (low-rank Mahalanobis)
-    for iteration in range(max_iter):
-        scores = centered @ V
-        eig_vals = torch.clamp((S**2) / n_genes, min=1e-12)
-        mahal = torch.sqrt((scores**2 / eig_vals.unsqueeze(0)).sum(dim=1))
-
-        mad_mahal = torch.clamp(1.4826 * torch.median(mahal), min=1e-8)
-        threshold = c * mad_mahal
-        weights = torch.where(mahal <= threshold, torch.ones_like(mahal),
-                              threshold / mahal)
-        n_down = (weights < 1.0).sum().item()
-
-        weighted = centered * weights.unsqueeze(1).sqrt()
-        U, S, V = torch.pca_lowrank(weighted, q=n_components, center=False)
-
-        rel_change = (S - S_prev).abs().sum() / (S_prev.abs().sum() + 1e-12)
-        S_prev = S.clone()
-        if rel_change < tol:
-            break
-
-    # V was computed from centered data (correct). Project original X @ V.
+    # Project uncentered data to preserve location (consistent with _robpca)
     projected = embeddings @ V
 
-    total_ss = (weighted**2).sum()
-    retained_ss = (S**2).sum()
+    # Variance explained against original centered data
+    total_ss = (centered**2).sum()
+    projected_scores = centered @ V
+    retained_ss = (projected_scores**2).sum()
     pct = (retained_ss / total_ss * 100).item()
 
-    print(f"    Robust PCA (fallback) {orig_dim}d -> {n_components}d "
-          f"({pct:.1f}% variance, {n_down} genes downweighted, "
-          f"{iteration + 1} iterations)")
+    print(f"    PCA (fallback) {orig_dim}d -> {n_components}d "
+          f"({pct:.1f}% variance)")
 
     return projected
 
 
+def _resolve_n_components(embeddings: torch.Tensor, target) -> int:
+    """Resolve PCA target to an integer number of components.
+
+    Args:
+        embeddings: (n_genes, dim) tensor with no NaN.
+        target: int (exact component count) or float in (0, 1) interpreted
+                as the fraction of variance to explain.
+
+    Returns:
+        Integer number of components.
+    """
+    if isinstance(target, int):
+        return target
+
+    # Float → variance fraction. Use SVD singular values to find k.
+    centered = embeddings - embeddings.mean(dim=0)
+    _, S, _ = torch.linalg.svd(centered, full_matrices=False)
+
+    # Squared singular values ∝ variance explained per component
+    var_explained = (S**2).numpy()
+    cumulative = np.cumsum(var_explained)
+    total = cumulative[-1]
+
+    if total == 0:
+        return embeddings.shape[1]
+
+    ratio = cumulative / total
+    # Smallest k where cumulative ratio >= target
+    k = int(np.searchsorted(ratio, target) + 1)
+    k = min(k, embeddings.shape[1])
+    k = max(k, 1)
+
+    print(f"    Variance target {target:.0%}: {k} components "
+          f"(explains {ratio[k-1]:.1%} of {embeddings.shape[1]}d)")
+    return k
+
+
 def apply_pca(embeddings: torch.Tensor,
-              n_components: int,
+              n_components,
               alpha: float = 0.75) -> torch.Tensor:
     """Robust PCA with location preservation.
 
@@ -216,9 +315,13 @@ def apply_pca(embeddings: torch.Tensor,
     projection pursuit + MCD on scores. This is the gold-standard robust
     PCA from the original authors.
 
-    Fallback: iterative Huber M-estimator of scatter with low-rank
-    Mahalanobis reweighting (used when robpy is not installed, e.g.,
-    Python < 3.10).
+    If ROBPCA fails (NaN from near-singular covariance), retries with
+    progressively more conservative alpha values (0.85, 0.90, 0.95) and
+    fewer components before falling back.
+
+    Fallback: plain PCA (median centering + truncated SVD). Only used
+    when robpy is not installed. Huber M-estimator is NOT used in PCA —
+    it is reserved for imputation only.
 
     Both methods compute V from centered data (correct for PCA), then
     project as Z = X @ V (a linear rotation). Feature scales
@@ -228,7 +331,8 @@ def apply_pca(embeddings: torch.Tensor,
 
     Args:
         embeddings: (n_genes, dim) tensor with no NaN.
-        n_components: Number of components to keep. No-op if >= current dim.
+        n_components: int (exact count) or float in (0, 1) for variance
+                      fraction. No-op if int >= current dim.
         alpha: ROBPCA coverage parameter in [0.5, 1.0]. Fraction of genes
                assumed clean. Lower = more robust. Default 0.75 tolerates
                up to 25% outlier genes.
@@ -236,28 +340,75 @@ def apply_pca(embeddings: torch.Tensor,
     Returns:
         (n_genes, n_components) projected tensor with location preserved.
     """
+    n_components = _resolve_n_components(embeddings, n_components)
+
     orig_dim = embeddings.shape[1]
     if n_components >= orig_dim:
         return embeddings
 
+    # --- Try robpy's ROBPCA (gold standard) ---
+    # Catch both ValueError (e.g. empty sample arrays in MCD) and
+    # LinAlgError (singular covariance) so the retry/fallback logic runs.
+    _robpca_errors = (ValueError, np.linalg.LinAlgError)
     try:
         return _robpca(embeddings, n_components, alpha=alpha)
     except ImportError:
-        print("    [robpy not available, using fallback Huber M-estimator]")
-        return _robpca_fallback(embeddings, n_components)
+        warnings.warn(
+            "robpy is not installed — falling back to plain PCA "
+            "(median centering + SVD). Install robpy for gold-standard "
+            "robust PCA: pip install robpy",
+            stacklevel=2,
+        )
+        return _pca_fallback(embeddings, n_components)
+    except _robpca_errors as e:
+        print(f"    [ROBPCA failed with alpha={alpha}: {e}]")
+
+    # --- Retry with more conservative alpha values ---
+    # Higher alpha = assumes more data is clean = more numerically stable
+    retry_alphas = [a for a in [0.85, 0.90, 0.95] if a > alpha]
+    for retry_alpha in retry_alphas:
+        try:
+            print(f"    Retrying ROBPCA with alpha={retry_alpha}...")
+            return _robpca(embeddings, n_components, alpha=retry_alpha)
+        except _robpca_errors as e:
+            print(f"    [ROBPCA failed with alpha={retry_alpha}: {e}]")
+
+    # --- Retry with fewer components ---
+    reduced = max(n_components // 2, min(n_components, 10))
+    if reduced < n_components:
+        try:
+            print(f"    Retrying ROBPCA with {reduced} components "
+                  f"(reduced from {n_components})...")
+            result = _robpca(embeddings, reduced, alpha=0.95)
+            warnings.warn(
+                f"ROBPCA succeeded only with {reduced} components "
+                f"(requested {n_components}). Results may have lower "
+                f"dimensionality than expected.",
+                stacklevel=2,
+            )
+            return result
+        except _robpca_errors as e:
+            print(f"    [ROBPCA failed with {reduced} components: {e}]")
+
+    # --- Last resort: plain PCA fallback ---
+    warnings.warn(
+        f"ROBPCA failed after all retries (alpha={alpha}, "
+        f"retried {retry_alphas}, reduced to {reduced} components). "
+        f"Falling back to plain PCA (median centering + SVD). "
+        f"Robust outlier handling is NOT active for this modality.",
+        stacklevel=2,
+    )
+    return _pca_fallback(embeddings, n_components)
 
 
 def normalize_modality(embeddings: torch.Tensor) -> torch.Tensor:
     """Normalize a single modality's embedding matrix.
 
-    1. Center each feature (column) by its median — removes DC offset.
-       The learnable input bias in the encoder recovers per-feature location.
-    2. Scale entire matrix by its global MAD — robust scale equalization
-       across modalities when concatenated.
-
-    Within-modality feature scale differences are preserved (no per-column
-    variance scaling). The L1 penalty on the first encoder layer handles
-    feature importance.
+    Treats the entire matrix as a flat vector: subtracts the global median
+    and divides by the global MAD (median absolute deviation). This puts
+    modalities on comparable scales while preserving per-feature magnitude
+    differences — if one embedding dimension has larger values than another,
+    that relationship is kept.
 
     MUST be called AFTER imputation (no NaN allowed).
 
@@ -265,14 +416,13 @@ def normalize_modality(embeddings: torch.Tensor) -> torch.Tensor:
         embeddings: (num_genes, dim) tensor with no NaN.
 
     Returns:
-        Normalized tensor (centered per column, globally MAD-scaled).
+        Normalized tensor (globally centered and scaled).
     """
-    # Center per feature (column median)
-    col_medians = torch.median(embeddings, dim=0).values  # (dim,)
-    centered = embeddings - col_medians.unsqueeze(0)
+    # Single median over all entries
+    global_median = torch.median(embeddings)
+    centered = embeddings - global_median
 
-    # Scale by global MAD (robust Frobenius-like normalization)
-    # 1.4826 makes MAD a consistent estimator of std at the normal distribution
+    # MAD over all entries; 1.4826 = consistent estimator of std at normal
     global_mad = 1.4826 * torch.median(torch.abs(centered))
     global_mad = torch.clamp(global_mad, min=1e-8)
 
@@ -353,13 +503,16 @@ def load_single_embedding(
 ) -> Tuple[torch.Tensor, List[str]]:
     """Load a single .pt embedding file and return (embeddings, gene_order).
 
-    Gene identifiers in gene_order are normalized gene symbols (custom
-    corrections + HGNC current symbol resolution). Deduplicates any
-    collisions after normalization.
+    Gene identifiers in gene_order are NCBI Entrez Gene ID strings.
+    If the file still contains gene symbols (e.g., freshly generated from
+    an external source), they are normalized and converted to Entrez IDs.
+
+    Deduplicates any collisions after conversion. Drops genes that cannot
+    be mapped to an Entrez ID.
 
     Returns:
-        (embeddings, gene_order) where gene_order is a list of normalized
-        gene symbol strings. Embeddings may contain NaN for missing genes.
+        (embeddings, gene_order) where gene_order is a list of Entrez ID
+        strings. Embeddings may contain NaN for missing genes.
     """
     data = torch.load(path, map_location="cpu", weights_only=False)
 
@@ -395,26 +548,50 @@ def load_single_embedding(
         else:
             raise ValueError("Raw tensor embeddings require gene_list_path")
 
-    # Normalize gene names (custom corrections + HGNC)
+    # Check if gene_order is already Entrez IDs (all-digit strings)
+    # or still gene symbols (needs conversion)
     mapper = get_mapper()
-    gene_order = mapper.gene_name_normalize_list(gene_order)
-
-    # Deduplicate after normalization
-    seen = {}
-    dups = []
-    keep = []
-    for i, g in enumerate(gene_order):
-        if g in seen:
-            dups.append((g, seen[g], i))
-        else:
-            seen[g] = i
+    if gene_order and not all(g.isdigit() for g in gene_order[:10]):
+        # Convert symbols -> Entrez IDs (normalize first)
+        new_order = []
+        keep = []
+        seen = set()
+        dropped = []
+        for i, sym in enumerate(gene_order):
+            eid = mapper.symbol_to_entrez(sym)
+            if eid is None:
+                dropped.append(sym)
+                continue
+            if eid in seen:
+                continue
+            seen.add(eid)
             keep.append(i)
-    if dups:
-        examples = "; ".join(f"{g} at rows {a},{b}" for g, a, b in dups[:5])
-        print(f"  Warning: {len(dups)} duplicate gene(s) after name "
-              f"normalization, keeping first: {examples}")
-        embeddings = embeddings[keep]
-        gene_order = [gene_order[i] for i in keep]
+            new_order.append(eid)
+
+        if dropped:
+            print(f"  Warning: {len(dropped)} genes unmapped to Entrez ID "
+                  f"(dropped): {dropped[:10]}")
+        if len(keep) < len(gene_order):
+            embeddings = embeddings[keep]
+        gene_order = new_order
+    else:
+        # Already Entrez IDs — just deduplicate
+        seen = {}
+        dups = []
+        keep = []
+        for i, gid in enumerate(gene_order):
+            if gid in seen:
+                dups.append((gid, seen[gid], i))
+            else:
+                seen[gid] = i
+                keep.append(i)
+        if dups:
+            examples = "; ".join(f"{g} at rows {a},{b}"
+                                 for g, a, b in dups[:5])
+            print(f"  Warning: {len(dups)} duplicate Entrez ID(s), "
+                  f"keeping first: {examples}")
+            embeddings = embeddings[keep]
+            gene_order = [gene_order[i] for i in keep]
 
     return embeddings, gene_order
 
@@ -422,7 +599,7 @@ def load_single_embedding(
 def load_multimodal_embeddings(
     paths: List[str],
     gene_list_path: Optional[str] = None,
-    pca_dims: Optional[List[int]] = None,
+    pca_dims: Optional[List[float]] = None,
 ) -> Tuple[torch.Tensor, Dict[str, int], Dict[int, str]]:
     """Load one or more embedding files, impute, normalize, and concatenate.
 
@@ -434,15 +611,16 @@ def load_multimodal_embeddings(
       2. Verify gene order matches across all modalities
       3. Impute NaN via Huber M-estimates (per modality, on raw values)
       4. Robust PCA (optional): reduce to per-modality target dimensions
-      5. Normalize: center per column median, scale by global MAD
+      5. Normalize: center global median, scale by global MAD
     Then concatenate along feature axis.
 
     Args:
         paths: List of .pt embedding file paths (one or more).
         gene_list_path: Optional gene list for raw tensor files.
-        pca_dims: Per-modality PCA target dimensions (one per path).
-            Each modality is reduced to its corresponding value.
-            Values >= original dim are no-ops. None to skip PCA.
+        pca_dims: Per-modality PCA targets (one per path). Each value is
+            either an int (exact component count) or a float in (0, 1) for
+            variance fraction. Int values >= original dim are no-ops.
+            None to skip PCA entirely.
 
     Returns:
         (concatenated_embeddings, gene_to_idx, idx_to_gene)
@@ -575,7 +753,7 @@ class SLDataManager:
         sl_pairs_path: str = "",
         gene_list_path: Optional[str] = None,
         seed: int = 42,
-        pca_dims: Optional[List[int]] = None,
+        pca_dims: Optional[List[float]] = None,
     ):
         """
         Args:
@@ -585,8 +763,9 @@ class SLDataManager:
             sl_pairs_path: Path to SL pairs file (gene1 TAB gene2 [TAB weight])
             gene_list_path: Optional path to gene list (for ordering)
             seed: Random seed for reproducibility
-            pca_dims: Per-modality PCA target dimensions (one per embedding
-                file). Applied after imputation, before normalization.
+            pca_dims: Per-modality PCA targets (one per embedding file).
+                Int for exact count, float in (0,1) for variance fraction.
+                Applied after imputation, before normalization.
         """
         if not embeddings_paths:
             raise ValueError("embeddings_paths must be a non-empty list")
@@ -626,6 +805,10 @@ class SLDataManager:
         """
         Load positive SL pairs from file.
 
+        The file contains Entrez Gene ID pairs (tab-separated).
+        If the file still contains gene symbols, they are normalized
+        and converted to Entrez IDs.
+
         Returns pairs as indices into the embedding matrix.
         Only includes pairs where BOTH genes have embeddings.
         """
@@ -639,8 +822,12 @@ class SLDataManager:
             for line in f:
                 parts = line.strip().split()
                 if len(parts) >= 2:
-                    g1, g2 = mapper.gene_name_normalize(
-                        parts[0]), mapper.gene_name_normalize(parts[1])
+                    g1, g2 = parts[0], parts[1]
+                    # If symbols (not digits), convert to Entrez IDs
+                    if not g1.isdigit():
+                        g1 = mapper.symbol_to_entrez(g1) or ""
+                    if not g2.isdigit():
+                        g2 = mapper.symbol_to_entrez(g2) or ""
 
                     # Skip if gene not in embeddings
                     if g1 not in self.gene_to_idx or g2 not in self.gene_to_idx:
@@ -650,7 +837,6 @@ class SLDataManager:
                     idx1, idx2 = self.gene_to_idx[g1], self.gene_to_idx[g2]
                     if idx1 > idx2:
                         idx1, idx2 = idx2, idx1
-                        g1, g2 = g2, g1
 
                     pair_key = (idx1, idx2)
                     if pair_key not in seen:

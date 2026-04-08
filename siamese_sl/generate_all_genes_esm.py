@@ -372,6 +372,13 @@ class ESMEmbeddingGenerator:
             if need_attn and "attentions" in results:
                 attentions = results["attentions"]
             else:
+                if need_attn and "attentions" not in results:
+                    if not hasattr(self, '_pooling_warning_shown'):
+                        import warnings
+                        warnings.warn(
+                            "ESM model did not return attentions; falling back to mean pooling"
+                        )
+                        self._pooling_warning_shown = True
                 attentions = None
 
         embeddings = {}
@@ -472,7 +479,8 @@ class ESMEmbeddingGenerator:
         embeddings = torch.from_numpy(embedding_matrix).float()
         return (
             embeddings,
-            embeddings,  # raw_embeddings = embeddings (no standardization)
+            embeddings.clone(
+            ),  # raw_embeddings = identical copy (no standardization applied here)
             gene_order,
             failed_genes,
         )
@@ -521,6 +529,7 @@ def main():
     reviewed_only = not args.include_unreviewed
 
     cache_dir = Path(args.cache_dir)
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
     # Get FASTA file (distinct cache per mode to avoid reviewed/unreviewed mismatch)
     if args.fasta:
@@ -546,6 +555,41 @@ def main():
 
     embeddings, raw_embeddings, gene_order, failed = generator.generate_embeddings(
         gene_seqs)
+
+    # Convert gene_order from symbols to Entrez IDs
+    # (UniProt FASTA uses gene symbols; our canonical ID is Entrez)
+    mapper = get_mapper()
+    keep_indices = []
+    entrez_order = []
+    entrez_failed = []
+    no_entrez = []
+    seen = set()
+    for i, sym in enumerate(gene_order):
+        eid = mapper.symbol_to_entrez(sym)
+        if eid is None or eid in seen:
+            if eid is None and sym not in failed:
+                # Mapped but no Entrez ID — not a generation failure
+                no_entrez.append(sym)
+            continue
+        seen.add(eid)
+        keep_indices.append(i)
+        entrez_order.append(eid)
+    for g in failed:
+        eid = mapper.symbol_to_entrez(g)
+        if eid:
+            entrez_failed.append(eid)
+
+    n_dropped = len(gene_order) - len(keep_indices)
+    if no_entrez:
+        print(f"  - No Entrez ID (dropped): {len(no_entrez)}")
+    if n_dropped > 0:
+        print(f"  Dropped {n_dropped} genes with no Entrez ID mapping")
+        keep_t = torch.tensor(keep_indices, dtype=torch.long)
+        embeddings = embeddings[keep_t]
+        raw_embeddings = raw_embeddings[keep_t]
+    gene_order = entrez_order
+    failed = entrez_failed
+    print(f"  Final gene_order: {len(gene_order)} Entrez IDs")
 
     # Save
     output_path = Path(args.output)

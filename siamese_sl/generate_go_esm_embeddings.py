@@ -73,7 +73,7 @@ def parse_gaf(gaf_path: str) -> dict:
     Field[2] = gene symbol, Field[4] = GO term ID.
     """
     gene_to_go = defaultdict(set)
-    not_excluded = 0
+    not_qualified_excluded = 0
 
     opener = gzip.open if gaf_path.endswith(".gz") else open
     mode = "rt" if gaf_path.endswith(".gz") else "r"
@@ -87,26 +87,31 @@ def parse_gaf(gaf_path: str) -> dict:
                 continue
             # GAF 2.2: field[3] is Qualifier — skip NOT annotations
             qualifier = fields[3]
-            if "NOT" in qualifier.upper():
-                not_excluded += 1
+            if any(q.strip() == "NOT" for q in qualifier.upper().split("|")):
+                not_qualified_excluded += 1
                 continue
             gene_symbol = fields[2]
             go_term = fields[4]
             gene_to_go[gene_symbol].add(go_term)
 
-    # Normalize gene names (custom corrections + HGNC)
+    # Normalize gene symbols and convert to Entrez IDs
     mapper = get_mapper()
-    normalized = defaultdict(set)
+    entrez_go = defaultdict(set)
+    n_unmapped = 0
     for gene, terms in gene_to_go.items():
-        normalized[mapper.gene_name_normalize(gene)].update(terms)
+        eid = mapper.symbol_to_entrez(gene)
+        if eid:
+            entrez_go[eid].update(terms)
+        else:
+            n_unmapped += 1
 
     print(f"Parsed GAF: {len(gene_to_go)} genes with GO annotations")
-    if len(normalized) != len(gene_to_go):
-        print(
-            f"  After gene name normalization: {len(normalized)} unique genes")
-    if not_excluded:
-        print(f"  Excluded {not_excluded} NOT-qualified annotations")
-    return dict(normalized)
+    print(f"  Mapped to Entrez IDs: {len(entrez_go)} genes")
+    if n_unmapped:
+        print(f"  Unmapped (no Entrez ID): {n_unmapped}")
+    if not_qualified_excluded:
+        print(f"  Excluded {not_qualified_excluded} NOT-qualified annotations")
+    return dict(entrez_go)
 
 
 def build_go_embeddings(gene_order: list, gene_to_go: dict,
@@ -152,17 +157,22 @@ def standardize(matrix: np.ndarray) -> np.ndarray:
     """
     Global per-feature z-score standardization, excluding NaN and zero-vector
     rows from mean/std computation. Applied at embedding generation time.
-    Note: data_loader.py does NOT re-standardize; it only does NaN Huber
-    M-estimator imputation at load time.
+    Note: data_loader.py loads raw_embeddings and applies its own
+    normalization pipeline (impute, optional PCA, MAD normalize). This
+    function is retained for potential direct consumers that bypass
+    data_loader.py.
+
+    Returns a new array; does not mutate the input.
     """
+    result = matrix.copy()
     # Exclude NaN rows (missing genes) first, then zero-vector rows
-    valid_mask = ~np.isnan(matrix).any(axis=1) & np.any(matrix != 0, axis=1)
+    valid_mask = ~np.isnan(result).any(axis=1) & np.any(result != 0, axis=1)
     if np.any(valid_mask):
-        valid = matrix[valid_mask]
+        valid = result[valid_mask]
         mean = valid.mean(axis=0, keepdims=True)
         std = valid.std(axis=0, keepdims=True) + 1e-8
-        matrix[valid_mask] = (valid - mean) / std
-    return matrix
+        result[valid_mask] = (valid - mean) / std
+    return result
 
 
 def main():
@@ -222,37 +232,32 @@ def main():
                                                        go_embeds)
     go_dim = go_matrix.shape[1]
 
-    # 5. Save raw GO before standardization
-    # (data_loader.py uses raw_embeddings and applies NaN Huber imputation at load time)
-    go_matrix_raw = go_matrix.copy()
-
-    # Global standardization of GO embeddings (optional preprocessing)
-    print(
-        "\nStandardizing GO embeddings (zero mean, unit variance per feature)..."
-    )
-    go_matrix = standardize(go_matrix)
-
     # 6. Build output embeddings
+    # No standardization in either branch: data_loader.py loads raw_embeddings
+    # and applies its own normalization pipeline (impute, optional PCA, MAD normalize).
     output_path = Path(args.output)
 
     if args.go_only:
-        # GO-only: 200-dim
+        # GO-only: 200-dim, no standardization (single-modal)
         out_tensor = torch.from_numpy(go_matrix).float()
-        raw_tensor = torch.from_numpy(go_matrix_raw).float()
+        # In go_only mode, no standardization applied, so raw = embeddings
+        # (torch.save deduplicates same-object references)
         print(f"\nGO-only shape: {out_tensor.shape}")
 
         torch.save(
             {
                 "embeddings": out_tensor,
-                "raw_embeddings": raw_tensor,
+                "raw_embeddings":
+                out_tensor,  # identical (no standardization in go_only mode)
                 "gene_order": gene_order,
                 "go_dim": go_dim,
-                "standardized": True,
+                "standardized": False,
                 "go_source": "anc2vec",
                 "go_pooling": "sum",
                 "num_genes": len(gene_order),
                 "num_genes_with_go": num_genes_with_go,
-            }, output_path)
+            },
+            output_path)
 
         print(f"\nSaved GO-only embeddings to {output_path}")
         print(f"  Shape: {out_tensor.shape}")
@@ -260,31 +265,33 @@ def main():
             f"  Genes with GO coverage: {num_genes_with_go}/{len(gene_order)}")
     else:
         # Combined [ESM ; GO]: 1480-dim
+        # No standardization — data_loader.py loads raw_embeddings and
+        # applies its own normalization pipeline (impute, optional PCA,
+        # MAD normalize).
         esm_matrix = esm_data["embeddings"].numpy()
         esm_dim = esm_matrix.shape[1]
         combined = np.concatenate([esm_matrix, go_matrix], axis=1)
 
-        esm_raw = esm_data.get("raw_embeddings",
-                               esm_data["embeddings"]).numpy()
-        raw_combined = np.concatenate([esm_raw, go_matrix_raw], axis=1)
         combined_tensor = torch.from_numpy(combined).float()
         print(f"\nCombined shape: {combined_tensor.shape}")
 
         torch.save(
             {
                 "embeddings": combined_tensor,
-                "raw_embeddings": torch.from_numpy(raw_combined).float(),
+                "raw_embeddings":
+                combined_tensor,  # identical (no standardization)
                 "gene_order": gene_order,
                 "component_dims": [esm_dim, go_dim],
                 "esm_dim": esm_dim,
                 "go_dim": go_dim,
                 "embedding_type": "esm2+go",
-                "standardized": True,
+                "standardized": False,
                 "go_source": "anc2vec",
                 "go_pooling": "sum",
                 "num_genes": len(gene_order),
                 "num_genes_with_go": num_genes_with_go,
-            }, output_path)
+            },
+            output_path)
 
         print(f"\nSaved combined embeddings to {output_path}")
         print(f"  Shape: {combined_tensor.shape}")

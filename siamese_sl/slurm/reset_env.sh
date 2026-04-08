@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=reset_env
 #SBATCH --partition=gpu_Prosmn
-#SBATCH --nodelist=gpu2
+#SBATCH --nodelist=gpu2,gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=16G
 #SBATCH --cpus-per-task=4
@@ -22,6 +22,7 @@
 
 set -e
 
+# Must match the parent directory of PYTHON_PATH in config.sh
 VENV_DIR="/ddn_exa/campbell/kaiyang/pytorch"
 
 echo "============================================================================"
@@ -100,7 +101,7 @@ pkgs = [
     'numpy', 'torch', 'scipy', 'sklearn', 'pandas', 'tqdm', 'requests',
     'networkx', 'esm', 'transformers', 'huggingface_hub', 'safetensors',
     'sentencepiece', 'sentence_transformers', 'gensim', 'obonet',
-    'node2vec', 'pykeen', 'tiktoken', 'google.protobuf', 'robpy',
+    'node2vec', 'pykeen', 'tiktoken', 'google.protobuf', 'mygene', 'robpy',
 ]
 ok = 0
 fail = 0

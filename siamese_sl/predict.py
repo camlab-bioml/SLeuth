@@ -2,11 +2,18 @@
 """
 Predict Synthetic Lethality for gene pairs using trained Siamese model.
 
+Accepts both gene symbols (BRCA1) and NCBI Entrez Gene IDs (672).
+Internally uses Entrez IDs; symbols are resolved via gene_name_utils.
+
 Usage:
-    # Predict for a single pair
+    # Predict for a single pair (by symbol or Entrez ID)
     python predict.py --model checkpoints/fold_0_best.pt \
                       --embeddings_paths ../data/all_genes_go.pt \
                       --gene1 BRCA1 --gene2 PARP1
+
+    python predict.py --model checkpoints/fold_0_best.pt \
+                      --embeddings_paths ../data/all_genes_go.pt \
+                      --gene1 672 --gene2 142
 
     # Predict for multiple pairs from file
     python predict.py --model checkpoints/fold_0_best.pt \
@@ -17,18 +24,14 @@ Usage:
     python predict.py --model checkpoints/fold_0_best.pt \
                       --embeddings_paths ../data/all_genes_go.pt \
                       --gene1 BRCA1 --top_k 100
-
-    # Multi-modal prediction (must match training modalities)
-    python predict.py --model checkpoints/fold_0_best.pt \
-                      --embeddings_paths ../data/all_genes_bioconceptvec.pt \
-                          ../data/all_genes_go.pt ../data/all_genes_node2vec_ppi.pt \
-                      --gene1 BRCA1 --gene2 PARP1
 """
 
 import json
 import argparse
 from pathlib import Path
 from typing import List, Tuple, Optional
+
+import warnings
 
 import torch
 import pandas as pd
@@ -100,6 +103,10 @@ def _infer_kernel_dims(state_dict: dict) -> dict:
         latent_key = _find_key(state_dict, ["encoder.net.3.linear.weight"])
         latent_dim = state_dict[latent_key].shape[0] // 2
         encoder_rank = 64
+        warnings.warn(
+            f"_infer_kernel_dims: cannot infer encoder_rank for '{encoder_type}' "
+            f"encoder; assuming {encoder_rank}. Pass --encoder_rank if incorrect."
+        )
     else:
         first_key = _find_key(state_dict, ["encoder.net.0.weight"])
         input_dim = state_dict[first_key].shape[1]
@@ -108,6 +115,10 @@ def _infer_kernel_dims(state_dict: dict) -> dict:
         latent_key = _find_key(state_dict, ["encoder.net.4.weight"])
         latent_dim = state_dict[latent_key].shape[0]
         encoder_rank = 64
+        warnings.warn(
+            f"_infer_kernel_dims: cannot infer encoder_rank for '{encoder_type}' "
+            f"encoder; assuming {encoder_rank}. Pass --encoder_rank if incorrect."
+        )
 
     return {
         "encoder_type": encoder_type,
@@ -170,6 +181,11 @@ def load_model(
         )
     elif model_type == "kernel":
         kernel_dims = _infer_kernel_dims(state_dict)
+
+        # Override encoder_rank from checkpoint config if available
+        config = checkpoint.get("config", {})
+        if "encoder_rank" in config:
+            kernel_dims["encoder_rank"] = config["encoder_rank"]
 
         hilbert_key = _find_key(state_dict, ["hilbert_map.linear_map.weight"])
         bilinear_rank = state_dict[hilbert_key].shape[0]
@@ -258,16 +274,31 @@ class SLPredictor:
         self.idx_to_gene = idx_to_gene
         self.device = device
 
-    def predict_pair(self, gene1: str, gene2: str) -> Optional[float]:
-        """Predict SL probability for a single gene pair."""
+    def _resolve_gene(self, gene: str) -> Optional[str]:
+        """Resolve a gene identifier (symbol or Entrez ID) to Entrez ID."""
+        # Already an Entrez ID?
+        if gene in self.gene_to_idx:
+            return gene
+        # Try as symbol -> Entrez ID
         mapper = get_mapper()
-        gene1 = mapper.gene_name_normalize(gene1)
-        gene2 = mapper.gene_name_normalize(gene2)
-        if gene1 not in self.gene_to_idx:
-            print(f"Warning: {gene1} not found in embeddings")
+        eid = mapper.symbol_to_entrez(gene)
+        if eid and eid in self.gene_to_idx:
+            return eid
+        return None
+
+    def predict_pair(self, gene1: str, gene2: str) -> Optional[float]:
+        """Predict SL probability for a single gene pair.
+
+        Accepts either gene symbols (BRCA1) or Entrez IDs (672).
+        """
+        orig1, orig2 = gene1, gene2
+        gene1 = self._resolve_gene(gene1)
+        gene2 = self._resolve_gene(gene2)
+        if gene1 is None:
+            print(f"Warning: {orig1} not found in embeddings")
             return None
-        if gene2 not in self.gene_to_idx:
-            print(f"Warning: {gene2} not found in embeddings")
+        if gene2 is None:
+            print(f"Warning: {orig2} not found in embeddings")
             return None
 
         idx1 = self.gene_to_idx[gene1]
@@ -287,19 +318,21 @@ class SLPredictor:
         pairs: List[Tuple[str, str]],
         batch_size: int = 256,
     ) -> List[dict]:
-        """Predict SL for multiple gene pairs (order-preserving)."""
-        mapper = get_mapper()
+        """Predict SL for multiple gene pairs (order-preserving).
+
+        Accepts gene symbols or Entrez IDs.
+        """
         results = [None] * len(pairs)
 
-        # Normalize gene names and partition into valid/invalid
+        # Resolve gene identifiers and partition into valid/invalid
         valid_indices = []  # indices into original pairs list
         valid_pairs = []
         for i, (g1, g2) in enumerate(pairs):
-            g1_norm = mapper.gene_name_normalize(g1)
-            g2_norm = mapper.gene_name_normalize(g2)
-            if g1_norm in self.gene_to_idx and g2_norm in self.gene_to_idx:
+            eid1 = self._resolve_gene(g1)
+            eid2 = self._resolve_gene(g2)
+            if eid1 is not None and eid2 is not None:
                 valid_indices.append(i)
-                valid_pairs.append((g1_norm, g2_norm))
+                valid_pairs.append((eid1, eid2))
             else:
                 results[i] = {
                     "gene1": g1,
@@ -342,14 +375,16 @@ class SLPredictor:
         top_k: int = 100,
         batch_size: int = 512,
     ) -> List[dict]:
-        """Find top SL partners for a given gene."""
-        mapper = get_mapper()
-        gene = mapper.gene_name_normalize(gene)
-        if gene not in self.gene_to_idx:
+        """Find top SL partners for a given gene.
+
+        Accepts gene symbol or Entrez ID.
+        """
+        resolved = self._resolve_gene(gene)
+        if resolved is None:
             print(f"Error: {gene} not found in embeddings")
             return []
 
-        gene_idx = self.gene_to_idx[gene]
+        gene_idx = self.gene_to_idx[resolved]
         gene_emb = self.embeddings[gene_idx].unsqueeze(0)
 
         all_scores = []
@@ -435,8 +470,14 @@ def main():
         type=int,
         nargs='+',
         default=None,
-        help=
-        "Per-modality PCA target dimensions (must match training --pca_dims)")
+        help="Per-modality PCA target dimensions (must match training). "
+        "Mutually exclusive with --pca_variance.")
+    parser.add_argument(
+        "--pca_variance",
+        type=float,
+        default=None,
+        help="Target variance fraction for PCA (0-1, must match training). "
+        "Mutually exclusive with --pca_dims.")
 
     # Runtime
     parser.add_argument("--device", type=str, default="cpu")
@@ -452,6 +493,14 @@ def main():
         args.embeddings_paths = [args.embeddings]
     if not args.embeddings_paths:
         parser.error("--embeddings_paths is required (or --embeddings)")
+
+    # PCA: --pca_variance is a convenience flag
+    if args.pca_variance is not None and args.pca_dims is not None:
+        parser.error("Use --pca_dims OR --pca_variance, not both")
+    if args.pca_variance is not None:
+        if not 0 < args.pca_variance < 1:
+            parser.error("--pca_variance must be in (0, 1)")
+        args.pca_dims = [args.pca_variance] * len(args.embeddings_paths)
 
     set_seed(args.seed)
 
@@ -469,6 +518,10 @@ def main():
     # Run predictions
     if args.top_k and args.gene1:
         # Find SL partners mode
+        if args.gene2:
+            print(
+                f"Warning: --gene2 '{args.gene2}' is ignored when --top_k is used"
+            )
         results = predictor.find_sl_partners(args.gene1, args.top_k,
                                              args.batch_size)
         df = pd.DataFrame(results)

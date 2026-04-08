@@ -9,13 +9,13 @@ then concatenate along the feature axis.
 Usage:
     # Single embedding
     python train.py --embeddings_paths ../data/all_genes_go.pt \
-                    --sl_path ../data/SL_Human_Approved.txt \
+                    --sl_path ../data/SL_SynLethDB_experimental.txt \
                     --output_dir results/siamese_go
 
     # Multi-modal (concatenated)
     python train.py --embeddings_paths ../data/all_genes_bioconceptvec.pt \
                         ../data/all_genes_go.pt ../data/all_genes_node2vec_ppi.pt \
-                    --sl_path ../data/SL_Human_Approved.txt \
+                    --sl_path ../data/SL_SynLethDB_experimental.txt \
                     --output_dir results/multi_bio_go_ppi
 """
 
@@ -217,7 +217,7 @@ class Trainer:
             return {
                 "auroc": float("nan"),
                 "aupr": float("nan"),
-                "f1": float("nan")
+                "f1": float("nan"),
             }
 
         # Compute metrics
@@ -282,7 +282,7 @@ class Trainer:
         patience_counter = 0
         best_metrics = {}
 
-        pbar = tqdm(range(self.args.epochs), desc=f"Fold {fold_idx}")
+        pbar = tqdm(range(self.args.epochs), desc=f"Fold {fold_idx + 1}")
         for epoch in pbar:
             # Train
             train_loss = self.train_epoch(model, train_loader, optimizer,
@@ -355,7 +355,7 @@ class Trainer:
         wt_sparsity = 100 * (1 - wt_nonzero / wt_total) if wt_total > 0 else 0
 
         print(
-            f"\nFold {fold_idx} Best (epoch {best_epoch}): "
+            f"\nFold {fold_idx + 1} Best (epoch {best_epoch}): "
             f"AUROC={best_metrics['auroc']:.4f}, AUPR={best_metrics['aupr']:.4f}, "
             f"F1={best_metrics['f1']:.4f}")
         print(
@@ -491,8 +491,18 @@ class Trainer:
             },
         }
 
+        def _nan_to_none(obj):
+            """Replace NaN with None for valid JSON serialization."""
+            if isinstance(obj, (float, np.floating)) and np.isnan(obj):
+                return None
+            if isinstance(obj, dict):
+                return {k: _nan_to_none(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_nan_to_none(v) for v in obj]
+            return obj
+
         with open(self.output_dir / "results.json", "w") as f:
-            json.dump(summary, f, indent=2)
+            json.dump(_nan_to_none(summary), f, indent=2)
 
         print(f"\nResults saved to {self.output_dir}")
 
@@ -519,7 +529,7 @@ def main():
                         "MAD-normalized before concatenation.")
     parser.add_argument("--sl_path",
                         type=str,
-                        default="../data/SL_Human_Approved.txt",
+                        default="../data/SL_SynLethDB_experimental.txt",
                         help="Path to SL pairs file")
     parser.add_argument("--gene_list_path",
                         type=str,
@@ -613,7 +623,15 @@ def main():
         default=None,
         help="Per-modality PCA target dimensions (one per embedding file, "
         "e.g., 50 64 64). Robust PCA after imputation, before normalization. "
-        "Values >= original dim are no-ops.")
+        "Values >= original dim are no-ops. Mutually exclusive with "
+        "--pca_variance.")
+    parser.add_argument(
+        "--pca_variance",
+        type=float,
+        default=None,
+        help="Target variance fraction for PCA (0-1, e.g., 0.8 for 80%%). "
+        "Applied to all modalities — each gets as many components as needed "
+        "to explain this fraction. Mutually exclusive with --pca_dims.")
     parser.add_argument(
         "--l1_lambdas",
         type=float,
@@ -621,10 +639,11 @@ def main():
         default=None,
         help="Per-layer L1 lambdas (one per weight matrix, e.g., 0.1 0.05)")
     parser.add_argument("--eval_interval", type=int, default=10)
-    parser.add_argument("--patience",
-                        type=int,
-                        default=20,
-                        help="Early stopping")
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=20,
+        help="Early stopping patience (in eval intervals, not epochs)")
     parser.add_argument(
         "--warmrestart_T0",
         type=int,
@@ -661,6 +680,15 @@ def main():
         args.embeddings_paths = [args.embeddings_path]
     if not args.embeddings_paths:
         parser.error("--embeddings_paths is required (or --embeddings_path)")
+
+    # PCA: --pca_variance is a convenience flag that sets pca_dims to a
+    # single float applied to all modalities.
+    if args.pca_variance is not None and args.pca_dims is not None:
+        parser.error("Use --pca_dims OR --pca_variance, not both")
+    if args.pca_variance is not None:
+        if not 0 < args.pca_variance < 1:
+            parser.error("--pca_variance must be in (0, 1)")
+        args.pca_dims = [args.pca_variance] * len(args.embeddings_paths)
 
     trainer = Trainer(args)
     trainer.train()

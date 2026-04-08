@@ -69,15 +69,6 @@ class LowRankLinear(nn.Module):
             out = out + self.bias
         return out
 
-    @property
-    def num_params(self) -> tuple:
-        """Number of parameters (low_rank, full) for comparison."""
-        in_f = self.V.in_features
-        out_f = self.U.out_features
-        full = in_f * out_f
-        low_rank = self.rank * (in_f + out_f)
-        return low_rank, full
-
 
 class BottleneckMLP(nn.Module):
     """
@@ -131,7 +122,7 @@ class EfficientEncoder(nn.Module):
     Efficient MLP encoder with configurable architecture.
 
     A learnable per-feature input bias is added before the first layer to
-    compensate for location information lost during normalization (column
+    compensate for location information lost during normalization (global
     median centering).
 
     Supports:
@@ -161,8 +152,7 @@ class EfficientEncoder(nn.Module):
         super().__init__()
         self.encoder_type = encoder_type
 
-        # Learnable per-feature input bias: compensates for location
-        # information lost when normalization centers each column by median.
+        # Learnable per-feature input bias.
         self.input_bias = nn.Parameter(torch.zeros(input_dim))
 
         if encoder_type == 'standard':
@@ -229,7 +219,7 @@ class SiameseEncoder(nn.Module):
         input + bias -> Linear(256)->LN->LReLU->Drop -> Linear(128)->LN->LReLU->Drop -> Linear(64)
 
     A learnable per-feature input bias is added before the first layer to
-    compensate for location information lost during normalization (column
+    compensate for location information lost during normalization (global
     median centering). The first Linear has bias=False and LayerNorm
     re-centers activations, so without this input bias the per-feature
     DC offset is irrecoverable.
@@ -253,8 +243,7 @@ class SiameseEncoder(nn.Module):
         if not encoder_dims:
             raise ValueError("encoder_dims must be non-empty")
 
-        # Learnable per-feature input bias: compensates for location
-        # information lost when normalization centers each column by median.
+        # Learnable per-feature input bias.
         # Initialized to zero (no shift); the model learns the optimal
         # per-feature offset during training.
         self.input_bias = nn.Parameter(torch.zeros(input_dim))
@@ -327,6 +316,10 @@ class SiameseSL(nn.Module):
             **kwargs,  # ignore hidden_dim/latent_dim etc. for backward compat
     ):
         super().__init__()
+        if kwargs:
+            import warnings
+            warnings.warn(
+                f"SiameseSL: ignoring unknown kwargs: {list(kwargs.keys())}")
 
         if encoder_dims is None:
             encoder_dims = [256, 128, 64]
@@ -413,6 +406,10 @@ class SiameseSLWithAttention(nn.Module):
     SL is a symmetric relationship: SL(A,B) = SL(B,A).
     """
 
+    # Note: With single-gene embeddings (sequence length 1), cross-attention
+    # degenerates to a linear transformation. This class is retained for
+    # experimentation but SiameseSL is the primary model.
+
     def __init__(
         self,
         input_dim: int = 1280,
@@ -423,8 +420,7 @@ class SiameseSLWithAttention(nn.Module):
     ):
         super().__init__()
 
-        # Learnable per-feature input bias: compensates for location
-        # information lost when normalization centers each column by median.
+        # Learnable per-feature input bias.
         self.input_bias = nn.Parameter(torch.zeros(input_dim))
 
         # Initial projection
@@ -632,16 +628,18 @@ class SiameseSLKernel(nn.Module):
     RKHS-based Siamese network for Synthetic Lethality prediction.
 
     This architecture explicitly maps embeddings to a Hilbert space H,
-    then computes similarity as inner products in H.
+    then computes symmetric features from the Hilbert-space representations
+    and feeds them through a predictor MLP.
 
     Pipeline:
-        x ──> Encoder ──> z ──> φ(z) ∈ H ──> ⟨φ(z1), φ(z2)⟩ ──> P(SL)
+        x ──> Encoder ──> z ──> φ(z) ∈ H ──> [sum, product, |diff|] ──> MLP ──> P(SL)
 
     The Hilbert space mapping φ combines:
     1. Learned linear projection (Mahalanobis-like metric)
     2. Random Fourier Features (Gaussian kernel approximation)
 
-    The kernel between two genes is: k(z1, z2) = ⟨φ(z1), φ(z2)⟩_H
+    Symmetric features [φ(z1)+φ(z2), φ(z1)*φ(z2), |φ(z1)-φ(z2)|] are
+    concatenated and passed through a predictor MLP to produce logits.
 
     References:
     - Rahimi & Recht (2007): Random Features for Large-Scale Kernel Machines
@@ -716,21 +714,6 @@ class SiameseSLKernel(nn.Module):
     def map_to_hilbert(self, z: torch.Tensor) -> torch.Tensor:
         """Map latent representation to Hilbert space."""
         return self.hilbert_map(z)
-
-    def kernel(self, phi1: torch.Tensor, phi2: torch.Tensor) -> torch.Tensor:
-        """
-        Compute kernel as inner product in Hilbert space.
-
-        k(x, y) = ⟨φ(x), φ(y)⟩_H
-
-        Args:
-            phi1: First Hilbert space vectors (batch, H_dim)
-            phi2: Second Hilbert space vectors (batch, H_dim)
-
-        Returns:
-            Kernel values (batch,)
-        """
-        return (phi1 * phi2).sum(dim=-1)
 
     def forward(
         self,
