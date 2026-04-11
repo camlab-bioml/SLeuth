@@ -59,6 +59,9 @@ import torch
 
 from gene_name_utils import get_mapper
 
+# Module-level gene list for NCBI sequence fetching (set by generate_embedding)
+_ACTIVE_GENE_LIST: Optional[List[str]] = None
+
 # =============================================================================
 # Embedding Registry
 # =============================================================================
@@ -204,7 +207,7 @@ EMBEDDING_REGISTRY = {
         "download_url":
         None,
         "notes":
-        "ESM C 600M; matches ESM2-3B quality. Requires esm>=3, GPU + UniProt sequences.",
+        "ESM C 600M via Synthyra/ESMplusplus_large; matches ESM2-3B quality. GPU + UniProt sequences.",
     },
     "scprint": {
         "dim":
@@ -427,21 +430,228 @@ _LOADERS = {
 # =============================================================================
 
 
-def _load_uniprot_sequences(cache_dir: str) -> Dict[str, str]:
-    """Load UniProt human proteome (reviewed/Swiss-Prot). Downloads if needed.
+def _load_protein_sequences(cache_dir: str,
+                            gene_ids: Optional[List[str]] = None,
+                            ) -> Dict[str, str]:
+    """Load protein sequences from NCBI via Entrez Gene ID → RefSeq protein.
 
-    Returns dict: gene_symbol -> protein_sequence (longest isoform per gene).
+    Uses NCBI elink (Gene → Protein RefSeq) + efetch to retrieve canonical
+    protein sequences. Results are cached as JSON (symbol → sequence) to
+    avoid repeated downloads and fragile FASTA header re-parsing.
+
+    Falls back to cached UniProt FASTA if NCBI fetch fails.
+
+    Args:
+        cache_dir: Directory for caching downloaded data.
+        gene_ids: List of Entrez Gene IDs. If None, loads from any existing
+                  ESM .pt file in the data directory.
+
+    Returns:
+        Dict mapping gene_symbol -> protein_sequence.
     """
-    # cache_dir must already exist (server does not allow mkdir)
-    fasta_path = os.path.join(cache_dir, "human_proteome_reviewed.fasta")
+    import json
+    import time
+    import xml.etree.ElementTree as ET
 
+    json_cache = os.path.join(cache_dir, "ncbi_gene_sequences.json")
+    fasta_cache = os.path.join(cache_dir, "ncbi_protein_sequences.fasta")
+
+    # Prefer JSON cache (symbol → sequence, no re-parsing needed)
+    if os.path.exists(json_cache) and gene_ids is None:
+        with open(json_cache) as f:
+            gene_seqs = json.load(f)
+        print(f"  Loaded {len(gene_seqs)} protein sequences from cache")
+        return gene_seqs
+
+    if gene_ids is None:
+        # Use module-level gene list if available
+        gene_ids = _ACTIVE_GENE_LIST
+
+    if gene_ids is None:
+        # Try to find gene list from existing ESM .pt file
+        for name in ["all_genes_esm.pt", "all_genes_esm1b.pt"]:
+            pt_path = os.path.join(os.path.dirname(cache_dir), name)
+            if os.path.exists(pt_path):
+                data = torch.load(pt_path, map_location="cpu",
+                                  weights_only=False)
+                gene_ids = list(data["gene_order"])
+                print(f"  Loaded {len(gene_ids)} gene IDs from {pt_path}")
+                break
+
+    if gene_ids is None:
+        print("  WARNING: No gene list available for NCBI fetch")
+        # Fall back to UniProt if available
+        return _load_uniprot_sequences_fallback(cache_dir)
+
+    # Get gene symbol mapping for return value
+    from gene_name_utils import get_mapper
+    mapper = get_mapper()
+
+    # Step 1: elink Gene ID → RefSeq protein UIDs
+    elink_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi"
+    efetch_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+
+    gene_to_protein: Dict[str, str] = {}
+    batch_size = 200
+
+    print(f"  Linking {len(gene_ids)} Gene IDs → RefSeq proteins...")
+    for i in range(0, len(gene_ids), batch_size):
+        batch = gene_ids[i:i + batch_size]
+        for attempt in range(3):
+            try:
+                import requests as _req
+                # Use separate id params (not comma-joined) so elink
+                # returns one LinkSet per gene instead of merging them.
+                params = [("dbfrom", "gene"), ("db", "protein"),
+                          ("linkname", "gene_protein_refseq"),
+                          ("retmode", "xml")]
+                params.extend(("id", gid) for gid in batch)
+                resp = _req.post(elink_url, data=params, timeout=60)
+                resp.raise_for_status()
+                root = ET.fromstring(resp.text)
+                for linkset in root.findall(".//LinkSet"):
+                    id_elem = linkset.find("IdList/Id")
+                    if id_elem is None:
+                        continue
+                    gid = id_elem.text
+                    link_db = linkset.find(".//LinkSetDb")
+                    if link_db is None:
+                        continue
+                    pids = [l.find("Id").text for l in link_db.findall("Link")
+                            if l.find("Id") is not None]
+                    if pids:
+                        gene_to_protein[gid] = pids[0]
+                break
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+                else:
+                    print(f"  elink batch failed: {e}")
+        time.sleep(0.35)
+
+    print(f"  Found RefSeq protein links for {len(gene_to_protein)}/{len(gene_ids)} genes")
+
+    # Step 2: Resolve GI numbers → accessions via esummary, so we can
+    # match FASTA headers (which use accessions, not GIs).
+    esummary_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
+    gi_to_acc: Dict[str, str] = {}
+    protein_gis = list(gene_to_protein.values())
+
+    print(f"  Resolving {len(protein_gis)} protein GIs → accessions...")
+    for i in range(0, len(protein_gis), batch_size):
+        batch = protein_gis[i:i + batch_size]
+        for attempt in range(3):
+            try:
+                import requests as _req
+                resp = _req.post(esummary_url, data={
+                    "db": "protein",
+                    "id": ",".join(batch),
+                    "retmode": "json",
+                }, timeout=60)
+                resp.raise_for_status()
+                data = resp.json()
+                for gi in batch:
+                    info = data.get("result", {}).get(gi, {})
+                    acc = info.get("accessionversion")
+                    if acc:
+                        gi_to_acc[gi] = acc
+                break
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+                else:
+                    print(f"  esummary batch failed: {e}")
+        time.sleep(0.35)
+
+    # Step 3: efetch protein sequences
+    all_fasta: List[str] = []
+
+    print(f"  Fetching {len(protein_gis)} protein sequences...")
+    for i in range(0, len(protein_gis), batch_size):
+        batch = protein_gis[i:i + batch_size]
+        for attempt in range(3):
+            try:
+                import requests as _req
+                resp = _req.post(efetch_url, data={
+                    "db": "protein", "id": ",".join(batch),
+                    "rettype": "fasta", "retmode": "text",
+                }, timeout=60)
+                resp.raise_for_status()
+                all_fasta.append(resp.text)
+                break
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+                else:
+                    print(f"  efetch batch failed: {e}")
+        time.sleep(0.35)
+
+    # Save raw FASTA cache
+    with open(fasta_cache, "w") as f:
+        f.write("\n".join(all_fasta))
+
+    # Build reverse map: accession (with/without version) → gene_id
+    # This handles both old-style ">gi|123|ref|NP_...| ..." and
+    # new-style ">NP_... ..." FASTA headers.
+    acc_to_gene: Dict[str, str] = {}
+    for gid, gi in gene_to_protein.items():
+        # Map by GI (for old-style headers)
+        acc_to_gene[gi] = gid
+        # Map by accession (for new-style headers)
+        acc = gi_to_acc.get(gi)
+        if acc:
+            acc_to_gene[acc] = gid
+            if "." in acc:
+                acc_to_gene[acc.split(".")[0]] = gid
+
+    gene_seqs: Dict[str, str] = {}
+    current_gene_id = None
+    current_seq: List[str] = []
+
+    def _save():
+        if current_gene_id and current_seq:
+            seq = "".join(current_seq)
+            # Map Entrez ID → symbol for backward compat with extract functions
+            sym = mapper.entrez_to_symbol(current_gene_id)
+            if sym:
+                if sym not in gene_seqs or len(seq) > len(gene_seqs[sym]):
+                    gene_seqs[sym] = seq
+
+    for fasta_text in all_fasta:
+        for line in fasta_text.strip().split("\n"):
+            line = line.strip()
+            if line.startswith(">"):
+                _save()
+                current_seq = []
+                current_gene_id = None
+                # Match header tokens against our accession/GI reverse map
+                tokens = line[1:].replace("|", " ").split()
+                for token in tokens:
+                    if token in acc_to_gene:
+                        current_gene_id = acc_to_gene[token]
+                        break
+                    base = token.split(".")[0]
+                    if base in acc_to_gene:
+                        current_gene_id = acc_to_gene[base]
+                        break
+            elif line:
+                current_seq.append(line)
+    _save()
+
+    # Save JSON cache (symbol → sequence) so future loads don't re-parse FASTA
+    with open(json_cache, "w") as f:
+        json.dump(gene_seqs, f)
+
+    print(f"  Loaded {len(gene_seqs)} protein sequences from NCBI")
+    return gene_seqs
+
+
+def _load_uniprot_sequences_fallback(cache_dir: str) -> Dict[str, str]:
+    """Fallback: load from cached UniProt FASTA if available."""
+    fasta_path = os.path.join(cache_dir, "human_proteome_reviewed.fasta")
     if not os.path.exists(fasta_path):
-        print("  Downloading UniProt human proteome (reviewed)...")
-        url = ("https://rest.uniprot.org/uniprotkb/stream?"
-               "format=fasta&query=reviewed:true+AND+organism_id:9606")
-        if not _run_download(url, fasta_path):
-            print("  ERROR: Could not download UniProt proteome")
-            return {}
+        print("  No cached UniProt FASTA available either")
+        return {}
 
     gene_seqs: Dict[str, str] = {}
     current_gene = None
@@ -472,8 +682,9 @@ def _load_uniprot_sequences(cache_dir: str) -> Dict[str, str]:
                 current_seq.append(line)
         _save()
 
-    print(f"  Loaded {len(gene_seqs)} protein sequences from UniProt")
+    print(f"  Loaded {len(gene_seqs)} protein sequences from UniProt (fallback)")
     return gene_seqs
+
 
 
 def _load_go_graph_and_annotations(
@@ -1210,7 +1421,7 @@ def extract_prot_t5(cache_dir: str) -> Optional[str]:
               "(pip install transformers sentencepiece)")
         return None
 
-    gene_seqs = _load_uniprot_sequences(cache_dir)
+    gene_seqs = _load_protein_sequences(cache_dir)
     if not gene_seqs:
         return None
 
@@ -1280,7 +1491,7 @@ def extract_esm1b(cache_dir: str) -> Optional[str]:
         print("  fair-esm not installed (pip install fair-esm)")
         return None
 
-    gene_seqs = _load_uniprot_sequences(cache_dir)
+    gene_seqs = _load_protein_sequences(cache_dir)
     if not gene_seqs:
         return None
 
@@ -1330,62 +1541,74 @@ def extract_esm1b(cache_dir: str) -> Optional[str]:
 def extract_esmc(cache_dir: str) -> Optional[str]:
     """Generate ESM Cambrian (600M) gene embeddings from UniProt sequences.
 
-    Uses the ESM C 600M model from EvolutionaryScale. Mean-pooled over
-    residue positions (excluding BOS/EOS tokens) to get 1152d per gene.
+    Uses Synthyra/ESMplusplus_large — a faithful HuggingFace-compatible
+    reimplementation of ESM-C 600M (same weights, same outputs). This avoids
+    the EvolutionaryScale ``esm`` package which conflicts with ``fair-esm``
+    (both claim the ``esm`` namespace).
 
-    Requires: esm>=3 (pip install esm), torch, GPU recommended.
+    Mean-pooled over residue positions (excluding BOS/EOS tokens) to get
+    1152d per gene.
 
-    NOTE: The EvolutionaryScale `esm` package (v3+) conflicts with Meta's
-    `fair-esm` package — both install into the `esm` namespace. They cannot
-    coexist. If you also need ESM-1b/ESM-2, use HuggingFace `transformers`
-    for those instead of `fair-esm`.
-
-    Processes one protein at a time (no batching) because ESM C has a known
-    bug where batched inference with padding produces different embeddings
-    than single-sequence inference (LayerNorm doesn't mask padded positions).
+    Requires: transformers, torch, GPU recommended.
     """
     try:
-        from esm.models.esmc import ESMC
-        from esm.sdk.api import ESMProtein, LogitsConfig
+        from transformers import AutoModelForMaskedLM
         import torch as _torch
     except ImportError:
-        print("  esm>=3 not installed (pip install esm)")
+        print("  transformers not installed (pip install transformers)")
         return None
 
-    gene_seqs = _load_uniprot_sequences(cache_dir)
+    gene_seqs = _load_protein_sequences(cache_dir)
     if not gene_seqs:
         return None
 
-    print("  Loading ESM C 600M model...")
+    print("  Loading ESM-C 600M via Synthyra/ESMplusplus_large...")
     try:
         device = _torch.device("cuda" if _torch.cuda.is_available() else "cpu")
-        model = ESMC.from_pretrained("esmc_600m").to(device)
+        model = AutoModelForMaskedLM.from_pretrained(
+            "Synthyra/ESMplusplus_large", trust_remote_code=True,
+        ).to(device)
         model.eval()
+        tokenizer = model.tokenizer
         print(f"  Device: {device}")
 
-        from tqdm import tqdm
+        # Use built-in embed_dataset for efficient batched mean pooling.
+        # Unlike the original EvolutionaryScale ESMC, ESM++ handles batching
+        # correctly so we don't need single-sequence processing.
+        genes = sorted(gene_seqs.keys())
+        sequences = [gene_seqs[g][:2048] for g in genes]
+
+        # Filter out empty sequences — embed_dataset's Pooler asserts
+        # non-zero attention masks and will crash on empty strings.
+        gene_seq_pairs = [(g, s) for g, s in zip(genes, sequences) if s]
+        if len(gene_seq_pairs) < len(genes):
+            print(f"  Skipped {len(genes) - len(gene_seq_pairs)} genes "
+                  "with empty sequences")
+        genes, sequences = zip(*gene_seq_pairs) if gene_seq_pairs else ([], [])
+
+        seq_to_emb = model.embed_dataset(
+            sequences=list(sequences),
+            tokenizer=tokenizer,
+            batch_size=8,
+            max_len=2048,
+            full_embeddings=False,
+            pooling_types=['mean'],
+            save=False,
+        )
+
+        if seq_to_emb is None:
+            print("  embed_dataset returned None")
+            return None
 
         emb_dict: Dict[str, np.ndarray] = {}
-        genes = sorted(gene_seqs.keys())
+        for gene, seq in zip(genes, sequences):
+            if seq in seq_to_emb:
+                emb = seq_to_emb[seq]
+                if isinstance(emb, _torch.Tensor):
+                    emb = emb.float().cpu().numpy()
+                emb_dict[gene.upper()] = emb.astype(np.float32)
 
-        for gene in tqdm(genes, desc="  ESM-C"):
-            seq = gene_seqs[gene][:2048]
-            protein = ESMProtein(sequence=seq)
-            protein_tensor = model.encode(protein)
-
-            with _torch.no_grad():
-                output = model.logits(
-                    protein_tensor,
-                    LogitsConfig(sequence=True, return_embeddings=True),
-                )
-
-            # output.embeddings: (1, seq_len+2, 1152)
-            # Tokens: [<cls>, ...residues..., <eos>]
-            # Mean-pool over residue positions only (skip cls at 0, eos at -1)
-            emb = output.embeddings[0, 1:-1].float().mean(0).cpu().numpy()
-            emb_dict[gene.upper()] = emb.astype(np.float32)
-
-        dim = emb_dict[genes[0].upper()].shape[0] if emb_dict else 1152
+        dim = next(iter(emb_dict.values())).shape[0] if emb_dict else 1152
         print(f"  Generated {len(emb_dict)} ESM-C embeddings ({dim}d)")
 
         output_path = os.path.join(cache_dir, "esmc_gene_embeddings.pkl")
@@ -1497,7 +1720,7 @@ def extract_seqvec(cache_dir: str) -> Optional[str]:
         print("  allennlp not installed (pip install allennlp)")
         return None
 
-    gene_seqs = _load_uniprot_sequences(cache_dir)
+    gene_seqs = _load_protein_sequences(cache_dir)
     if not gene_seqs:
         return None
 
@@ -2070,13 +2293,13 @@ def print_download_instructions(embedding_type: str, cache_dir: str) -> None:
         pkgs = {
             "prot_t5": "transformers sentencepiece",
             "esm1b": "fair-esm",
-            "esmc": "esm",
+            "esmc": "transformers",
             "seqvec": "allennlp",
         }
         print()
         print(f"  Requires: pip install {pkgs[embedding_type]}")
         print("  Also needs GPU for practical runtime (~20k proteins).")
-        print("  UniProt sequences are auto-downloaded on first run.")
+        print("  Protein sequences are fetched from NCBI on first run.")
     elif embedding_type == "text_embed":
         print()
         print("  Requires: pip install sentence-transformers")
@@ -2110,6 +2333,10 @@ def generate_embedding(
     precomputed_file: Optional[str] = None,
 ) -> None:
     """Load a precomputed embedding, align to *gene_list*, and save as ``.pt``."""
+    # Make gene_list available for NCBI sequence fetching
+    global _ACTIVE_GENE_LIST
+    _ACTIVE_GENE_LIST = gene_list
+
     info = EMBEDDING_REGISTRY[embedding_type]
 
     label = info["description"]

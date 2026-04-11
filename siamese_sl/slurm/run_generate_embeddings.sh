@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=siamese_gen_emb
 #SBATCH --partition=gpu_Prosmn
+#SBATCH --nodes=1
 #SBATCH --nodelist=gpu2,gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
@@ -42,9 +43,29 @@ echo "SIAMESE SL - EMBEDDING GENERATION"
 echo ""
 
 # ============================================================================
+# Clean previous generated .pt files (keep downloads in CACHE_DIR intact)
+# ============================================================================
+echo "--- Cleaning previous generated embeddings ---"
+CLEANED=0
+for entry in "${ALL_EMBEDDINGS[@]}"; do
+    IFS=':' read -r _etype efile _ename <<< "$entry"
+    if [ -f "$DATA_DIR/$efile" ]; then
+        rm -f "$DATA_DIR/$efile"
+        CLEANED=$((CLEANED + 1))
+    fi
+done
+# Also remove GO embeddings and NCBI JSON cache (force re-fetch with new gene list)
+rm -f "$GO_PATH"
+rm -f "$CACHE_DIR/ncbi_gene_sequences.json"
+rm -f "$CACHE_DIR/ncbi_protein_sequences.fasta"
+echo "  Removed $CLEANED old .pt files + NCBI sequence caches"
+echo ""
+
+# ============================================================================
 # STEP 0: Download SynLethDB SL pairs
 # ============================================================================
 echo "--- STEP 0: SynLethDB Experimental SL Pairs ---"
+sleep 10
 
 if [ -f "$SL_PATH" ]; then
     echo "Already exist, skipping"
@@ -62,48 +83,39 @@ echo ""
 # STEP 1: Generate ESM Embeddings
 # ============================================================================
 echo "--- STEP 1: ESM Embeddings ---"
+sleep 10
 
-if [ -f "$ESM_PATH" ]; then
-    echo "Already exist, skipping"
-    $PYTHON_PATH -c "
-import torch
-d = torch.load('$ESM_PATH', map_location='cpu', weights_only=False)
-e = d.get('raw_embeddings', d.get('embeddings'))
-print(f'  Shape: {e.shape}, Pooling: {d.get(\"pooling\", \"?\")}')" || true
-else
-    echo "Generating ESM embeddings with Pool PaRTI..."
-    $PYTHON_PATH generate_all_genes_esm.py \
-        --output "$ESM_PATH" \
-        --pooling pool_parti \
-        --batch_size 8 \
-        --device cuda:0
-    [ -f "$ESM_PATH" ] || { echo "FAILED"; exit 1; }
-fi
+echo "Generating ESM embeddings with Pool PaRTI..."
+$PYTHON_PATH generate_all_genes_esm.py \
+    --output "$ESM_PATH" \
+    --sl_path "$SL_PATH" \
+    --cache_dir "$CACHE_DIR" \
+    --pooling pool_parti \
+    --batch_size 8 \
+    --device cuda:0
+[ -f "$ESM_PATH" ] || { echo "FAILED"; exit 1; }
 echo ""
 
 # ============================================================================
 # STEP 2: Generate GO Embeddings
 # ============================================================================
 echo "--- STEP 2: GO Embeddings ---"
+sleep 10
 
-if [ -f "$GO_PATH" ]; then
-    echo "Already exist, skipping"
+if [ -f "$GAF_PATH" ]; then
+    # GO failure is tolerated (set +e) unlike ESM above, because ESM
+    # provides the master gene list that all other embedding steps depend
+    # on, whereas GO is just one optional modality.
+    set +e
+    $PYTHON_PATH generate_go_esm_embeddings.py \
+        --go_only \
+        --esm_embeddings "$ESM_PATH" \
+        --gaf "$GAF_PATH" \
+        --output "$GO_PATH"
+    set -e
+    [ -f "$GO_PATH" ] || echo "WARNING: GO generation failed, continuing"
 else
-    if [ -f "$GAF_PATH" ]; then
-        # GO failure is tolerated (set +e) unlike ESM above, because ESM
-        # provides the master gene list that all other embedding steps depend
-        # on, whereas GO is just one optional modality.
-        set +e
-        $PYTHON_PATH generate_go_esm_embeddings.py \
-            --go_only \
-            --esm_embeddings "$ESM_PATH" \
-            --gaf "$GAF_PATH" \
-            --output "$GO_PATH"
-        set -e
-        [ -f "$GO_PATH" ] || echo "WARNING: GO generation failed, continuing"
-    else
-        echo "WARNING: GAF not found at $GAF_PATH, skipping GO"
-    fi
+    echo "WARNING: GAF not found at $GAF_PATH, skipping GO"
 fi
 echo ""
 
@@ -111,22 +123,19 @@ echo ""
 # STEP 3: Generate All Precomputed Embeddings
 # ============================================================================
 echo "--- STEP 3: Generate All Embeddings ---"
+sleep 10
 
 for etype in "${PRECOMPUTED_TYPES[@]}"; do
     OUTPUT="$DATA_DIR/all_genes_${etype}.pt"
-    if [ -f "$OUTPUT" ]; then
-        echo "[$etype] Already exists"
-    else
-        echo "[$etype] Generating..."
-        set +e
-        $PYTHON_PATH generate_embeddings.py \
-            --type "$etype" \
-            --gene_list "$ESM_PATH" \
-            --output "$OUTPUT" \
-            --cache_dir "$CACHE_DIR"
-        set -e
-        [ -f "$OUTPUT" ] && echo "[$etype] Done" || echo "[$etype] Skipped (not available)"
-    fi
+    echo "[$etype] Generating..."
+    set +e
+    $PYTHON_PATH generate_embeddings.py \
+        --type "$etype" \
+        --gene_list "$ESM_PATH" \
+        --output "$OUTPUT" \
+        --cache_dir "$CACHE_DIR"
+    set -e
+    [ -f "$OUTPUT" ] && echo "[$etype] Done" || echo "[$etype] Skipped (not available)"
 done
 echo ""
 

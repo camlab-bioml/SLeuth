@@ -1,11 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=bestcat_combo
 #SBATCH --partition=gpu_Prosmn
+#SBATCH --nodes=1
 #SBATCH --nodelist=gpu2,gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=12
-#SBATCH --time=3-00:00:00
+#SBATCH --time=5-00:00:00
 #SBATCH --output=slurm/logs/bestcat_combo_%j.out
 #SBATCH --error=slurm/logs/bestcat_combo_%j.err
 
@@ -32,8 +33,18 @@ set -e
 source "$SLURM_SUBMIT_DIR/slurm/config.sh"
 source "$SLURM_SUBMIT_DIR/slurm/run_best_per_category.conf"
 
+sleep 10  # let disk settle after prior job
+
 echo "BEST-PER-CATEGORY — COMBO (Steps 2-4)"
 echo "  PCA variance target: $PCA_VARIANCE"
+echo ""
+
+# Clean previous combo results and selection JSON
+rm -f results/best_per_category.json
+for d in results/best_cat_*; do
+    [ -d "$d" ] && rm -rf "$d"
+done
+echo "Cleaned previous best-per-category results"
 echo ""
 
 # ============================================================================

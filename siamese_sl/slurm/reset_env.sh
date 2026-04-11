@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=reset_env
 #SBATCH --partition=gpu_Prosmn
+#SBATCH --nodes=1
 #SBATCH --nodelist=gpu2,gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=16G
@@ -120,6 +121,14 @@ print(f'{ok}/{ok+fail} packages OK')
 if fail > 0:
     print(f'WARNING: {fail} packages failed')
     exit(1)
+
+# Verify fair-esm (not EvolutionaryScale esm) is installed
+import esm
+assert hasattr(esm, 'pretrained'), (
+    'esm.pretrained missing — wrong package installed. '
+    'Need fair-esm, not esm (EvolutionaryScale).'
+)
+print(f'  esm.pretrained check:    OK (fair-esm)')
 
 # Pre-cache HGNC gene name database
 print()

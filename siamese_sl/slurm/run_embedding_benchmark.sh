@@ -1,11 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=bench_emb
 #SBATCH --partition=gpu_Prosmn
+#SBATCH --nodes=1
 #SBATCH --nodelist=gpu2,gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=12
-#SBATCH --time=1-00:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --output=slurm/logs/bench_%A_%a.out
 #SBATCH --error=slurm/logs/bench_%A_%a.err
 
@@ -35,6 +36,8 @@
 set -e
 source "$SLURM_SUBMIT_DIR/slurm/config.sh"
 source "$SLURM_SUBMIT_DIR/slurm/run_embedding_benchmark.conf"
+
+sleep 10  # let disk settle after prior job
 
 # ============================================================================
 # Validate: must be running as an array task
@@ -83,13 +86,13 @@ if [ ! -f "$EMB_PATH" ]; then
 fi
 
 # ============================================================================
-# Skip if already completed (resume-safe)
+# Clean previous results for this (embedding, CV) combination
 # ============================================================================
 OUTPUT_DIR="results/${ETYPE}_${CV}"
 
-if [ -f "$OUTPUT_DIR/results.json" ]; then
-    echo "SKIP: $OUTPUT_DIR/results.json already exists"
-    exit 0
+if [ -d "$OUTPUT_DIR" ]; then
+    echo "Cleaning previous results: $OUTPUT_DIR"
+    rm -rf "$OUTPUT_DIR"
 fi
 
 # ============================================================================

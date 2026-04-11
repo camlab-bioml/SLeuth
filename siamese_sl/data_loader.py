@@ -24,7 +24,7 @@ import warnings
 from pathlib import Path
 
 # Add SLMGAE code directory to path for importing benchmark code
-SLMGAE_CODE_DIR = Path(__file__).parent.parent / "code"
+SLMGAE_CODE_DIR = Path(__file__).parent.parent / "SLMGAE-in-pytorch"
 if str(SLMGAE_CODE_DIR) not in sys.path:
     sys.path.insert(0, str(SLMGAE_CODE_DIR))
 
@@ -303,6 +303,36 @@ def _resolve_n_components(embeddings: torch.Tensor, target) -> int:
     return k
 
 
+def _try_robpca(embeddings: torch.Tensor,
+                n_components: int,
+                alpha: float = 0.75) -> Optional[torch.Tensor]:
+    """Attempt ROBPCA with alpha retries. Returns None if all attempts fail."""
+    _robpca_errors = (ValueError, np.linalg.LinAlgError)
+    try:
+        return _robpca(embeddings, n_components, alpha=alpha)
+    except ImportError:
+        warnings.warn(
+            "robpy is not installed — falling back to plain PCA "
+            "(median centering + SVD). Install robpy for gold-standard "
+            "robust PCA: pip install robpy",
+            stacklevel=2,
+        )
+        return None
+    except _robpca_errors as e:
+        print(f"    [ROBPCA failed with alpha={alpha}: {e}]")
+
+    # Retry with more conservative alpha values
+    retry_alphas = [a for a in [0.85, 0.90, 0.95] if a > alpha]
+    for retry_alpha in retry_alphas:
+        try:
+            print(f"    Retrying ROBPCA with alpha={retry_alpha}...")
+            return _robpca(embeddings, n_components, alpha=retry_alpha)
+        except _robpca_errors as e:
+            print(f"    [ROBPCA failed with alpha={retry_alpha}: {e}]")
+
+    return None
+
+
 def apply_pca(embeddings: torch.Tensor,
               n_components,
               alpha: float = 0.75) -> torch.Tensor:
@@ -315,19 +345,11 @@ def apply_pca(embeddings: torch.Tensor,
     projection pursuit + MCD on scores. This is the gold-standard robust
     PCA from the original authors.
 
-    If ROBPCA fails (NaN from near-singular covariance), retries with
-    progressively more conservative alpha values (0.85, 0.90, 0.95) and
-    fewer components before falling back.
+    If ROBPCA fails, progressively lowers the variance target by 0.05
+    (fewer components = easier for ROBPCA) before falling back to plain PCA.
 
     Fallback: plain PCA (median centering + truncated SVD). Only used
-    when robpy is not installed. Huber M-estimator is NOT used in PCA —
-    it is reserved for imputation only.
-
-    Both methods compute V from centered data (correct for PCA), then
-    project as Z = X @ V (a linear rotation). Feature scales
-    are NOT equalized (no per-column standardization) — within-modality
-    scale differences are preserved, consistent with the normalization
-    design.
+    when robpy is not installed or all ROBPCA attempts fail.
 
     Args:
         embeddings: (n_genes, dim) tensor with no NaN.
@@ -340,65 +362,42 @@ def apply_pca(embeddings: torch.Tensor,
     Returns:
         (n_genes, n_components) projected tensor with location preserved.
     """
+    original_target = n_components
     n_components = _resolve_n_components(embeddings, n_components)
 
     orig_dim = embeddings.shape[1]
     if n_components >= orig_dim:
         return embeddings
 
-    # --- Try robpy's ROBPCA (gold standard) ---
-    # Catch both ValueError (e.g. empty sample arrays in MCD) and
-    # LinAlgError (singular covariance) so the retry/fallback logic runs.
-    _robpca_errors = (ValueError, np.linalg.LinAlgError)
-    try:
-        return _robpca(embeddings, n_components, alpha=alpha)
-    except ImportError:
-        warnings.warn(
-            "robpy is not installed — falling back to plain PCA "
-            "(median centering + SVD). Install robpy for gold-standard "
-            "robust PCA: pip install robpy",
-            stacklevel=2,
-        )
-        return _pca_fallback(embeddings, n_components)
-    except _robpca_errors as e:
-        print(f"    [ROBPCA failed with alpha={alpha}: {e}]")
+    # --- Try ROBPCA at the requested component count ---
+    result = _try_robpca(embeddings, n_components, alpha=alpha)
+    if result is not None:
+        return result
 
-    # --- Retry with more conservative alpha values ---
-    # Higher alpha = assumes more data is clean = more numerically stable
-    retry_alphas = [a for a in [0.85, 0.90, 0.95] if a > alpha]
-    for retry_alpha in retry_alphas:
-        try:
-            print(f"    Retrying ROBPCA with alpha={retry_alpha}...")
-            return _robpca(embeddings, n_components, alpha=retry_alpha)
-        except _robpca_errors as e:
-            print(f"    [ROBPCA failed with alpha={retry_alpha}: {e}]")
+    # --- Lower variance target by 0.05 and retry ---
+    # Only applies when the original target was a variance fraction.
+    if isinstance(original_target, float) and original_target > 0.5:
+        target = original_target - 0.05
+        while target >= 0.5:
+            reduced_k = _resolve_n_components(embeddings, target)
+            if reduced_k < n_components:
+                print(f"    Lowering variance target to {target:.0%} "
+                      f"({reduced_k} components)...")
+                result = _try_robpca(embeddings, reduced_k, alpha=alpha)
+                if result is not None:
+                    return result
+                n_components = reduced_k  # avoid re-trying same count
+            target -= 0.05
 
-    # --- Retry with fewer components ---
-    reduced = max(n_components // 2, min(n_components, 10))
-    if reduced < n_components:
-        try:
-            print(f"    Retrying ROBPCA with {reduced} components "
-                  f"(reduced from {n_components})...")
-            result = _robpca(embeddings, reduced, alpha=0.95)
-            warnings.warn(
-                f"ROBPCA succeeded only with {reduced} components "
-                f"(requested {n_components}). Results may have lower "
-                f"dimensionality than expected.",
-                stacklevel=2,
-            )
-            return result
-        except _robpca_errors as e:
-            print(f"    [ROBPCA failed with {reduced} components: {e}]")
-
-    # --- Last resort: plain PCA fallback ---
+    # --- Last resort: plain PCA fallback at original component count ---
+    final_k = _resolve_n_components(embeddings, original_target)
     warnings.warn(
-        f"ROBPCA failed after all retries (alpha={alpha}, "
-        f"retried {retry_alphas}, reduced to {reduced} components). "
+        f"ROBPCA failed after all retries. "
         f"Falling back to plain PCA (median centering + SVD). "
         f"Robust outlier handling is NOT active for this modality.",
         stacklevel=2,
     )
-    return _pca_fallback(embeddings, n_components)
+    return _pca_fallback(embeddings, final_k)
 
 
 def normalize_modality(embeddings: torch.Tensor) -> torch.Tensor:

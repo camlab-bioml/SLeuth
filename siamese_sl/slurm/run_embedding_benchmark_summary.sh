@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=bench_summary
 #SBATCH --partition=gpu_Prosmn
+#SBATCH --nodes=1
 #SBATCH --nodelist=gpu2,gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=8G
@@ -24,6 +25,11 @@
 set -e
 source "$SLURM_SUBMIT_DIR/slurm/config.sh"
 source "$SLURM_SUBMIT_DIR/slurm/run_embedding_benchmark.conf"
+
+sleep 10  # let disk settle after benchmark array completes
+
+# Clean previous summary
+rm -f results/embedding_benchmark_summary.json
 
 echo "EMBEDDING BENCHMARK — SUMMARY"
 echo ""

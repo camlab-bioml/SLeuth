@@ -1,35 +1,315 @@
+
+# ===========================================
+# LaTeX
+# ===========================================
+
+# Core LaTeX auxiliary files
+*.aux
+*.lof
+# *.log  # commented out — could catch training/experiment/SLURM logs
+*.lot
+*.fls
+# *.out  # commented out — needed for SLURM/seff output files
+*.toc
+*.fmt
+*.fot
+*.cb
+*.cb2
+.*.lb
+
+# Intermediate documents
+*.dvi
+*.xdv
+*-converted-to.*
+
+# These rules might exclude image files for figures etc.
+# *.ps
+# *.eps
+# *.pdf
+
+# latexmk
+*.fdb_latexmk
+*.synctex
+*.synctex(busy)
+*.synctex.gz
+*.synctex.gz(busy)
+*.pdfsync
+
+# LaTeX build output directory
+latexout/
+
+# LuaTeX
+*.run.xml
+
+# pdfTeX
+*.sta
+
+# beamer
+*.nav
+*.pre
+*.snm
+*.vrb
+
+# changes
+*.soc
+
+# comment
+*.cut
+
+# cprotect
+*.cpt
+
+# elsarticle (documentclass of Elsevier journals)
+*.spl
+
+# endnotes
+*.ent
+
+# fixme
+*.lox
+
+# feynmf/feynmp
+*.mf
+# *.mp  # commented out — could catch MPEG audio or other .mp files
+*.t[1-9]
+*.t[1-9][0-9]
+*.tfm
+
+# glossaries
+*.acn
+*.acr
+*.glg
+*.glo
+*.gls
+*.glsdefs
+*.lzo
+*.lzs
+
+# uncomment this for glossaries-extra (will ignore makeindex's style files!)
+# *.ist
+
+# gnuplottex
+*-gnuplottex-*
+
+# gregoriotex
+*.gaux
+*.gtex
+
+# htlatex
+*.4ct
+*.4tc
+*.idv
+*.lg
+*.trc
+*.xref
+
+# hyperref
+*.brf
+
+# knitr (keeping .tex files — remove concordance only if not needed)
+# *-concordance.tex
+
+# listings
+*.lol
+
+# luatexja-ruby
+*.ltjruby
+
+# makeidx
+*.idx
+*.ilg
+*.ind
+
+# minitoc
+*.maf
+*.mlf
+*.mlt
+*.mtc[0-9]*
+*.slf[0-9]*
+*.slt[0-9]*
+*.stc[0-9]*
+
+# minted
+_minted*
+*.pyg
+
+# morewrites
+*.mw
+
+# nomencl
+*.nlg
+*.nlo
+*.nls
+
+# pax
+*.pax
+
+# pdfpcnotes
+*.pdfpc
+
+# sagetex
+*.sagetex.sage
+*.sagetex.py
+*.sagetex.scmd
+
+# scrwfile
+*.wrt
+
+# sympy
+*.SymPy
+
+# pdfcomment
+*.upa
+*.upb
+
+# pythontex
+*.pytxcode
+pythontex-files-*/
+
+# tcolorbox
+*.listing
+
+# thmtools
+*.loe
+
+# TikZ & PGF
+*.figlist
+*.makefile
+
+# todonotes
+*.tdo
+
+# vhistory
+*.hst
+*.ver
+
+# easy-todo
+*.lod
+
+# xcolor
+*.xcp
+
+# xmpincl
+*.xmpi
+
+# xindy
+*.xdy
+
+# xypic precompiled matrices and outlines
+*.xyc
+*.xyd
+
+# endfloat
+*.ttt
+*.fff
+
+# Latexian
+TSWLatexianTemp*
+
+# Texpad
+.texpadtmp
+
+# LyX
+*.lyx~
+
+# Kile
+# *.backup  # commented out — could catch intentional backup files
+
+# gummi
+.*.swp
+
+# KBibTeX
+*~[0-9]*
+
+# TeXnicCenter
+*.tps
+
+# auto folder when using Emacs and AUCTeX
+/auto/*
+# *.el  # commented out — could catch Emacs Lisp source files
+
+# expex forward references with \gathertags
+*-tags.tex
+
+# Makeindex log files
+*.lpz
+
+# xwatermark package
+*.xwm
+
+# REVTeX puts footnotes in the bibliography by default, unless the nofootinbib
+# option is specified. Footnotes are the stored in a file with suffix Notes.bib.
+# Uncomment the next line to have this generated file ignored.
+#*Notes.bib
+
+# ===========================================
+# Operating Systems
+# ===========================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.tmp
+*.temp
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ===========================================
+# Python & Jupyter
+# ===========================================
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
 
 # Distribution / packaging
 .Python
-build/
+# build/  # commented out — could catch non-Python build directories
 develop-eggs/
 dist/
-downloads/
 eggs/
 .eggs/
-lib/
-lib64/
-parts/
 sdist/
-var/
 wheels/
-pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-PIPFILE.lock
+MANIFEST
 
-# PyInstaller
-*.manifest
-*.spec
+# PyInstaller (commented out — could conflict with RPM .spec or test .spec files)
+# *.manifest
+# *.spec
 
 # Installer logs
 pip-log.txt
@@ -48,48 +328,33 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
-
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
+cover/
 
 # Jupyter Notebook
 .ipynb_checkpoints
-*.ipynb
-
-# IPython
+*/.ipynb_checkpoints/*
 profile_default/
 ipython_config.py
 
 # pyenv
-.python-version
+# .python-version  # commented out — important for reproducibility
 
 # pipenv
-Pipfile.lock
+# Pipfile.lock  # commented out — lock files should be tracked for reproducibility
+
+# poetry
+# poetry.lock  # commented out — lock files should be tracked for reproducibility
+
+# uv
+# uv.lock  # commented out — lock files should be tracked for reproducibility
+
+# pdm
+.pdm.toml
 
 # PEP 582
 __pypackages__/
 
-# Celery stuff
+# Celery
 celerybeat-schedule
 celerybeat.pid
 
@@ -123,156 +388,294 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# IDEs
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# Conda
+.conda/
+
+# ===========================================
+# R & RStudio
+# ===========================================
+
+# History files
+.Rhistory
+.Rapp.history
+
+# Session Data files
+# .RData  # commented out — could contain important session data
+.RDataTmp
+
+# User-specific files
+.Ruserdata
+
+# Example code in package build process
+*-Ex.R
+
+# Output files from R CMD build
+/*.tar.gz
+
+# Output files from R CMD check
+/*.Rcheck/
+
+# RStudio files
+.Rproj.user/
+# *.Rproj  # commented out — researchers track these for reproducibility
+
+# produced vignettes
+vignettes/*.html
+vignettes/*.pdf
+
+# OAuth2 token, see https://github.com/hadley/httr/releases/tag/v0.3
+.httr-oauth
+
+# knitr and R markdown default cache directories
+# *_cache/  # commented out — too broad, catches any *_cache/ directory
+/cache/
+
+# Temporary files created by R markdown
+*.utf8.md
+*.knit.md
+
+# R Environment Variables
+# .Renviron  # commented out — could have project-specific non-secret settings
+
+# pkgdown site (commented out — conflicts with package docs/)
+# docs/
+
+# translation temp files
+po/*~
+
+# RStudio Connect folder
+rsconnect/
+
+# ===========================================
+# Quarto
+# ===========================================
+
+.quarto/
+_site/
+_book/
+
+# ===========================================
+# Git LFS (Large File Storage)
+# ===========================================
+
+# DO NOT ignore these LFS files - they should be committed:
+# .gitattributes  (defines which files are tracked by LFS)
+# .lfsconfig      (LFS configuration)
+# LFS pointer files are handled automatically
+
+# ===========================================
+# Data Science & ML
+# ===========================================
+
+# Large binary data files (consider using Git LFS for large ones)
+# Commented out — small datasets, gene lists, results tables should be trackable
+# *.tsv
+# *.h5
+# *.hdf5
+# *.parquet
+# *.feather
+# *.arrow
+# *.db
+# *.sqlite
+# *.sqlite3
+
+# Large model files (consider using Git LFS for these)
+*.model
+*.joblib
+# *.sav  # commented out — SPSS data files
+# *.bin  # commented out — could catch word2vec or custom binary data
+*.pt
+*.pth
+*.onnx
+*.safetensors
+# checkpoints/  # commented out — too broad
+
+# Hugging Face
+.huggingface/
+
+# Temporary/cache files
+.cache/
+# *_cache/  # commented out — too broad
+
+# Tensorboard logs (commented out — logs/ could catch other log directories)
+# logs/
+tensorboard/
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Weights & Biases
+wandb/
+
+# DVC
+.dvc/
+# .dvcignore  # commented out — should be tracked like .gitignore
+
+# ===========================================
+# IDEs & Editors
+# ===========================================
+
+# VSCode
 .vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+# Local History for Visual Studio Code
+.history/
+
+# Built Visual Studio Code Extensions
+*.vsix
+
+# PyCharm
 .idea/
+*.iws
+*.iml
+*.ipr
+
+# Sublime Text
+*.tmlanguage.cache
+*.tmPreferences.cache
+*.stTheme.cache
+*.sublime-workspace
+*.sublime-project
+
+# Vim
 *.swp
 *.swo
-*~
+.netrwhist
 
-# macOS
-.DS_Store
+# Emacs
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
 
-# Data files - binary formats
-*.h5
-*.hdf5
-*.pkl
-*.pickle
-*.npy
-*.npz
-*.parquet
-*.feather
-*.arrow
+# ===========================================
+# Cloud & Remote Development
+# ===========================================
 
-# Data files - text formats
-*.csv
-*.tsv
-*.dat
-*.tab
-# Exclude large data .txt files but allow config/doc .txt in root
-data/*.txt
-BC_data/*.txt
-ESM_embedding/*.txt
-outputs/*.txt
-outputs_Adamson/*.txt
-protein_seq/*.txt
-external\ data/*.txt
+# Google Colab
+# .config/  # commented out — too broad, catches project config directories
 
-# Data files - spreadsheets
-*.xlsx
-*.xls
-*.xlsm
-*.ods
+# Azure ML
+.azureml/
 
-# Data files - compressed
-*.zip
-*.tar
-*.tar.gz
-*.tgz
-# *.gz
-*.bz2
-*.xz
+# AWS
+.aws/
+
+# ===========================================
+# Miscellaneous
+# ===========================================
+
+# Logs (commented out — could catch training/experiment logs)
+# *.log
+# logs/
+
+# Runtime data
+pids
+*.pid
+*.pid.lock
+
+# Archives
 *.7z
+*.dmg
+# *.gz  # commented out — compressed data files common in bioinformatics
+*.iso
+*.jar
 *.rar
+# *.tar  # commented out — could contain distributable data
+# *.zip  # commented out — could contain distributable data
 
-# Large data directories
-BC_data/
-ESM_embedding/
-data/
-external data/
-protein_seq/
-outputs/
-outputs_Adamson/
+# ===========================================
+# Project-specific (uncomment as needed)
+# ===========================================
 
-# Bioinformatics formats
-*.fasta
-*.fa
-*.fastq
-*.fq
-*.bam
-*.sam
-*.vcf
-*.vcf.gz
-*.bed
-*.gff
-*.gtf
-*.maf
-*.wig
-*.bigwig
-*.bw
+# Secrets and credentials
+# secrets.json
+# credentials.json
+# config.json
+# .env.local
+# .env.production
 
-# Protein/sequence files
-*.pdb
-*.cif
-*.sdf
-*.mol2
+# Generated reports
+# reports/
+# output/
+# results/
 
-# Database files
-*.db
-*.sqlite
-*.sqlite3
+# Large datasets directories (uncomment if want to ignore data folders)
+# Note: CSV, JSON, PKL files are tracked by default for output data
+# data/
+# datasets/
+# raw_data/
+# input/
 
-# Model checkpoints
-checkpoints/
-saved_models/
-models/
-# *.pt
-# *.pth
-*.ckpt
-*.weights
-*.safetensors
+# If want to ignore specific large data formats, uncomment these:
+# *.csv
+*.json
+# *.pkl
+*.txt
+*.txt.gz
+*.pickle
+*.xlsx
+# *.xml
 
-# TensorFlow files
-*.pb
-*.meta
-*.index
-*.data-*
-events.out.tfevents.*
+# ===========================================
+# Git LFS Setup Guide (if using LFS)
+# ===========================================
+#
+# To track large files with Git LFS, run these commands:
+# git lfs track "*.h5"
+# git lfs track "*.hdf5"
+# git lfs track "*.parquet"
+# git lfs track "*.model"
+# git lfs track "*.bin"
+# git lfs track "data/*.csv"  # for large CSV files in data folder
+#
+# This creates/updates .gitattributes file which SHOULD be committed
 
-# Results and logs
-results/
-logs/
-runs/
-wandb/
-mlruns/
-tensorboard/
-lightning_logs/
+# ===========================================
+# AI Assistants — review periodically as tools evolve
+# ===========================================
 
-# Figures and plots
-*.png
-*.jpg
-*.jpeg
-*.pdf
-*.svg
-*.eps
-figures/
-plots/
+**/CLAUDE.md
+**/.claude/
+**/AGENTS.md
+**/.agents/
+**/GEMINI.md
+**/.gemini/
+**/COPILOT.md
+**/.copilot/
+**/.cursorrules
+**/.cursorignore
+**/.cursor/
+**/.aider*
+**/.codeium/
+**/.continue/
+**/.windsurf/
+**/.bolt/
+**/.v0/
 
-# SLURM output files
-*.out
-*.err
-slurm-*.out
-slurm_scripts/logs/*
-slurm_scripts_Adamson/logs/*
+# ===========================================
+# Project-specific exceptions
+# ===========================================
 
-# R data files
-*.RData
-*.Rds
-*.rda
+# Timestamp proofs
+!timestamps/
+!timestamps/**
 
-# JSON data files (keep config JSONs)
-data/*.json
-outputs/*.json
-results/*.json
-
-# Temporary files
-tmp/
-temp/
-cache/
-.cache/
-
-# Exceptions - keep these files
-!README.md
-!requirements.txt
-!setup.py
-!LICENSE.txt
+# GitHub workflows
+!.github/
+!.github/**
