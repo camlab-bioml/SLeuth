@@ -77,13 +77,11 @@ def _remove_singular_dims(embeddings: torch.Tensor,
                           n_components: int) -> tuple:
     """Remove rank-deficient embedding dimensions before ROBPCA.
 
-    ROBPCA's MCD step inverts the covariance matrix over embedding
-    dimensions. If some dimensions are linearly dependent, that covariance
-    is singular and MCD fails with LinAlgError.
-
-    This uses torch.linalg.svd to find the effective rank of the feature
-    space and projects to the full-rank subspace, so ROBPCA always sees
-    invertible covariance.
+    If some feature dimensions are linearly dependent, ROBPCA's h-subset
+    covariance is singular and step-4's rank check would silently reduce
+    k. This uses torch.linalg.svd to find the effective rank of the feature
+    space and projects to the full-rank subspace, so ROBPCA receives a
+    well-conditioned input at the requested component count.
 
     Args:
         embeddings: (n_genes, dim) tensor.
@@ -100,10 +98,9 @@ def _remove_singular_dims(embeddings: torch.Tensor,
     """
     n_genes, dim = embeddings.shape
 
-    # Center before SVD: MCD inverts the covariance, which is computed from
-    # centered data. The rank of raw X can exceed the rank of (X - mean) when
-    # some features are constant (zero variance). Centering reveals the true
-    # variance rank that determines covariance singularity.
+    # Center before SVD: covariance is computed from centered data, so the
+    # rank of (X - mean) — not raw X — determines covariance singularity.
+    # Raw rank can exceed centered rank when some features are constant.
     center = embeddings.mean(dim=0)
     centered = embeddings - center
 
@@ -140,20 +137,21 @@ def _robpca(embeddings: torch.Tensor,
             alpha: float = 0.75) -> torch.Tensor:
     """Robust PCA via robpy's ROBPCA (Hubert, Rousseeuw & Vanden Branden, 2005).
 
-    Uses projection pursuit + MCD on scores to find robust PC directions.
-    This is the gold-standard robust PCA implementation from the original
-    authors (University of Antwerp).
+    Runs ROBPCA with `final_MCD_step=False` (the optional step-5 FastMCD
+    refinement is disabled — see apply_pca docstring for the rationale).
+    Reference implementation: robpy (Leyder et al. 2024).
 
-    The algorithm:
+    The algorithm (steps as implemented):
       1. Classical PCA to reduce to rank-n subspace
       2. Stahel-Donoho outlyingness to identify h least-outlying genes
       3. Eigendecompose h-subset covariance → robust PC directions
-      4. Orthogonal distance filter → keep genes with small OD
-      5. FastMCD on scores for final robust eigenvectors
-      6. Project: Z = X @ V (V computed from centered data; projection is linear)
+      4. Orthogonal distance filter → keep genes with small OD → final
+         eigenvectors from cov of OD-filtered subset
+      5. Project: Z = X @ V (V computed from centered data; projection is linear)
 
     If the embedding dimensions are rank-deficient, a pre-conditioning SVD
-    projects to the full-rank subspace first so MCD can invert covariance.
+    projects to the full-rank subspace first so the h-subset covariance is
+    invertible.
 
     Args:
         embeddings: (n_genes, dim) tensor with no NaN.
@@ -163,65 +161,68 @@ def _robpca(embeddings: torch.Tensor,
                tolerates up to 25% outlier genes.
 
     Returns:
-        (n_genes, n_components) projected tensor with location preserved.
+        (n_genes, k_actual) projected tensor with location preserved.
+        k_actual <= n_components; it may be smaller if step 4's cov_v is
+        rank-deficient.
     """
     from robpy.pca import ROBPCA
 
     orig_dim = embeddings.shape[1]
 
-    # Pre-condition: remove singular embedding dimensions so MCD's
-    # covariance inversion doesn't hit LinAlgError.
+    # Pre-condition: project out rank-deficient dimensions so the h-subset
+    # covariance in step 3 is invertible.
     reduced_emb, n_components, V_pre = _remove_singular_dims(
         embeddings, n_components)
 
     X_np = reduced_emb.numpy().astype(np.float64)
 
-    pca = ROBPCA(n_components=n_components, alpha=alpha, random_seed=42)
-    # Suppress sklearn 1.6 FutureWarning about _validate_data (fired inside
-    # robpy, not our code) and the sqrt RuntimeWarning from robpy's
-    # Mahalanobis distance when the covariance is near-singular.
+    pca = ROBPCA(n_components=n_components, alpha=alpha,
+                 final_MCD_step=False, random_seed=42)
+    # Suppress sklearn 1.6 FutureWarning about _validate_data fired inside
+    # robpy's classical-PCA step (not our code).
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
             message=r".*_validate_data.*",
             category=FutureWarning,
         )
-        warnings.filterwarnings(
-            "ignore",
-            message=r".*invalid value encountered in sqrt.*",
-            category=RuntimeWarning,
-        )
         pca.fit(X_np)
 
-    # robpy's ROBPCA stores components_ as (features, n_components) — columns are
+    # robpy's ROBPCA stores components_ as (features, k) — columns are
     # eigenvectors (unlike sklearn's (n_components, features) convention).
-    V_rob = torch.from_numpy(pca.components_).float()  # (rank, n_components)
+    # Step 4 inside ROBPCA may reduce k below the requested count when
+    # cov_v is rank-deficient, so we read the actual value back from pca.
+    V_rob = torch.from_numpy(pca.components_).float()
+    k_actual = V_rob.shape[1]
+    if k_actual == 0:
+        raise ValueError("ROBPCA returned 0 components")
 
-    # Near-singular covariance can make robpy's Mahalanobis sqrt produce NaN,
-    # which propagates into the components.  Detect and raise to trigger retry.
+    # Defensive: a numerically degenerate h-subset or cov_v can produce NaN
+    # components. Detect and raise to trigger the alpha-retry path.
     if torch.isnan(V_rob).any():
         raise ValueError("ROBPCA produced NaN components (near-singular "
                          "covariance)")
 
-    # Compose projections: original dim -> full-rank subspace -> n_components
+    # Compose projections: original dim -> full-rank subspace -> k_actual
     if V_pre is not None:
-        V_final = V_pre @ V_rob  # (orig_dim, n_components)
+        V_final = V_pre @ V_rob  # (orig_dim, k_actual)
     else:
-        V_final = V_rob  # (orig_dim, n_components)
+        V_final = V_rob  # (orig_dim, k_actual)
 
-    projected = embeddings @ V_final  # (n_genes, n_components)
+    projected = embeddings @ V_final  # (n_genes, k_actual)
 
     if torch.isnan(projected).any():
         raise ValueError("ROBPCA projection contains NaN")
 
-    # Variance explained (against original data)
+    # Variance explained (against original data). explained_variance_ is set
+    # before step 4's rank reduction, so slice to k_actual to stay consistent.
     X_orig_np = embeddings.numpy().astype(np.float64)
     total_var = float(np.var(X_orig_np, axis=0, ddof=1).sum())
-    evals = pca.explained_variance_
+    evals = pca.explained_variance_[:k_actual]
     retained_var = float(np.sum(evals))
     pct = (retained_var / total_var * 100) if total_var > 0 else 0.0
 
-    print(f"    ROBPCA {orig_dim}d -> {n_components}d "
+    print(f"    ROBPCA {orig_dim}d -> {k_actual}d "
           f"({pct:.1f}% variance, alpha={alpha})")
 
     return projected
@@ -306,17 +307,17 @@ def _resolve_n_components(embeddings: torch.Tensor, target) -> int:
 def _try_robpca(embeddings: torch.Tensor,
                 n_components: int,
                 alpha: float = 0.75) -> Optional[torch.Tensor]:
-    """Attempt ROBPCA with alpha retries. Returns None if all attempts fail."""
+    """Attempt ROBPCA with alpha retries.
+
+    Returns None if all attempts fail (ImportError or all alphas raise).
+    apply_pca emits the single user-facing fallback warning; this helper
+    only prints per-alpha failure details.
+    """
     _robpca_errors = (ValueError, np.linalg.LinAlgError)
     try:
         return _robpca(embeddings, n_components, alpha=alpha)
     except ImportError:
-        warnings.warn(
-            "robpy is not installed — falling back to plain PCA "
-            "(median centering + SVD). Install robpy for gold-standard "
-            "robust PCA: pip install robpy",
-            stacklevel=2,
-        )
+        # robpy missing — apply_pca will warn and fall back.
         return None
     except _robpca_errors as e:
         print(f"    [ROBPCA failed with alpha={alpha}: {e}]")
@@ -341,12 +342,17 @@ def apply_pca(embeddings: torch.Tensor,
     Applied per modality AFTER imputation and BEFORE normalization so that
     PCA sees the natural variance structure of complete data.
 
-    Primary: robpy's ROBPCA (Hubert, Rousseeuw & Vanden Branden, 2005) —
-    projection pursuit + MCD on scores. This is the gold-standard robust
-    PCA from the original authors.
+    Primary: robpy's ROBPCA (Hubert, Rousseeuw & Vanden Branden, 2005),
+    through step 4 (Stahel-Donoho outlyingness → h-subset eigendecomp →
+    orthogonal-distance filter → final eigenvectors from cov of OD-filtered
+    subset). The optional final FastMCD step is disabled because it crashes
+    on high-k score matrices that are near the rank limit of the score
+    subspace — FastMCD's initial-subset loop exhausts all indices when the
+    covariance is near-singular. The step-4 OD-filtered eigenvectors are
+    already robust (step 5 is optional per Hubert et al. 2005).
 
-    If ROBPCA fails, progressively lowers the variance target by 0.05
-    (fewer components = easier for ROBPCA) before falling back to plain PCA.
+    If ROBPCA fails, retries with more conservative alpha values before
+    falling back to plain PCA.
 
     Fallback: plain PCA (median centering + truncated SVD). Only used
     when robpy is not installed or all ROBPCA attempts fail.
@@ -360,44 +366,29 @@ def apply_pca(embeddings: torch.Tensor,
                up to 25% outlier genes.
 
     Returns:
-        (n_genes, n_components) projected tensor with location preserved.
+        (n_genes, k) projected tensor with location preserved.
+        k <= resolved n_components (ROBPCA may reduce k when step-4 cov is
+        rank-deficient; the plain-PCA fallback returns exactly k).
     """
-    original_target = n_components
     n_components = _resolve_n_components(embeddings, n_components)
 
     orig_dim = embeddings.shape[1]
     if n_components >= orig_dim:
         return embeddings
 
-    # --- Try ROBPCA at the requested component count ---
+    # --- Try ROBPCA with alpha retries (handled inside _try_robpca) ---
     result = _try_robpca(embeddings, n_components, alpha=alpha)
     if result is not None:
         return result
 
-    # --- Lower variance target by 0.05 and retry ---
-    # Only applies when the original target was a variance fraction.
-    if isinstance(original_target, float) and original_target > 0.5:
-        target = original_target - 0.05
-        while target >= 0.5:
-            reduced_k = _resolve_n_components(embeddings, target)
-            if reduced_k < n_components:
-                print(f"    Lowering variance target to {target:.0%} "
-                      f"({reduced_k} components)...")
-                result = _try_robpca(embeddings, reduced_k, alpha=alpha)
-                if result is not None:
-                    return result
-                n_components = reduced_k  # avoid re-trying same count
-            target -= 0.05
-
-    # --- Last resort: plain PCA fallback at original component count ---
-    final_k = _resolve_n_components(embeddings, original_target)
+    # --- Last resort: plain PCA fallback at the resolved component count ---
     warnings.warn(
-        f"ROBPCA failed after all retries. "
-        f"Falling back to plain PCA (median centering + SVD). "
-        f"Robust outlier handling is NOT active for this modality.",
+        "ROBPCA unavailable or all retries failed. "
+        "Falling back to plain PCA (median centering + SVD). "
+        "Robust outlier handling is NOT active for this modality.",
         stacklevel=2,
     )
-    return _pca_fallback(embeddings, final_k)
+    return _pca_fallback(embeddings, n_components)
 
 
 def normalize_modality(embeddings: torch.Tensor) -> torch.Tensor:
