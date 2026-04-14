@@ -102,7 +102,7 @@ Gene embeddings come from various sources (one embedding type per benchmark run)
 | GO | GO (anc2vec) | 200 | Sum-pool GO term embeddings per gene |
 | GO | GO2Vec | 128 | Node2Vec on GO DAG, mean-pooled per gene |
 | GO | Onto2Vec | 128 | Word2Vec on GO axiom sentences |
-| KG | KG-ComplEx | 256 | ComplEx on STRING PPI + GO triples |
+| KG | KG-ComplEx | 512 | ComplEx on STRING PPI + GO triples (real ⊕ imag) |
 
 **Gene identifiers**: All `.pt` files use NCBI Entrez Gene IDs (strings) as the canonical identifier in `gene_order`. A static reference mapping is at `data/gene_id_mapping.tsv` (derived from HGNC). At runtime, `gene_name_utils.py` downloads the HGNC complete set for symbol/Entrez mapping.
 

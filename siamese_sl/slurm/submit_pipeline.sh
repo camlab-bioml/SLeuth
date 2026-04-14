@@ -4,7 +4,7 @@
 # ============================================================================
 # Submits the full Siamese SL training pipeline as SLURM jobs:
 #
-#   0. Environment reset          (optional — recreates Python venv)
+#   0. Environment reset          (default — recreates Python venv; skip with --skip-reset-env)
 #   1. Embedding generation      (single job, sequential steps)
 #   2. Embedding benchmark       (SLURM array job — one task per embedding×CV)
 #   3. Benchmark summary         (single job, collects results after array)
@@ -23,11 +23,11 @@
 # Usage:
 #   cd siamese_sl
 #
-#   # Full pipeline: generate → (benchmark + best-per-category) → summaries
+#   # Full pipeline: env reset → generate → (benchmark + best-per-category)
 #   ./slurm/submit_pipeline.sh
 #
-#   # Full pipeline with env reset first
-#   ./slurm/submit_pipeline.sh --reset-env
+#   # Skip the env reset (use existing venv as-is)
+#   ./slurm/submit_pipeline.sh --skip-reset-env
 #
 #   # Skip generation (embeddings already exist)
 #   ./slurm/submit_pipeline.sh --skip-generate
@@ -55,7 +55,7 @@ source "$SCRIPT_DIR/config.sh"
 # Parse command-line arguments
 # ============================================================================
 
-RESET_ENV=false
+RESET_ENV=true
 SKIP_GENERATE=false
 AFTER_JOB=""
 RUN_BENCHMARK=true
@@ -64,7 +64,9 @@ RUN_BEST_CAT=true
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --reset-env)
-            RESET_ENV=true; shift ;;
+            RESET_ENV=true; shift ;;       # retained for back-compat (now a no-op default)
+        --skip-reset-env)
+            RESET_ENV=false; shift ;;
         --skip-generate)
             SKIP_GENERATE=true; shift ;;
         --after)
@@ -142,7 +144,12 @@ if [ "$SKIP_GENERATE" = false ] && [ -z "$AFTER_JOB" ]; then
     GEN_DEP="--dependency=afterok:$GEN_JOB"
 elif [ -n "$AFTER_JOB" ]; then
     echo "--- Chaining after existing job $AFTER_JOB ---"
-    GEN_DEP="--dependency=afterok:$AFTER_JOB"
+    # SLURM `afterok:A:B` waits on both A and B — chain env reset too if set.
+    if [ -n "$ENV_DEP" ]; then
+        GEN_DEP="--dependency=afterok:$ENV_JOB:$AFTER_JOB"
+    else
+        GEN_DEP="--dependency=afterok:$AFTER_JOB"
+    fi
 else
     echo "--- Skipping generation (--skip-generate) ---"
     # If env reset was requested, training jobs still depend on it

@@ -23,7 +23,7 @@ Supported embedding types (precomputed, auto-download/extract):
   onto2vec      (128d)  Onto2Vec: Word2Vec on GO axioms
   mashup        (500d)  Mashup diffusion-based network embeddings
   ppi_raw       (1024d) PPI adjacency high-dim SVD baseline
-  kg_complex    (256d)  ComplEx KG embeddings (STRING + GO)
+  kg_complex    (512d)  ComplEx KG embeddings (STRING + GO)
 
 Already available via dedicated scripts:
   esm2        (1280d) generate_all_genes_esm.py
@@ -32,7 +32,7 @@ Already available via dedicated scripts:
 Usage:
     # Generate a single embedding type
     python generate_embeddings.py --type geneformer \\
-        --gene_list ../data/all_genes_esm.pt \\
+        --gene_list ../data/all_genes_esm2.pt \\
         --output ../data/all_genes_geneformer.pt
 
     # Concatenate multiple embeddings into one file
@@ -320,9 +320,9 @@ EMBEDDING_REGISTRY = {
     },
     "kg_complex": {
         "dim":
-        256,
+        512,
         "description":
-        "ComplEx KG embeddings from biological knowledge graph (256d)",
+        "ComplEx KG embeddings from biological knowledge graph (512d; real ⊕ imag)",
         "source":
         "STRING PPI + GO annotations via PyKEEN",
         "filename":
@@ -469,7 +469,7 @@ def _load_protein_sequences(cache_dir: str,
 
     if gene_ids is None:
         # Try to find gene list from existing ESM .pt file
-        for name in ["all_genes_esm.pt", "all_genes_esm1b.pt"]:
+        for name in ["all_genes_esm2.pt", "all_genes_esm1b.pt"]:
             pt_path = os.path.join(os.path.dirname(cache_dir), name)
             if os.path.exists(pt_path):
                 data = torch.load(pt_path, map_location="cpu",
@@ -2213,7 +2213,7 @@ def extract_kg_complex(cache_dir: str) -> Optional[str]:
             device="cuda" if _torch.cuda.is_available() else "cpu",
         )
 
-        # Extract gene entity embeddings (real part for ComplEx)
+        # Extract gene entity embeddings (real ⊕ imag for ComplEx)
         model = result.model
         entity_to_id = training_tf.entity_to_id
 
@@ -2223,9 +2223,11 @@ def extract_kg_complex(cache_dir: str) -> Optional[str]:
             if not entity.startswith("GO:"):
                 emb = model.entity_representations[0](_torch.tensor(
                     [eid])).detach().cpu().numpy().flatten()
-                # ComplEx has real + imaginary parts; take real part
-                real_dim = len(emb) // 2 if len(emb) > 256 else len(emb)
-                emb_dict[entity] = emb[:real_dim].astype(np.float32)
+                # ComplEx returns a complex-dtype array of length embedding_dim.
+                # Concatenate [real, imag] to preserve all learned information
+                # (final dim = 2 * embedding_dim = 512).
+                emb_dict[entity] = np.concatenate(
+                    [emb.real, emb.imag]).astype(np.float32)
 
         dim = len(next(iter(emb_dict.values())))
         print(f"  Generated {len(emb_dict)} KG-ComplEx embeddings ({dim}d)")
@@ -2563,7 +2565,7 @@ Examples
 --------
   # Generate geneformer embeddings aligned to the ESM gene list
   python generate_embeddings.py --type geneformer \\
-      --gene_list ../data/all_genes_esm.pt \\
+      --gene_list ../data/all_genes_esm2.pt \\
       --output ../data/all_genes_geneformer.pt
 
   # Concatenate geneformer + GO into a single file

@@ -8,7 +8,7 @@ Converts:
   3. data/SL_SynLethDB_experimental.txt  (SL pairs)
   4. data/SL_SynLethDB_experimental.sources.tsv  (SL pairs with sources)
   5. data/computational_pairs.txt  (gene pairs with header)
-  6. data/all_genes_esm.genes.txt  (gene list)
+  6. data/all_genes_esm2.genes.txt  (gene list)
   7. data/all_genes_*.pt  (18 .pt embedding files: gene_order + gene_to_idx)
   8. data/embeddings_esm2_t33_650M_UR50D_meanpool.pt  (legacy ESM)
 
@@ -335,7 +335,7 @@ def main():
     # 1. Gene lists
     convert_gene_list(DATA_DIR / "List_Proteins_in_SL.txt", mapper,
                       args.dry_run)
-    convert_gene_list(DATA_DIR / "all_genes_esm.genes.txt", mapper,
+    convert_gene_list(DATA_DIR / "all_genes_esm2.genes.txt", mapper,
                       args.dry_run)
 
     # 2. SL pair files (no header, tab-separated)

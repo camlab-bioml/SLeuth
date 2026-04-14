@@ -56,13 +56,31 @@ while IFS= read -r -d '' path; do
     TARGETS+=("$path")
 done < <(find "$SIAMESE_DIR" -type d -name __pycache__ -print0)
 
-# Optional: generated embeddings in data/
+# Optional: generated embeddings in data/ and computed caches in embeddings_cache/
 if [[ "$CLEAN_EMBEDDINGS" -eq 1 ]]; then
     DATA_DIR="$SIAMESE_DIR/../data"
     if [[ -d "$DATA_DIR" ]]; then
+        # Generated aligned embeddings: data/all_genes_*.pt
         while IFS= read -r -d '' path; do
             TARGETS+=("$path")
         done < <(find "$DATA_DIR" -maxdepth 1 -name 'all_genes_*.pt' -print0)
+        # Gene-list sidecars for those .pt files
+        while IFS= read -r -d '' path; do
+            TARGETS+=("$path")
+        done < <(find "$DATA_DIR" -maxdepth 1 -name 'all_genes_*.genes.txt' -print0)
+        # Computed embedding pickles (downloaded sources use different
+        # extensions: .gz, .obo, .tsv, .fasta, .txt, .pickle, .npz, .json).
+        if [[ -d "$DATA_DIR/embeddings_cache" ]]; then
+            while IFS= read -r -d '' path; do
+                TARGETS+=("$path")
+            done < <(find "$DATA_DIR/embeddings_cache" -maxdepth 1 \
+                -name '*_gene_embeddings.pkl' -print0)
+        fi
+        # NCBI per-run sequence caches (cheap to refetch, tied to gene list).
+        for f in ncbi_gene_sequences.json ncbi_protein_sequences.fasta; do
+            [[ -f "$DATA_DIR/embeddings_cache/$f" ]] && \
+                TARGETS+=("$DATA_DIR/embeddings_cache/$f")
+        done
     fi
 fi
 

@@ -87,7 +87,8 @@ echo "--- Installing packages ---"
     protobuf \
     tiktoken \
     mygene \
-    robpy
+    robpy \
+    einops
 echo ""
 
 # Step 6: Verify
@@ -103,6 +104,7 @@ pkgs = [
     'networkx', 'esm', 'transformers', 'huggingface_hub', 'safetensors',
     'sentencepiece', 'sentence_transformers', 'gensim', 'obonet',
     'node2vec', 'pykeen', 'tiktoken', 'google.protobuf', 'mygene', 'robpy',
+    'einops',
 ]
 ok = 0
 fail = 0

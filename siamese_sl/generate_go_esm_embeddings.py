@@ -12,13 +12,13 @@ anc2vec Reference:
 Usage:
     # GO-only (200-dim)
     python generate_go_esm_embeddings.py --go_only \
-        --esm_embeddings ../data/all_genes_esm.pt \
+        --esm_embeddings ../data/all_genes_esm2.pt \
         --gaf ../uniprot_GO/goa_human.gaf.gz \
         --output ../data/all_genes_go.pt
 
     # Combined ESM+GO (1480-dim)
     python generate_go_esm_embeddings.py \
-        --esm_embeddings ../data/all_genes_esm.pt \
+        --esm_embeddings ../data/all_genes_esm2.pt \
         --gaf ../uniprot_GO/goa_human.gaf.gz \
         --output ../data/all_genes_esm_go.pt
 """

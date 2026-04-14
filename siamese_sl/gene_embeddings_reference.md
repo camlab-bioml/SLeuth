@@ -730,7 +730,7 @@ entity_to_id = tf.entity_to_id
 brca1_id = entity_to_id["BRCA1"]
 brca1_emb = model.entity_representations[0](
     torch.tensor([brca1_id])
-).detach().numpy().flatten()  # shape: (256,) for ComplEx real part
+).detach().numpy().flatten()  # complex64 (256,) — concat [real, imag] → 512d real
 ```
 
 ---

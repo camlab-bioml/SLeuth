@@ -52,9 +52,9 @@ CACHE_DIR="$DATA_DIR/embeddings_cache"     # Downloaded raw data (STRING PPI, GO
 # ============================================================================
 # Type: string (absolute paths, derived from directories above)
 
-ESM_PATH="$DATA_DIR/all_genes_esm.pt"              # ESM-2 embeddings; also canonical gene list
+ESM_PATH="$DATA_DIR/all_genes_esm2.pt"              # ESM-2 embeddings; also canonical gene list
 GO_PATH="$DATA_DIR/all_genes_go.pt"                 # GO anc2vec embeddings (200d)
-GAF_PATH="$BASE_DIR/uniprot_GO/goa_human.gaf.gz"    # Gene Ontology annotation file (GAF 2.2)
+GAF_PATH="$CACHE_DIR/goa_human.gaf.gz"              # Gene Ontology annotation file (GAF 2.2); auto-downloaded by generate_embeddings.py
 SL_PATH="$DATA_DIR/SL_SynLethDB_experimental.txt"   # SynLethDB 2.0 experimental SL pairs
 
 # ============================================================================
@@ -97,17 +97,17 @@ CV_TYPES=("cv1" "cv2" "cv3")
 # ALL_EMBEDDINGS: complete list (type:filename:display_name)
 # Used by generation summary, embedding benchmark, and submit_pipeline.sh.
 ALL_EMBEDDINGS=(
-    "go:all_genes_go.pt:GO (anc2vec, 200d)"
-    "geneformer:all_genes_geneformer.pt:Geneformer"
+    "go:all_genes_go.pt:GO-anc2vec (200d)"
+    "geneformer:all_genes_geneformer.pt:Geneformer (auto)"
     "scgpt:all_genes_scgpt.pt:scGPT (512d)"
     "gene2vec:all_genes_gene2vec.pt:Gene2Vec (200d)"
-    "esm2:all_genes_esm.pt:ESM-2 (Pool PaRTI, 1280d)"
+    "esm2:all_genes_esm2.pt:ESM-2 (1280d)"
     "prot_t5:all_genes_prot_t5.pt:ProtT5-XL (1024d)"
     "esm1b:all_genes_esm1b.pt:ESM-1b (1280d)"
-    "esmc:all_genes_esmc.pt:ESM-C 600M (1152d)"
-    "scprint:all_genes_scprint.pt:scPRINT"
+    "esmc:all_genes_esmc.pt:ESM-C (1152d)"
+    "scprint:all_genes_scprint.pt:scPRINT (auto)"
     "seqvec:all_genes_seqvec.pt:SeqVec (1024d)"
-    "genept:all_genes_genept.pt:GenePT (Data Leakage) (1536d)"
+    "genept:all_genes_genept.pt:GenePT (1536d, SL data leakage)"
     "text_embed:all_genes_text_embed.pt:Text-mxbai (1024d)"
     "bioconceptvec:all_genes_bioconceptvec.pt:BioConceptVec (100d)"
     "node2vec_ppi:all_genes_node2vec_ppi.pt:Node2Vec PPI (128d)"
@@ -116,7 +116,7 @@ ALL_EMBEDDINGS=(
     "mashup:all_genes_mashup.pt:Mashup (500d)"
     "go2vec:all_genes_go2vec.pt:GO2Vec (128d)"
     "onto2vec:all_genes_onto2vec.pt:Onto2Vec (128d)"
-    "kg_complex:all_genes_kg_complex.pt:KG-ComplEx (256d)"
+    "kg_complex:all_genes_kg_complex.pt:KG-ComplEx (512d)"
 )
 
 # ============================================================================

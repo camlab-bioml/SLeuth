@@ -20,10 +20,10 @@ Requirements:
 
 Usage:
     # Basic usage with Pool PaRTI (default)
-    python generate_all_genes_esm.py --output ../data/all_genes_esm.pt
+    python generate_all_genes_esm.py --output ../data/all_genes_esm2.pt
 
     # Use mean pooling instead
-    python generate_all_genes_esm.py --pooling mean --output ../data/all_genes_esm.pt
+    python generate_all_genes_esm.py --pooling mean --output ../data/all_genes_esm2.pt
 
     # GPU with larger batch size
     python generate_all_genes_esm.py --device cuda:0 --batch_size 16 --output out.pt

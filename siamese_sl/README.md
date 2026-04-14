@@ -23,15 +23,15 @@ pip install torch fair-esm biopython requests tqdm networkx scikit-learn pandas 
 
 ```bash
 # Downloads UniProt human proteome and generates ESM embeddings with Pool PaRTI
-python generate_all_genes_esm.py --output ../data/all_genes_esm.pt --device cuda:0
+python generate_all_genes_esm.py --output ../data/all_genes_esm2.pt --device cuda:0
 
 # Or use mean pooling instead
-python generate_all_genes_esm.py --output ../data/all_genes_esm.pt --pooling mean
+python generate_all_genes_esm.py --output ../data/all_genes_esm2.pt --pooling mean
 ```
 
 This creates:
-- `../data/all_genes_esm.pt` - ESM embeddings (~20k genes, ~100MB)
-- `../data/all_genes_esm.genes.txt` - Gene list for reference
+- `../data/all_genes_esm2.pt` - ESM embeddings (~20k genes, ~100MB)
+- `../data/all_genes_esm2.genes.txt` - Gene list for reference
 
 **Pool PaRTI** (default) uses PageRank on attention matrices to weight residue importance,
 outperforming mean pooling especially for identifying functionally critical regions.
@@ -41,7 +41,7 @@ outperforming mean pooling especially for identifying functionally critical regi
 ```bash
 # Single modality (same pipeline as multi-modal: impute → normalize)
 python train.py \
-    --embeddings_paths ../data/all_genes_esm.pt \
+    --embeddings_paths ../data/all_genes_esm2.pt \
     --sl_path ../data/SL_SynLethDB_experimental.txt \
     --output_dir results/siamese_esm \
     --cv_type cv1 \
@@ -71,19 +71,19 @@ python train.py \
 # Single pair (accepts gene symbols or Entrez IDs)
 python predict.py \
     --model results/siamese_esm/checkpoints/fold_0_best.pt \
-    --embeddings_paths ../data/all_genes_esm.pt \
+    --embeddings_paths ../data/all_genes_esm2.pt \
     --gene1 BRCA1 --gene2 PARP1
 
 # Using Entrez IDs directly
 python predict.py \
     --model results/siamese_esm/checkpoints/fold_0_best.pt \
-    --embeddings_paths ../data/all_genes_esm.pt \
+    --embeddings_paths ../data/all_genes_esm2.pt \
     --gene1 672 --gene2 142
 
 # Find top SL partners for a gene
 python predict.py \
     --model results/siamese_esm/checkpoints/fold_0_best.pt \
-    --embeddings_paths ../data/all_genes_esm.pt \
+    --embeddings_paths ../data/all_genes_esm2.pt \
     --gene1 BRCA1 --top_k 100 --output brca1_partners.csv
 ```
 
@@ -248,7 +248,7 @@ run_best_per_category.conf (PCA + multi-modal combo)
 | GO | `go` | 200 | anc2vec GO term embeddings |
 | GO | `go2vec` | 128 | Node2Vec on GO DAG |
 | GO | `onto2vec` | 128 | Word2Vec on GO axiom sentences |
-| KG | `kg_complex` | 256 | ComplEx on STRING PPI + GO triples |
+| KG | `kg_complex` | 512 | ComplEx on STRING PPI + GO triples (real ⊕ imag) |
 
 All embedding data is auto-downloaded by `generate_embeddings.py` and cached in `data/embeddings_cache/`. Gene symbols from external sources are normalized (custom corrections + HGNC) and converted to NCBI Entrez Gene IDs. All `.pt` files use Entrez IDs as the canonical gene identifier.
 

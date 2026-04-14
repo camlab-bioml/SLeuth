@@ -54,11 +54,33 @@ for entry in "${ALL_EMBEDDINGS[@]}"; do
         CLEANED=$((CLEANED + 1))
     fi
 done
-# Also remove GO embeddings and NCBI JSON cache (force re-fetch with new gene list)
+# Remove known-legacy files that were renamed/removed from the catalog.
+# Safe to re-run: each rm is guarded by -f and the file list is fixed.
+LEGACY_FILES=(
+    "all_genes_esm.pt"          # renamed to all_genes_esm2.pt
+    "all_genes_esm.genes.txt"   # sidecar of the renamed ESM file
+)
+LEGACY_CLEANED=0
+for lf in "${LEGACY_FILES[@]}"; do
+    if [ -f "$DATA_DIR/$lf" ]; then
+        rm -f "$DATA_DIR/$lf"
+        echo "  Removed legacy: $lf"
+        LEGACY_CLEANED=$((LEGACY_CLEANED + 1))
+    fi
+done
+# Remove GO embeddings and NCBI JSON cache (force re-fetch with new gene list)
 rm -f "$GO_PATH"
 rm -f "$CACHE_DIR/ncbi_gene_sequences.json"
 rm -f "$CACHE_DIR/ncbi_protein_sequences.fasta"
-echo "  Removed $CLEANED old .pt files + NCBI sequence caches"
+
+# Remove computed per-embedding pickles so generate_embeddings.py regenerates
+# them with the current code (e.g., the ComplEx real⊕imag fix needs a rerun).
+# The ".pkl" extension is our convention for computed caches; downloaded
+# sources use their own extensions (.gz, .obo, .tsv, .fasta, .txt, .pickle,
+# .npz, .json) and are preserved.
+PKL_CLEANED=$(find "$CACHE_DIR" -maxdepth 1 -name '*_gene_embeddings.pkl' -print -delete 2>/dev/null | wc -l | tr -d ' ')
+
+echo "  Removed $CLEANED old .pt files, $LEGACY_CLEANED legacy files, $PKL_CLEANED cached .pkl embeddings, + NCBI sequence caches"
 echo ""
 
 # ============================================================================
@@ -102,6 +124,23 @@ echo ""
 echo "--- STEP 2: GO Embeddings ---"
 sleep 10
 
+# Auto-download human GAF if missing (same URL used by
+# generate_embeddings.py for kg_complex; we do it here so GO anc2vec
+# doesn't depend on kg_complex having run first).
+if [ ! -f "$GAF_PATH" ]; then
+    echo "  GAF not cached, downloading to $GAF_PATH..."
+    mkdir -p "$(dirname "$GAF_PATH")"
+    set +e
+    curl -fsSL --retry 3 -o "$GAF_PATH" \
+        "http://geneontology.org/gene-associations/goa_human.gaf.gz"
+    status=$?
+    set -e
+    if [ $status -ne 0 ]; then
+        rm -f "$GAF_PATH"  # clean up partial download
+        echo "WARNING: GAF download failed (exit $status), skipping GO"
+    fi
+fi
+
 if [ -f "$GAF_PATH" ]; then
     # GO failure is tolerated (set +e) unlike ESM above, because ESM
     # provides the master gene list that all other embedding steps depend
@@ -115,7 +154,7 @@ if [ -f "$GAF_PATH" ]; then
     set -e
     [ -f "$GO_PATH" ] || echo "WARNING: GO generation failed, continuing"
 else
-    echo "WARNING: GAF not found at $GAF_PATH, skipping GO"
+    echo "WARNING: GAF not present at $GAF_PATH, skipping GO"
 fi
 echo ""
 
