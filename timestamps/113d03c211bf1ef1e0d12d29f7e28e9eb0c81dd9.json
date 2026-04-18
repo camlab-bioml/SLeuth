@@ -1,0 +1,16 @@
+{
+  "commit": "113d03c211bf1ef1e0d12d29f7e28e9eb0c81dd9",
+  "sha256": "9eeb745894101fc7d771b28df6ef8c9cc862da145615827ff3da16ed6dedf5a6",
+  "created_at": "2026-04-18T18:29:05Z",
+  "proofs": {
+    "opentimestamps": {
+      "status": "pending",
+      "file": "113d03c211bf1ef1e0d12d29f7e28e9eb0c81dd9.txt.ots"
+    },
+    "sectigo": {
+      "status": "ok",
+      "tier": 1,
+      "file": "113d03c211bf1ef1e0d12d29f7e28e9eb0c81dd9_sectigo.tsr"
+    }
+  }
+}
