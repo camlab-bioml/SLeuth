@@ -4,7 +4,8 @@ Training script for Siamese SL prediction model.
 
 All embeddings go through the same pipeline per modality:
   impute (Huber) → robust PCA (optional) → normalize (median center, MAD scale)
-then concatenate along the feature axis.
+then concatenate along the feature axis, followed by an optional post-concat
+robust PCA + re-normalize (on by default, --no_post_pca to disable).
 
 Usage:
     # Single embedding
@@ -82,6 +83,7 @@ class Trainer:
             gene_list_path=args.gene_list_path,
             seed=args.seed,
             pca_dims=args.pca_dims,
+            post_pca=args.post_pca,
         )
 
         # Auto-detect input_dim from loaded embeddings
@@ -633,6 +635,26 @@ def main():
         "Applied to all modalities — each gets as many components as needed "
         "to explain this fraction. Mutually exclusive with --pca_dims.")
     parser.add_argument(
+        "--post_pca_variance",
+        type=float,
+        default=0.8,
+        help="Target variance fraction for a second ROBPCA applied to the "
+        "concatenated matrix AFTER per-modality normalization. "
+        "Default 0.8; pass --no_post_pca to disable, "
+        "or --post_pca_dim for an exact component count.")
+    parser.add_argument(
+        "--post_pca_dim",
+        type=int,
+        default=None,
+        help="Exact component count for the post-concat ROBPCA. "
+        "Overrides --post_pca_variance when set.")
+    parser.add_argument(
+        "--no_post_pca",
+        dest="no_post_pca",
+        action="store_true",
+        default=False,
+        help="Disable the post-concat ROBPCA step (on by default).")
+    parser.add_argument(
         "--l1_lambdas",
         type=float,
         nargs='+',
@@ -689,6 +711,21 @@ def main():
         if not 0 < args.pca_variance < 1:
             parser.error("--pca_variance must be in (0, 1)")
         args.pca_dims = [args.pca_variance] * len(args.embeddings_paths)
+
+    # Post-concat PCA: on by default (variance=0.8). Resolution order:
+    #   --no_post_pca  -> disabled (None)
+    #   --post_pca_dim -> exact component count
+    #   otherwise      -> --post_pca_variance (default 0.8)
+    if args.no_post_pca:
+        args.post_pca = None
+    elif args.post_pca_dim is not None:
+        if args.post_pca_dim <= 0:
+            parser.error("--post_pca_dim must be a positive integer")
+        args.post_pca = args.post_pca_dim
+    else:
+        if not 0 < args.post_pca_variance < 1:
+            parser.error("--post_pca_variance must be in (0, 1)")
+        args.post_pca = args.post_pca_variance
 
     trainer = Trainer(args)
     trainer.train()

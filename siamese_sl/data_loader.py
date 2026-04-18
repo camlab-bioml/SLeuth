@@ -9,6 +9,10 @@ Unified embedding pipeline (applied per modality, then concatenated):
      fallback to plain PCA (median centering + SVD) if robpy unavailable
   4. Normalize: center global median, scale by global MAD
   5. Concatenate along feature axis
+  6. Post-concat robust PCA (optional): same ROBPCA routine, applied once
+     to the concatenated tensor. Use for combos whose summed per-modality
+     dim is still too large (e.g., 1,000+d inputs to the first linear).
+  7. Re-normalize after post-PCA (global median/MAD) to restore ~unit scale.
 
 A single embedding file goes through the same pipeline as multiple files —
 there is no separate code path for single vs. multi-modal.
@@ -590,6 +594,7 @@ def load_multimodal_embeddings(
     paths: List[str],
     gene_list_path: Optional[str] = None,
     pca_dims: Optional[List[float]] = None,
+    post_pca: Optional[float] = None,
 ) -> Tuple[torch.Tensor, Dict[str, int], Dict[int, str]]:
     """Load one or more embedding files, impute, normalize, and concatenate.
 
@@ -604,6 +609,16 @@ def load_multimodal_embeddings(
       5. Normalize: center global median, scale by global MAD
     Then concatenate along feature axis.
 
+    Post-concat:
+      6. Robust PCA (optional): one more ROBPCA pass on the concatenated
+         matrix. Runs on the normalized feature space (cross-modality scales
+         already equalized), so ROBPCA's outlyingness step sees a
+         comparable-scale joint distribution.
+      7. Re-normalize after post-PCA (global median/MAD). Necessary because
+         PCA output has per-component variance structure (leading PCs carry
+         far more variance than trailing ones), which would violate the
+         roughly-unit-scale assumption of the first Linear's Kaiming init.
+
     Args:
         paths: List of .pt embedding file paths (one or more).
         gene_list_path: Optional gene list for raw tensor files.
@@ -611,6 +626,9 @@ def load_multimodal_embeddings(
             either an int (exact component count) or a float in (0, 1) for
             variance fraction. Int values >= original dim are no-ops.
             None to skip PCA entirely.
+        post_pca: Optional PCA target applied AFTER concatenation. Same
+            semantics as pca_dims entries (int for exact count, float in
+            (0, 1) for variance fraction). None to skip.
 
     Returns:
         (concatenated_embeddings, gene_to_idx, idx_to_gene)
@@ -668,6 +686,16 @@ def load_multimodal_embeddings(
     concatenated = torch.cat(all_normalized, dim=1)
     print(f"  -> Concatenated: {total_dim}d "
           f"({concatenated.shape[0]} genes)")
+
+    if post_pca is not None:
+        pre_dim = concatenated.shape[1]
+        concatenated = apply_pca(concatenated, post_pca)
+        # Re-normalize: PCA output has per-component variance structure
+        # (leading PCs >> trailing PCs). Match the per-modality pipeline
+        # order (PCA -> normalize) so the first Linear sees ~unit-scale input.
+        concatenated = normalize_modality(concatenated)
+        print(f"  -> Post-concat ROBPCA + renorm: {pre_dim}d -> "
+              f"{concatenated.shape[1]}d (target={post_pca})")
 
     gene_to_idx = {gene: idx for idx, gene in enumerate(canonical_gene_order)}
     idx_to_gene = {idx: gene for gene, idx in gene_to_idx.items()}
@@ -744,6 +772,7 @@ class SLDataManager:
         gene_list_path: Optional[str] = None,
         seed: int = 42,
         pca_dims: Optional[List[float]] = None,
+        post_pca: Optional[float] = None,
     ):
         """
         Args:
@@ -756,6 +785,9 @@ class SLDataManager:
             pca_dims: Per-modality PCA targets (one per embedding file).
                 Int for exact count, float in (0,1) for variance fraction.
                 Applied after imputation, before normalization.
+            post_pca: Optional post-concatenation ROBPCA target, applied
+                once to the concatenated matrix after normalization. Int
+                for exact count, float in (0,1) for variance fraction.
         """
         if not embeddings_paths:
             raise ValueError("embeddings_paths must be a non-empty list")
@@ -764,9 +796,10 @@ class SLDataManager:
         set_seed(seed)
 
         # Unified pipeline: impute → robust PCA (optional) → normalize → concat
+        # → optional post-concat ROBPCA
         self.embeddings, self.gene_to_idx, self.idx_to_gene = \
             load_multimodal_embeddings(embeddings_paths, gene_list_path,
-                                       pca_dims)
+                                       pca_dims, post_pca)
         self.num_genes = len(self.gene_to_idx)
 
         # Load SL pairs (positive pairs) - indices into full embedding matrix

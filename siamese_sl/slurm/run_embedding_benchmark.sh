@@ -128,7 +128,8 @@ $PYTHON_PATH train.py \
     --warmrestart_Tmult $WARMRESTART_TMULT \
     --num_folds $NUM_FOLDS \
     --pos_neg_ratio $POS_NEG_RATIO \
-    --seed $SEED
+    --seed $SEED \
+    --no_post_pca
 TRAIN_EXIT=$?
 set -e
 

@@ -106,7 +106,67 @@ Gene embeddings come from various sources (one embedding type per benchmark run)
 
 **Gene identifiers**: All `.pt` files use NCBI Entrez Gene IDs (strings) as the canonical identifier in `gene_order`. A static reference mapping is at `data/gene_id_mapping.tsv` (derived from HGNC). At runtime, `gene_name_utils.py` downloads the HGNC complete set for symbol/Entrez mapping.
 
-**Missing gene handling**: Genes without embeddings receive NaN vectors in the `.pt` file. At load time, `data_loader.py` replaces NaN with per-dimension Huber M-estimates across all non-missing genes (robust imputation, c=1.345 for 95% normal efficiency). No per-fold standardization is applied.
+**Missing gene handling**: Genes without embeddings receive NaN vectors in the `.pt` file. At load time, `data_loader.py` replaces NaN with per-dimension Huber M-estimates across all non-missing genes (robust imputation, c=1.345 for 95% normal efficiency). No per-fold standardization is applied. See the Preprocessing Pipeline below for the full sequence.
+
+---
+
+## Preprocessing Pipeline
+
+`load_multimodal_embeddings()` runs a single pipeline whether one `.pt` is passed or several — a single-modality run is just a one-element list. Steps 1–5 run **per modality**; step 6 runs once on the concatenated tensor.
+
+```
+  .pt file (raw d-dim) ──┐
+                         │  (per modality, in order)
+                         ▼
+    (1) Load + normalize gene names (HGNC corrections) + dedup collisions
+                         │
+                         ▼
+    (2) Impute NaN with per-dimension Huber M-estimate (c=1.345)
+                         │
+                         ▼
+    (3) Robust PCA (optional): ROBPCA on clean data, d → k_i
+                         │                    (target: --pca_variance or --pca_dims)
+                         ▼
+    (4) Normalize: (x − global_median) / (1.4826 · global_MAD)
+                         │
+                         └──► (5) Concatenate across modalities along feature axis
+                                                │
+                                                ▼
+                        (6) Post-concat Robust PCA (optional, on by default):
+                            ROBPCA once on the concatenated matrix, Σk_i → k_out
+                                                │
+                                                ▼
+                        (7) Re-normalize (global median / MAD) after post-PCA
+                                                │
+                                                ▼
+                                model input  (n_genes, k_out)
+```
+
+### Why two PCA stages
+
+**Per-modality PCA (step 3)** runs on raw, imputed-but-unnormalized features so ROBPCA sees each embedding's natural variance structure. Each modality is reduced independently (e.g., ESM-2 1280d → ~21d at 80% variance; Geneformer → ~453d). Normalization (step 4) happens *after* per-modality PCA so cross-modality scales are equalized on the reduced representation.
+
+**Post-concat PCA (step 6)** runs on the already-normalized, concatenated matrix. Motivation: multi-modal combos can still leave 1,000+d inputs after step 5 (summed across modalities), which blows up the first-layer parameter count. A single ROBPCA pass on the joint normalized space compresses redundancy across modalities (e.g., two protein-sequence embeddings encode overlapping signal). Running on normalized data ensures ROBPCA's Stahel–Donoho outlyingness step sees a comparable-scale joint distribution.
+
+**Re-normalization after post-PCA (step 7)** is required because PCA output has per-component variance structure (leading PCs carry far more variance than trailing ones). Without it, the first Linear layer's Kaiming init is mis-calibrated. Step 7 uses the same global median / MAD rescaling as step 4, which is a uniform rescale that preserves the PCA decomposition.
+
+### ROBPCA details
+
+- Implementation: `robpy.ROBPCA` (Hubert, Rousseeuw & Vanden Branden, 2005).
+- Pipeline: Stahel–Donoho outlyingness on a classical-PCA subspace → h-subset eigendecomp → orthogonal-distance (OD) filter → final eigenvectors from cov of OD-filtered subset.
+- The optional final FastMCD step is disabled (crashes on high-k score matrices near the rank limit); the step-4 OD-filtered eigenvectors are already robust per Hubert et al. 2005.
+- Rank-deficient feature dims are removed via SVD pre-conditioning before ROBPCA.
+- If ROBPCA fails (near-singular covariance, NaN components), retries with α ∈ {0.85, 0.90, 0.95}.
+- Fallback: plain PCA (median centering + truncated SVD) when `robpy` is unavailable or all retries fail.
+
+### Default behavior in the SLURM pipelines
+
+| Script | Per-modality PCA | Post-concat PCA |
+|---|---|---|
+| `run_embedding_benchmark.sh` | disabled (raw dims) | disabled (`--no_post_pca`) |
+| `run_best_per_category.sh` (single-modality) | `--pca_variance 0.8` | disabled (redundant) |
+| `run_best_per_category_combo.sh` (multi-modal) | `--pca_variance 0.8` | `--post_pca_variance 0.8` |
+| Direct `python train.py` | off unless `--pca_variance` passed | on by default (0.8) |
 
 ---
 
@@ -166,6 +226,13 @@ Recommended schedule: $\lambda_1 > \lambda_2 > \lambda_3$ (strongest on input la
 --no-last-layer-bias            # Remove projection bias (gene degree prior)
 --pd_epsilon 0.001              # PD regularizer epsilon (0 to disable)
 --dropout 0.2                   # Dropout rate for hidden layers
+
+# Preprocessing / dimensionality reduction
+--pca_variance 0.8              # Per-modality ROBPCA variance target (0,1)
+--pca_dims N1 N2 ...            # Per-modality exact component counts (alt to --pca_variance)
+--post_pca_variance 0.8         # Post-concat ROBPCA variance target (default 0.8)
+--post_pca_dim K                # Post-concat ROBPCA exact component count (overrides variance)
+--no_post_pca                   # Disable the post-concat ROBPCA step
 
 # Regularization
 --l1_lambdas 0.02 0.01 0.002   # Per-layer L1 (must match encoder_dims count)

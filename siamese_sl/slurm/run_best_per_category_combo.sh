@@ -187,6 +187,12 @@ PYEXTRACT
     # Create output directory
     $PYTHON_PATH -c "from pathlib import Path; Path('$OUTPUT_DIR/checkpoints').mkdir(parents=True, exist_ok=True)"
 
+    if [ -n "$POST_PCA_VARIANCE" ]; then
+        POST_PCA_ARGS="--post_pca_variance $POST_PCA_VARIANCE"
+    else
+        POST_PCA_ARGS="--no_post_pca"
+    fi
+
     set +e
     $PYTHON_PATH train.py \
         --embeddings_paths $EMB_PATHS \
@@ -209,7 +215,8 @@ PYEXTRACT
         --num_folds $NUM_FOLDS \
         --pos_neg_ratio $POS_NEG_RATIO \
         --seed $SEED \
-        --pca_variance $PCA_VARIANCE
+        --pca_variance $PCA_VARIANCE \
+        $POST_PCA_ARGS
     TRAIN_EXIT=$?
 
     if [ $TRAIN_EXIT -ne 0 ]; then

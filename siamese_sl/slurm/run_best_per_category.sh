@@ -109,6 +109,9 @@ echo "  Output: $OUTPUT_DIR"
 echo "  Config: encoder=[$ENCODER_DIMS], epochs=$EPOCHS, patience=$PATIENCE"
 echo ""
 
+# Single-modality: post-PCA would be redundant with the per-modality
+# --pca_variance step, so always disable it here. POST_PCA_VARIANCE from
+# config.sh applies only to the multi-modal combo script.
 set +e
 $PYTHON_PATH train.py \
     --embeddings_paths "$EMB_PATH" \
@@ -131,7 +134,8 @@ $PYTHON_PATH train.py \
     --num_folds $NUM_FOLDS \
     --pos_neg_ratio $POS_NEG_RATIO \
     --seed $SEED \
-    --pca_variance $PCA_VARIANCE
+    --pca_variance $PCA_VARIANCE \
+    --no_post_pca
 TRAIN_EXIT=$?
 set -e
 

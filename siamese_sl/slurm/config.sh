@@ -87,6 +87,14 @@ L1_LAMBDAS="0.02 0.01 0.002"
 # PD_EPSILON: positive-definiteness regularizer (0 to disable)
 PD_EPSILON=0.001
 
+# --- Post-concat ROBPCA (combo script only) ---
+# Second ROBPCA pass on the normalized, concatenated matrix. Keeps the
+# first-layer input bounded even when per-modality PCA leaves combos at
+# 1,000+d. Applies to run_best_per_category_combo.sh (multi-modal).
+# The single-modality script skips it as redundant with per-modality PCA.
+# Set POST_PCA_VARIANCE="" to disable for the combo script too.
+POST_PCA_VARIANCE=0.8
+
 # --- Cross-validation types ---
 # cv1: edge split, cv2: gene split, cv3: pair split (hardest)
 CV_TYPES=("cv1" "cv2" "cv3")
