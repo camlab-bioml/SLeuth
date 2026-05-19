@@ -5,11 +5,17 @@
 ```bash
 cd siamese_sl
 
-# Full pipeline: generate embeddings → benchmark + best-per-category → summaries
+# Full pipeline: env reset → generate → (benchmark ∥ best-per-category) → combo → external-screen eval
 ./slurm/submit_pipeline.sh
 
 # Skip generation (embeddings already exist)
 ./slurm/submit_pipeline.sh --skip-generate
+
+# Skip the chained external-screen eval + fine-tuning
+./slurm/submit_pipeline.sh --skip-eval
+
+# Run eval only against an existing combo (no training)
+./slurm/submit_pipeline.sh --eval-only results/best_cat_..._cv3
 
 # Monitor jobs
 squeue -u $(whoami)
@@ -18,9 +24,10 @@ tail -f slurm/logs/bench_<JOB_ID>_<TASK_ID>.out
 
 ## Pipeline Overview
 
-The pipeline has three stages. Stages 2 and 3 run **in parallel** (independent
-output directories). Each training stage uses **SLURM array jobs** so that
-every (embedding, CV) combination runs as a separate task on its own GPU.
+The pipeline has four stages. Stages 2 and 3 run **in parallel** (independent
+output directories). Stage 4 chains after Stage 3 on success. Each training
+stage uses **SLURM array jobs** so every (embedding, CV) combination runs as a
+separate task on its own GPU.
 
 ```
 Stage 1: Embedding Generation (single job)
@@ -33,8 +40,16 @@ Stage 1: Embedding Generation (single job)
             Step 1 (array): one embedding × one CV with PCA
             Step 2 (combo): select best per category
             Step 3 (combo): train multi-modal combinations
+                            → writes results/latest_combo_${CV}.txt on success
             Output: results/pcavar<variance>_<type>_<cv>/results.json
                     results/best_cat_<combo>_<cv>/results.json
+               │
+               └──► Stage 4: External-screen eval + fine-tuning (chained afterok)
+                     Zero-shot (closed-form OLS) + LP_last + Full FT against
+                     Adamson, Corn, Gilbert CRISPR screens on the CV3 combo.
+                     MODEL_DIR auto-resolved from results/latest_combo_cv3.txt.
+                     Output: ${MODEL_DIR}/eval_finetuning/*
+                     Skip with --skip-eval.
 ```
 
 Array sizes are **computed dynamically** from the `.conf` files. Adding or
@@ -47,20 +62,20 @@ adjusts the number of SLURM tasks — no script changes needed.
 
 | File | Description |
 |------|-------------|
-| `submit_pipeline.sh` | **Login-node script.** Parses `.conf` files to compute array sizes, then submits all SLURM jobs with correct dependencies. Supports `--skip-generate`, `--after <JOB_ID>`, `--benchmark-only`, `--best-cat-only`. Set `MAX_CONCURRENT` env var to limit parallel GPU tasks (default: 4). |
+| `submit_pipeline.sh` | **Login-node script.** Parses `.conf` files to compute array sizes, then submits all SLURM jobs with correct dependencies. Supports `--skip-reset-env`, `--skip-generate`, `--after <JOB_ID>`, `--benchmark-only`, `--best-cat-only`, `--skip-eval`, and `--eval-only <combo_dir>`. Set `MAX_CONCURRENT` env var to limit parallel GPU tasks (default: 4). |
 
 ### Shared Configuration
 
 | File | Description |
 |------|-------------|
-| `config.sh` | **Sourced by every script.** Sets Python path, project directories (`WORK_DIR`, `DATA_DIR`, etc.), key data file paths, shared training hyperparameters (architecture, optimizer, regularization), CV types, the full embedding catalog (`ALL_EMBEDDINGS[]`), and compute-node environment (module loads, GPU info). Works from both login nodes and compute nodes — SLURM-specific setup is guarded by `$SLURM_JOB_ID`. |
+| `config.conf` | **Sourced by every script.** Sets Python path, project directories (`WORK_DIR`, `DATA_DIR`, etc.), key data file paths, shared training hyperparameters (architecture, optimizer, regularization), CV types, the full embedding catalog (`ALL_EMBEDDINGS[]`), and compute-node environment (module loads, GPU info). Works from both login nodes and compute nodes — SLURM-specific setup is guarded by `$SLURM_JOB_ID`. |
 
 ### Stage 1: Embedding Generation
 
 | File | Description |
 |------|-------------|
 | `run_generate_embeddings.sh` | **SLURM job.** Downloads source data and generates all `.pt` embedding files: SynLethDB SL pairs, ESM-2 (GPU-heavy), GO anc2vec, and all other types via `generate_embeddings.py`. Skips already-existing files. |
-| `run_generate_embeddings.conf` | **Config.** Lists embedding types for `generate_embeddings.py` (`PRECOMPUTED_TYPES[]`). The full catalog (`ALL_EMBEDDINGS[]`) comes from `config.sh`. |
+| `run_generate_embeddings.conf` | **Config.** Lists embedding types for `generate_embeddings.py` (`PRECOMPUTED_TYPES[]`). The full catalog (`ALL_EMBEDDINGS[]`) comes from `config.conf`. |
 
 ### Stage 2: Embedding Benchmark
 
@@ -68,15 +83,22 @@ adjusts the number of SLURM tasks — no script changes needed.
 |------|-------------|
 | `run_embedding_benchmark.sh` | **SLURM array worker.** Each array task trains the siamese model on one (embedding, CV) combination at native dimensions (no PCA). Maps `SLURM_ARRAY_TASK_ID` to `(embedding_index, cv_index)` using `ALL_EMBEDDINGS[]` and `CV_TYPES[]`. Skips gracefully if the embedding file is missing. Resume-safe: skips if `results.json` already exists. |
 | `run_embedding_benchmark_summary.sh` | **SLURM job** (runs after array). Collects `results.json` from all benchmark directories, prints an AUROC summary table, and saves `results/embedding_benchmark_summary.json`. |
-| `run_embedding_benchmark.conf` | **Config.** Empty by default (shared training hyperparameters, CV types, and `ALL_EMBEDDINGS[]` come from `config.sh`). Uncomment overrides here to tune the benchmark independently. |
+| `run_embedding_benchmark.conf` | **Config.** Empty by default (shared training hyperparameters, CV types, and `ALL_EMBEDDINGS[]` come from `config.conf`). Uncomment overrides here to tune the benchmark independently. |
 
 ### Stage 3: Best-per-Category
 
 | File | Description |
 |------|-------------|
-| `run_best_per_category.sh` | **SLURM array worker.** Each array task trains the siamese model on one (embedding, CV) combination with robust PCA variance-based reduction (`PCA_VARIANCE`). Maps `SLURM_ARRAY_TASK_ID` to `(embedding_index, cv_index)` using `EMB_CATALOG[]` and `CV_TYPES[]`. Resume-safe: skips if `results.json` already exists. |
-| `run_best_per_category_combo.sh` | **SLURM job** (runs after array). Step 2: selects the best AUROC embedding per biological category per CV. Step 3: trains multi-modal combos by concatenating winners with per-modality PCA. Step 4: prints summary table. |
-| `run_best_per_category.conf` | **Config.** Job-specific settings: `PCA_VARIANCE` (overridable via `BEST_CAT_PCA_VARIANCE` env var) and `EMB_CATALOG[]` (type:file:category, genept excluded for data leakage). Shared training hyperparameters come from `config.sh`; uncomment overrides here to tune independently. |
+| `run_best_per_category.sh` | **SLURM array worker.** Each array task trains the siamese model on one (embedding, CV) combination with per-modality PCA (`PCA_VARIANCE` variance target, `PCA_METHOD` = robust or plain). Preprocessing is fit per-fold on `PREPROCESSING_FIT_SCOPE` rows (default `train`, leak-free). Maps `SLURM_ARRAY_TASK_ID` to `(embedding_index, cv_index)` using `EMB_CATALOG[]` and `CV_TYPES[]`. Resume-safe: skips if `results.json` already exists. |
+| `run_best_per_category_combo.sh` | **SLURM job** (runs after array). Step 2: selects the best AUROC embedding per biological category per CV. Step 3: trains multi-modal combos by concatenating winners with per-modality PCA + post-concat PCA. Step 4: prints summary table. |
+| `run_best_per_category.conf` | **Config.** Job-specific settings: `PCA_VARIANCE` (overridable via `BEST_CAT_PCA_VARIANCE` env var), `PCA_METHOD` (robust ∣ plain), `PREPROCESSING_FIT_SCOPE` (train ∣ all), and `EMB_CATALOG[]` (type:file:category, genept excluded for data leakage). Shared training hyperparameters come from `config.conf`; uncomment overrides here to tune independently. |
+
+### Stage 4: External-Screen Evaluation + Fine-tuning
+
+| File | Description |
+|------|-------------|
+| `eval_finetuning.sh` | **SLURM job** (chained after `run_best_per_category_combo.sh` via `afterok`). Runs `eval_finetuning.py` against the CV3 combo: zero-shot (closed-form OLS of an `(a, c)` affine head) + `LP_last` and `Full` SGD fine-tuning modes against Adamson, Corn, Gilbert external CRISPR screens. Per-fold metrics and a 5-fold ensemble. Skippable via `--skip-eval` in the orchestrator. |
+| `eval_finetuning.conf` | **Config.** `MODEL_DIR` resolution order: `EVAL_MODEL_DIR` env var → `results/latest_combo_cv3.txt` marker (written by combo script) → hardcoded fallback. Plus `EMBEDDINGS_PATHS[]` (must match combo's modalities), `DATASETS[]`, `FT_MODES[]`, and fine-tuning hyperparameters (`FT_EPOCHS`, `FT_LR`, `TRAIN_FRAC`, `SPLIT_SEED`). |
 
 ### Utilities
 

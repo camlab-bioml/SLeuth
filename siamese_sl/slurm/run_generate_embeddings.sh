@@ -36,7 +36,7 @@
 # ============================================================================
 
 set -e
-source "$SLURM_SUBMIT_DIR/slurm/config.sh"
+source "$SLURM_SUBMIT_DIR/slurm/config.conf"
 source "$SLURM_SUBMIT_DIR/slurm/run_generate_embeddings.conf"
 
 echo "SIAMESE SL - EMBEDDING GENERATION"

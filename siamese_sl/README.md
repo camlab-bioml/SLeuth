@@ -1,11 +1,15 @@
 # Siamese Network for Synthetic Lethality Prediction
 
-A PyTorch implementation of a Siamese neural network for predicting Synthetic Lethality (SL). Supports 18+ gene embedding types across 6 categories with a unified pipeline: every modality is imputed, optionally PCA-reduced, and MAD-normalized before concatenation — the same code path whether you pass one file or many.
+A PyTorch implementation of a Siamese neural network for predicting Synthetic Lethality (SL). Supports 18+ gene embedding types across 6 categories with a unified pipeline: every modality is imputed, optionally PCA-reduced, and normalized before concatenation — the same code path whether you pass one file or many. The preprocessing pipeline is **fit per-fold on training-pair genes only** so test-fold gene embeddings never shape the basis (CV2/CV3 leak-free).
 
 ## Key Features
 
 - **18+ embedding types**: ESM-2, GO, Geneformer, scGPT, BioConceptVec, PPI network, and more
-- **Unified embedding pipeline**: Per-modality Huber imputation, optional robust PCA (ROBPCA; Hubert et al., 2005), and MAD normalization, then concatenation. Same code path for one or many modalities; L1-regularized first layer handles feature selection
+- **Unified embedding pipeline**: Per-modality impute → PCA → normalize → concat, then optional post-concat PCA + renormalize. Two variants, selected by `--pca_method`:
+    - `robust` *(default)*: Huber-impute + ROBPCA (Hubert et al., 2005) + global median/MAD normalize.
+    - `plain`: mean-impute + per-column mean/std standardize + SVD + global mean/std normalize.
+  The robust path keeps all robust measures; the plain path is fully classical. Same code path for one or many modalities; L1-regularized first layer handles feature selection.
+- **Leak-free per-fold preprocessing**: Every statistic (impute locations, PCA `V`, normalize scalars) is fit on training-pair genes + non-SL genes and applied to all genes. The fitted transform is saved with each checkpoint so `predict.py` / `eval_finetuning.py` rebuild the exact same feature space at inference.
 - **Pool PaRTI pooling**: PageRank-based pooling for ESM protein representations (Tartici et al., 2025)
 - **All genes**: Can work with any human gene that has a protein sequence (not limited to SL dataset genes)
 - **Siamese architecture**: Shared encoder ensures consistent representations
@@ -39,7 +43,7 @@ outperforming mean pooling especially for identifying functionally critical regi
 ### 2. Train the model
 
 ```bash
-# Single modality (same pipeline as multi-modal: impute → normalize)
+# Single modality (pipeline: impute → normalize, fit per-fold on train genes)
 python train.py \
     --embeddings_paths ../data/all_genes_esm2.pt \
     --sl_path ../data/SL_SynLethDB_experimental.txt \
@@ -48,7 +52,7 @@ python train.py \
     --epochs 200 \
     --seed 42
 
-# Multi-modal (each modality: impute → MAD-normalize → concatenate)
+# Multi-modal (each modality: impute → normalize → concatenate)
 python train.py \
     --embeddings_paths ../data/all_genes_bioconceptvec.pt \
         ../data/all_genes_go.pt ../data/all_genes_node2vec_ppi.pt \
@@ -63,6 +67,13 @@ python train.py \
     --sl_path ../data/SL_SynLethDB_experimental.txt \
     --output_dir results/multi_bio_go_ppi_pca \
     --cv_type cv1 --pca_variance 0.8
+
+# Switch to the classical (plain) pipeline: mean-impute + z-score + SVD + mean/std normalize
+python train.py \
+    --embeddings_paths ../data/all_genes_esm2.pt \
+    --sl_path ../data/SL_SynLethDB_experimental.txt \
+    --output_dir results/siamese_esm_plain \
+    --cv_type cv1 --pca_variance 0.8 --pca_method plain
 ```
 
 ### 3. Predict SL for gene pairs
@@ -199,10 +210,10 @@ Step 2b sub-steps:
 
 ### Configuration Structure
 
-All scripts source `slurm/config.sh` (shared environment, training hyperparameters, embedding catalog), then their own `.conf` file for job-specific settings. Per-job `.conf` files can override any shared value if independent tuning is needed.
+All scripts source `slurm/config.conf` (shared environment, training hyperparameters, embedding catalog), then their own `.conf` file for job-specific settings. Per-job `.conf` files can override any shared value if independent tuning is needed. All config files use the `.conf` extension by project convention even though they are plain bash files sourced directly by bash (the extension is cosmetic).
 
 ```
-config.sh (shared by all jobs + login-node orchestrator)
+config.conf (shared by all jobs + login-node orchestrator)
 ├── Environment: TRANSFORMERS_NO_TF, module loads (SLURM-only)
 ├── Python: PYTHON_PATH
 ├── Directories: WORK_DIR, BASE_DIR, DATA_DIR, CACHE_DIR
@@ -218,7 +229,7 @@ config.sh (shared by all jobs + login-node orchestrator)
 run_generate_embeddings.conf
 └── PRECOMPUTED_TYPES[]   — embedding types for generate_embeddings.py
 
-run_embedding_benchmark.conf (overrides only — shared defaults from config.sh)
+run_embedding_benchmark.conf (overrides only — shared defaults from config.conf)
 └── (empty by default; uncomment to override shared training params)
 
 run_best_per_category.conf (PCA + multi-modal combo)
@@ -288,7 +299,7 @@ siamese_sl/
 ├── CLAUDE.md                   # Claude Code guidance
 ├── README.md
 ├── slurm/                      # SLURM job scripts
-│   ├── config.sh               # Shared config (env, modules, paths, data files)
+│   ├── config.conf             # Shared config (env, modules, paths, data files)
 │   ├── reset_env.sh            # Recreate Python venv from scratch
 │   ├── run_generate_embeddings.sh   # Step 1: download + generate all .pt files
 │   ├── run_generate_embeddings.conf # ↳ embedding type lists

@@ -1,7 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=ESM_embeddings
 #SBATCH --partition=gpu_Prosmn
-#SBATCH --nodelist=gpu2
+#SBATCH --nodes=1
+#SBATCH --nodelist=gpu2,gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=12

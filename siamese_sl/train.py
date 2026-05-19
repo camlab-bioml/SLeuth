@@ -76,7 +76,12 @@ class Trainer:
         with open(self.output_dir / "config.json", "w") as f:
             json.dump(vars(args), f, indent=2)
 
-        # Load data (unified pipeline: impute → PCA → normalize → concat)
+        # Load RAW embeddings (no preprocessing). Preprocessing is fit
+        # PER FOLD on training-pair genes (excluding test-only genes) to
+        # prevent CV2/CV3 leakage of test-gene embeddings into the PCA /
+        # normalization basis. See SLDataManager.get_fold_embeddings.
+        # --preprocessing_fit_scope flips this to all-gene fit for A/B
+        # comparison with the legacy leaky pipeline.
         self.data_manager = SLDataManager(
             embeddings_paths=args.embeddings_paths,
             sl_pairs_path=args.sl_path,
@@ -84,16 +89,17 @@ class Trainer:
             seed=args.seed,
             pca_dims=args.pca_dims,
             post_pca=args.post_pca,
+            preprocessing_fit_scope=args.preprocessing_fit_scope,
+            pca_method=args.pca_method,
         )
 
-        # Auto-detect input_dim from loaded embeddings
-        actual_dim = self.data_manager.embeddings.shape[1]
-        if args.input_dim is not None and args.input_dim != actual_dim:
-            print(f"Warning: --input_dim={args.input_dim} overrides "
-                  f"detected dim={actual_dim}")
-        else:
-            args.input_dim = actual_dim
-        print(f"Input dim: {args.input_dim}")
+        # input_dim is resolved per-fold once that fold's preprocessing is
+        # fit (variance-target PCA may pick a different k per fold).
+        if args.input_dim is not None:
+            print(f"Warning: --input_dim={args.input_dim} is ignored; "
+                  f"per-fold input_dim is detected from the fold's "
+                  f"preprocessed embedding matrix.")
+        args.input_dim = None
 
     def create_model(self) -> nn.Module:
         """Create the model."""
@@ -128,6 +134,7 @@ class Trainer:
                 dropout=self.args.dropout,
                 last_layer_bias=self.args.last_layer_bias,
                 pd_epsilon=self.args.pd_epsilon,
+                siamese_encoder_type=self.args.siamese_encoder_type,
             )
         return model.to(self.device)
 
@@ -240,9 +247,18 @@ class Trainer:
         print(f"Training Fold {fold_idx + 1}")
         print(f"{'='*60}")
 
+        # Fit preprocessing on THIS fold's training-pair genes, apply to all.
+        # Returns the per-fold embedding matrix + the transform we must save
+        # alongside the checkpoint so inference can rebuild the same feature
+        # space from the raw .pt files.
+        fold_embeddings, fold_transform = \
+            self.data_manager.get_fold_embeddings(fold_data)
+        self.args.input_dim = fold_embeddings.shape[1]
+        print(f"Fold {fold_idx + 1} input_dim: {self.args.input_dim}")
+
         # Create dataloaders
         train_loader, test_loader = create_fold_dataloaders(
-            embeddings=self.data_manager.embeddings,
+            embeddings=fold_embeddings,
             fold_data=fold_data,
             batch_size=self.args.batch_size,
         )
@@ -279,7 +295,13 @@ class Trainer:
         criterion = nn.BCEWithLogitsLoss()
 
         # Training loop
-        best_auroc = 0.0
+        # Best-checkpoint selection metric: AUPR. SL is class-imbalanced
+        # (POS_NEG_RATIO is enforced for training but the underlying
+        # positive rate is low) and AUPR is more sensitive than AUROC to
+        # the rare-positive head of the ranking. The earlier benchmark
+        # used AUROC; we switched to AUPR so checkpoint, per-task echoes,
+        # and best-per-category selection all rank on the same metric.
+        best_aupr = -1.0
         best_epoch = 0
         patience_counter = 0
         best_metrics = {}
@@ -298,11 +320,22 @@ class Trainer:
                 pbar.set_postfix({
                     "loss": f"{train_loss:.4f}",
                     "auroc": f"{metrics['auroc']:.4f}",
+                    "aupr": f"{metrics['aupr']:.4f}",
+                    "f1": f"{metrics['f1']:.4f}",
                 })
 
-                # Save best model (based on AUROC)
-                if metrics["auroc"] > best_auroc:
-                    best_auroc = metrics["auroc"]
+                # Plain print so SLURM .out captures every eval (tqdm's
+                # carriage-return postfix is hard to read in log files).
+                tqdm.write(
+                    f"  [fold {fold_idx + 1} | epoch {epoch + 1:>4d}] "
+                    f"loss={train_loss:.4f}  "
+                    f"AUROC={metrics['auroc']:.4f}  "
+                    f"AUPR={metrics['aupr']:.4f}  "
+                    f"F1={metrics['f1']:.4f}")
+
+                # Save best model (based on AUPR — see comment above)
+                if metrics["aupr"] > best_aupr:
+                    best_aupr = metrics["aupr"]
                     best_epoch = epoch + 1
                     best_metrics = metrics.copy()
                     patience_counter = 0
@@ -314,6 +347,8 @@ class Trainer:
                             "optimizer_state_dict": optimizer.state_dict(),
                             "metrics": metrics,
                             "config": vars(self.args),
+                            "input_dim": int(self.args.input_dim),
+                            "preprocessing_transform": fold_transform,
                         }, self.output_dir / "checkpoints" /
                         f"fold_{fold_idx}_best.pt")
                 else:
@@ -337,6 +372,8 @@ class Trainer:
                     "optimizer_state_dict": optimizer.state_dict(),
                     "metrics": best_metrics,
                     "config": vars(self.args),
+                    "input_dim": int(self.args.input_dim),
+                    "preprocessing_transform": fold_transform,
                 },
                 self.output_dir / "checkpoints" / f"fold_{fold_idx}_best.pt")
 
@@ -528,7 +565,7 @@ def main():
                         default=None,
                         help="One or more .pt embedding files. Each modality "
                         "is imputed, optionally PCA-reduced, and "
-                        "MAD-normalized before concatenation.")
+                        "normalized before concatenation (see --pca_method).")
     parser.add_argument("--sl_path",
                         type=str,
                         default="../data/SL_SynLethDB_experimental.txt",
@@ -584,8 +621,20 @@ def main():
         type=int,
         nargs='+',
         default=None,
-        help="Encoder layer dims for siamese model (e.g., 256 128 64). "
-        "Falls back to --hidden_dim/--latent_dim if not set.")
+        help="Encoder layer dims for siamese model (e.g., 8 8 8 8 8 8 8 — "
+        "the SLURM default for the residual encoder, 6 hidden + 1 "
+        "projection). The last entry is the projection (latent) dim. Falls "
+        "back to --hidden_dim/--latent_dim if not set.")
+    parser.add_argument(
+        "--siamese_encoder_type",
+        type=str,
+        default="residual",
+        choices=["mlp", "residual"],
+        help="Architecture of the shared siamese encoder. "
+        "'residual' (default): same-width hidden blocks get y = x + F(x) "
+        "skip connections — gradient-friendly, enables deeper stacks. "
+        "'mlp': plain stack of Linear→LN→LReLU→Dropout blocks (no skips). "
+        "Kernel and attention siamese variants are unaffected by this flag.")
 
     # RKHS/Kernel model specific
     parser.add_argument(
@@ -654,6 +703,28 @@ def main():
         action="store_true",
         default=False,
         help="Disable the post-concat ROBPCA step (on by default).")
+    parser.add_argument(
+        "--preprocessing_fit_scope",
+        type=str,
+        default="train",
+        choices=["train", "all"],
+        help="Which gene rows to fit preprocessing (Huber-impute, ROBPCA, "
+        "median/MAD normalize) on, PER FOLD.  "
+        "'train' (default): only training-pair genes + non-SL genes — "
+        "leak-free.  "
+        "'all': every gene — matches pre-refactor legacy behavior and "
+        "reintroduces CV2/CV3 leakage of test-gene embeddings into the "
+        "basis. Use ONLY for A/B comparison.")
+    parser.add_argument(
+        "--pca_method",
+        type=str,
+        default="robust",
+        choices=["robust", "plain"],
+        help="PCA algorithm for per-modality and post-concat reduction. "
+        "'robust' (default): ROBPCA (Hubert et al. 2005) with alpha "
+        "retries and a plain-PCA fallback if robpy is unavailable. "
+        "'plain': median-centered SVD, no outlier filtering — faster and "
+        "simpler when embeddings are already clean.")
     parser.add_argument(
         "--l1_lambdas",
         type=float,

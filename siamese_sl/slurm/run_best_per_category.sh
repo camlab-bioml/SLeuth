@@ -37,7 +37,7 @@
 # ============================================================================
 
 set -e
-source "$SLURM_SUBMIT_DIR/slurm/config.sh"
+source "$SLURM_SUBMIT_DIR/slurm/config.conf"
 source "$SLURM_SUBMIT_DIR/slurm/run_best_per_category.conf"
 
 sleep 10  # let disk settle after prior job
@@ -111,7 +111,7 @@ echo ""
 
 # Single-modality: post-PCA would be redundant with the per-modality
 # --pca_variance step, so always disable it here. POST_PCA_VARIANCE from
-# config.sh applies only to the multi-modal combo script.
+# config.conf applies only to the multi-modal combo script.
 set +e
 $PYTHON_PATH train.py \
     --embeddings_paths "$EMB_PATH" \
@@ -135,6 +135,9 @@ $PYTHON_PATH train.py \
     --pos_neg_ratio $POS_NEG_RATIO \
     --seed $SEED \
     --pca_variance $PCA_VARIANCE \
+    --preprocessing_fit_scope "${PREPROCESSING_FIT_SCOPE:-train}" \
+    --pca_method "${PCA_METHOD:-robust}" \
+    --siamese_encoder_type "${SIAMESE_ENCODER_TYPE:-residual}" \
     --no_post_pca
 TRAIN_EXIT=$?
 set -e
@@ -148,19 +151,26 @@ if [ $TRAIN_EXIT -ne 0 ] || [ ! -f "$OUTPUT_DIR/results.json" ]; then
     exit 1
 fi
 
-AUROC=$($PYTHON_PATH -c "
+METRICS=$($PYTHON_PATH -c "
 import json
 d = json.load(open('$OUTPUT_DIR/results.json'))['summary']
-v, s = d['auroc_mean'], d['auroc_std']
-print(f'{v:.4f} +/- {s:.4f}' if v is not None else 'N/A')
-" 2>/dev/null || echo "N/A")
-
-PARAMS=$($PYTHON_PATH -c "
-import json
-d = json.load(open('$OUTPUT_DIR/results.json'))['summary']
+def fmt(m, s):
+    v, sd = d.get(m), d.get(s)
+    return f'{v:.4f} +/- {sd:.4f}' if v is not None else 'N/A'
+print(fmt('auroc_mean','auroc_std'))
+print(fmt('aupr_mean','aupr_std'))
+print(fmt('f1_mean','f1_std'))
 print(f\"{d.get('nonzero_params',0):,}/{d.get('total_params',0):,} ({d.get('weight_sparsity',0):.1f}% sparse)\")
-" 2>/dev/null || echo "N/A")
+" 2>/dev/null || printf 'N/A\nN/A\nN/A\nN/A\n')
+
+AUROC=$(echo "$METRICS" | sed -n '1p')
+AUPR=$(echo  "$METRICS" | sed -n '2p')
+F1=$(echo    "$METRICS" | sed -n '3p')
+PARAMS=$(echo "$METRICS" | sed -n '4p')
 
 echo "SUCCESS: $ETYPE / $CV  (PCA=$PCA_VARIANCE)"
-echo "  AUROC=$AUROC  Params=$PARAMS"
+echo "  AUROC=$AUROC"
+echo "  AUPR =$AUPR  (selection metric)"
+echo "  F1   =$F1"
+echo "  Params=$PARAMS"
 echo "  Completed at: $(date)"

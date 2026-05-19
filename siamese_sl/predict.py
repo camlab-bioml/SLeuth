@@ -38,7 +38,11 @@ import pandas as pd
 from tqdm import tqdm
 
 from siamese_esm import SiameseSL, SiameseSLWithAttention, SiameseSLKernel, set_seed
-from data_loader import load_multimodal_embeddings
+from data_loader import (
+    apply_multimodal_transform,
+    load_multimodal_embeddings,
+    load_raw_multimodal,
+)
 from gene_name_utils import get_mapper
 
 
@@ -150,21 +154,43 @@ def load_model(
         model_type = "attention"
 
     if model_type == "siamese":
-        # Infer encoder_dims from state dict
-        # Hidden layers: encoder.hidden.{idx}.weight (2D)
-        # Projection: encoder.projection.weight (2D)
-        hidden_keys = sorted(
-            [
-                k for k in state_dict if k.startswith("encoder.hidden.")
-                and k.endswith(".weight") and state_dict[k].dim() == 2
-            ],
-            key=lambda k: int(k.split("encoder.hidden.")[1].split(".")[0]))
-        proj_key = "encoder.projection.weight"
+        # Detect encoder variant from state-dict key layout:
+        #   residual → encoder.hidden_blocks.{i}.0.weight  (ModuleList of Sequential)
+        #   mlp      → encoder.hidden.{idx}.weight         (flat Sequential)
+        has_residual_encoder = any("hidden_blocks" in k for k in state_dict)
 
-        input_dim = state_dict[hidden_keys[0]].shape[1] if hidden_keys else \
-            state_dict[proj_key].shape[1]
-        encoder_dims = [state_dict[k].shape[0] for k in hidden_keys]
-        encoder_dims.append(state_dict[proj_key].shape[0])
+        if has_residual_encoder:
+            # Residual: the 2D weight in each block sits at index 0 of that
+            # block's Sequential. Keys look like encoder.hidden_blocks.2.0.weight.
+            block_keys = sorted(
+                [
+                    k for k in state_dict
+                    if k.startswith("encoder.hidden_blocks.")
+                    and k.endswith(".0.weight") and state_dict[k].dim() == 2
+                ],
+                key=lambda k: int(
+                    k.split("encoder.hidden_blocks.")[1].split(".")[0]))
+            proj_key = "encoder.projection.weight"
+
+            input_dim = (state_dict[block_keys[0]].shape[1]
+                         if block_keys else state_dict[proj_key].shape[1])
+            encoder_dims = [state_dict[k].shape[0] for k in block_keys]
+            encoder_dims.append(state_dict[proj_key].shape[0])
+            siamese_encoder_type = "residual"
+        else:
+            hidden_keys = sorted(
+                [
+                    k for k in state_dict if k.startswith("encoder.hidden.")
+                    and k.endswith(".weight") and state_dict[k].dim() == 2
+                ],
+                key=lambda k: int(k.split("encoder.hidden.")[1].split(".")[0]))
+            proj_key = "encoder.projection.weight"
+
+            input_dim = (state_dict[hidden_keys[0]].shape[1]
+                         if hidden_keys else state_dict[proj_key].shape[1])
+            encoder_dims = [state_dict[k].shape[0] for k in hidden_keys]
+            encoder_dims.append(state_dict[proj_key].shape[0])
+            siamese_encoder_type = "mlp"
 
         # Infer last_layer_bias
         has_bias = "encoder.projection.bias" in state_dict
@@ -178,6 +204,7 @@ def load_model(
             encoder_dims=encoder_dims,
             last_layer_bias=has_bias,
             pd_epsilon=pd_eps,
+            siamese_encoder_type=siamese_encoder_type,
         )
     elif model_type == "kernel":
         kernel_dims = _infer_kernel_dims(state_dict)
@@ -508,9 +535,25 @@ def main():
     model = load_model(args.model, args.model_type, args.device,
                        args.num_heads)
 
-    print("Loading embeddings...")
-    embeddings, gene_to_idx, idx_to_gene = load_multimodal_embeddings(
-        args.embeddings_paths, pca_dims=args.pca_dims)
+    # Prefer the checkpoint's stored preprocessing transform (new-format,
+    # leakage-free fold-specific fit). Fall back to legacy all-gene fit
+    # driven by --pca_variance/--pca_dims when the checkpoint predates the
+    # fit/apply split.
+    ckpt_raw = torch.load(args.model, map_location="cpu", weights_only=False)
+    fold_transform = ckpt_raw.get("preprocessing_transform")
+
+    if fold_transform is not None:
+        print("Loading embeddings (applying checkpoint's transform)...")
+        raw_per_modality, gene_to_idx, idx_to_gene = load_raw_multimodal(
+            args.embeddings_paths)
+        embeddings = apply_multimodal_transform(raw_per_modality,
+                                                fold_transform)
+        print(f"  embeddings: {tuple(embeddings.shape)}")
+    else:
+        print("Loading embeddings (legacy all-gene PCA fit — checkpoint "
+              "has no preprocessing_transform)...")
+        embeddings, gene_to_idx, idx_to_gene = load_multimodal_embeddings(
+            args.embeddings_paths, pca_dims=args.pca_dims)
 
     predictor = SLPredictor(model, embeddings, gene_to_idx, idx_to_gene,
                             args.device)

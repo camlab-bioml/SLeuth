@@ -1,7 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=case_study_no_ESM
 #SBATCH --partition=gpu_Prosmn
-#SBATCH --nodelist=gpu2
+#SBATCH --nodes=1
+#SBATCH --nodelist=gpu2,gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=8

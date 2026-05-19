@@ -186,7 +186,20 @@ def load_sl_genes(filepath: str = None) -> List[str]:
     if filepath and os.path.exists(filepath):
         try:
             with open(filepath, 'r') as f:
-                genes = [line.strip() for line in f if line.strip()]
+                gene_ids = [line.strip() for line in f if line.strip()]
+            # File contains Entrez Gene IDs; convert to symbols for UniProt
+            import csv
+            mapping_path = os.path.join(os.path.dirname(filepath),
+                                        'gene_id_mapping.tsv')
+            if os.path.exists(mapping_path):
+                entrez_to_sym = {}
+                with open(mapping_path) as mf:
+                    reader = csv.DictReader(mf, delimiter='\t')
+                    for row in reader:
+                        entrez_to_sym[row['entrez_id']] = row['symbol']
+                genes = [entrez_to_sym.get(eid, eid) for eid in gene_ids]
+            else:
+                genes = gene_ids
             print(f"Loaded {len(genes)} genes from SL network")
             return genes
         except Exception as e:

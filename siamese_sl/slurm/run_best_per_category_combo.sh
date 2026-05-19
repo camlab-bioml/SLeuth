@@ -15,12 +15,15 @@
 # ============================================================================
 # Runs after all Step 1 array tasks complete (dependency: afterany).
 #
-# Step 2: Select the best AUROC embedding per biological category per CV type,
+# Step 2: Select the best AUPR embedding per biological category per CV type,
 #         reading results from results/pcavar<variance>_<type>_<cv>/results.json.
 #         Saves selection to results/best_per_category.json.
 #
 # Step 3: Train multi-modal combos for each CV type by concatenating the
 #         winning embeddings (one per category) with per-modality PCA.
+#         On each successful combo, writes results/latest_combo_${CV}.txt
+#         pointing at the combo's output dir — consumed by the chained
+#         eval_finetuning.sh job submitted from submit_pipeline.sh.
 #
 # Step 4: Print summary table with single-embedding and multi-modal results.
 #
@@ -30,7 +33,7 @@
 # ============================================================================
 
 set -e
-source "$SLURM_SUBMIT_DIR/slurm/config.sh"
+source "$SLURM_SUBMIT_DIR/slurm/config.conf"
 source "$SLURM_SUBMIT_DIR/slurm/run_best_per_category.conf"
 
 sleep 10  # let disk settle after prior job
@@ -41,6 +44,10 @@ echo ""
 
 # Clean previous combo results and selection JSON
 rm -f results/best_per_category.json
+# Also clean the per-CV marker files so a stale marker from a prior run
+# doesn't leak into the chained eval_finetuning job when this CV's combo
+# fails to train.
+rm -f results/latest_combo_*.txt
 for d in results/best_cat_*; do
     [ -d "$d" ] && rm -rf "$d"
 done
@@ -83,9 +90,11 @@ for etype, efile, ecat in catalog:
             try:
                 with open(rfile) as _f:
                     d = json.load(_f)["summary"]
-                auroc = d["auroc_mean"]
-                if auroc is not None:
-                    scores[(etype, cv)] = auroc
+                aupr = d["aupr_mean"]
+                auroc = d.get("auroc_mean")
+                f1 = d.get("f1_mean")
+                if aupr is not None:
+                    scores[(etype, cv)] = (aupr, auroc, f1)
             except (KeyError, json.JSONDecodeError):
                 pass
 
@@ -107,19 +116,27 @@ for cv in cv_types:
             cat_candidates.setdefault(ecat, []).append((etype, scores[(etype, cv)]))
 
     for cat, candidates in cat_candidates.items():
-        best_type, best_auroc = max(candidates, key=lambda x: x[1])
+        # Rank by AUPR (first element of the score tuple).
+        best_type, (best_aupr, best_auroc, best_f1) = max(
+            candidates, key=lambda x: x[1][0])
         selection[cv][cat] = {
             "type": best_type,
             "file": type_to_file[best_type],
-            "auroc": round(best_auroc, 4),
+            "aupr": round(best_aupr, 4),
+            "auroc": round(best_auroc, 4) if best_auroc is not None else None,
+            "f1": round(best_f1, 4) if best_f1 is not None else None,
         }
 
 # Print summary
 for cv in cv_types:
-    print(f"\n{cv.upper()} — best per category (PCA variance={PCA_VARIANCE}):")
+    print(f"\n{cv.upper()} — best per category by AUPR (PCA variance={PCA_VARIANCE}):")
     for cat in sorted(selection[cv]):
         info = selection[cv][cat]
-        print(f"  {cat:15s} -> {info['type']:15s}  AUROC={info['auroc']:.4f}")
+        auroc_s = f"{info['auroc']:.4f}" if info['auroc'] is not None else "N/A"
+        f1_s = f"{info['f1']:.4f}" if info['f1'] is not None else "N/A"
+        print(
+            f"  {cat:15s} -> {info['type']:15s}  "
+            f"AUPR={info['aupr']:.4f}  AUROC={auroc_s}  F1={f1_s}")
 
 out = results_dir / "best_per_category.json"
 with open(out, "w") as _f:
@@ -216,6 +233,9 @@ PYEXTRACT
         --pos_neg_ratio $POS_NEG_RATIO \
         --seed $SEED \
         --pca_variance $PCA_VARIANCE \
+        --preprocessing_fit_scope "${PREPROCESSING_FIT_SCOPE:-train}" \
+        --pca_method "${PCA_METHOD:-robust}" \
+        --siamese_encoder_type "${SIAMESE_ENCODER_TYPE:-residual}" \
         $POST_PCA_ARGS
     TRAIN_EXIT=$?
 
@@ -225,9 +245,17 @@ PYEXTRACT
     elif [ -f "$OUTPUT_DIR/results.json" ]; then
         AUROC=$($PYTHON_PATH -c "import json; f=open('$OUTPUT_DIR/results.json'); d=json.load(f)['summary']; f.close(); v=d['auroc_mean']; s=d['auroc_std']; print(f'{v:.4f} +/- {s:.4f}' if v is not None else 'N/A')" 2>/dev/null || echo "N/A")
         AUPR=$($PYTHON_PATH -c "import json; f=open('$OUTPUT_DIR/results.json'); d=json.load(f)['summary']; f.close(); v=d['aupr_mean']; s=d['aupr_std']; print(f'{v:.4f} +/- {s:.4f}' if v is not None else 'N/A')" 2>/dev/null || echo "N/A")
+        F1=$($PYTHON_PATH -c "import json; f=open('$OUTPUT_DIR/results.json'); d=json.load(f)['summary']; f.close(); v=d['f1_mean']; s=d['f1_std']; print(f'{v:.4f} +/- {s:.4f}' if v is not None else 'N/A')" 2>/dev/null || echo "N/A")
         PARAMS=$($PYTHON_PATH -c "import json; f=open('$OUTPUT_DIR/results.json'); d=json.load(f)['summary']; f.close(); print(f\"{d.get('nonzero_params',0):,}/{d.get('total_params',0):,} ({d.get('weight_sparsity',0):.1f}% sparse)\")" 2>/dev/null || echo "N/A")
-        echo "  AUROC=$AUROC  AUPR=$AUPR  Params=$PARAMS"
+        echo "  AUROC=$AUROC"
+        echo "  AUPR =$AUPR  (selection metric)"
+        echo "  F1   =$F1"
+        echo "  Params=$PARAMS"
         STEP3_SUCCESSFUL=$((STEP3_SUCCESSFUL + 1))
+        # Drop a marker file so the chained eval_finetuning job can locate
+        # this freshly-trained combo. Per-CV so each eval can target the
+        # matching split.
+        echo "$OUTPUT_DIR" > "results/latest_combo_${CV}.txt"
     else
         echo "  FAILED"
         STEP3_FAILED=$((STEP3_FAILED + 1))
@@ -259,7 +287,7 @@ col_w = 15
 header = " | ".join(f"{cv.upper():{col_w}s}" for cv in cv_types)
 table_w = col_w + len(cv_types) * (3 + col_w)
 
-print(f"\n--- Single-embedding AUROC (PCA variance={PCA_VARIANCE}) ---")
+print(f"\n--- Single-embedding winners by AUPR (PCA variance={PCA_VARIANCE}) ---")
 print(f"{'Category':{col_w}s} | {header}")
 print("-" * table_w)
 cats = sorted(set(c for cv in sel.values() for c in cv))
@@ -267,7 +295,7 @@ for cat in cats:
     row = []
     for cv in cv_types:
         if cat in sel[cv]:
-            row.append(f"{sel[cv][cat]['type']} ({sel[cv][cat]['auroc']:.3f})")
+            row.append(f"{sel[cv][cat]['type']} ({sel[cv][cat]['aupr']:.3f})")
         else:
             row.append("N/A")
     row_str = " | ".join(f"{cell:{col_w}s}" for cell in row)
@@ -275,8 +303,8 @@ for cat in cats:
 
 # Step 3 results: multi-modal combo
 print(f"\n--- Multi-modal combo results ---")
-print(f"{'CV':15s} | {'AUROC':25s} | {'AUPR':25s} | {'Params (nonzero/total)':25s} | {'Sparsity':10s}")
-print("-" * 105)
+print(f"{'CV':15s} | {'AUROC':25s} | {'AUPR':25s} | {'F1':25s} | {'Params (nonzero/total)':25s} | {'Sparsity':10s}")
+print("-" * 135)
 for cv in cv_types:
     found = False
     for d in sorted(Path("results").iterdir()):
@@ -287,17 +315,19 @@ for cv in cv_types:
                     r = json.load(_f)["summary"]
                 am, astd = r.get('auroc_mean'), r.get('auroc_std')
                 pm, pstd = r.get('aupr_mean'), r.get('aupr_std')
+                fm, fstd = r.get('f1_mean'), r.get('f1_std')
                 auroc = f"{am:.4f} +/- {astd:.4f}" if am is not None else "N/A"
                 aupr = f"{pm:.4f} +/- {pstd:.4f}" if pm is not None else "N/A"
+                f1 = f"{fm:.4f} +/- {fstd:.4f}" if fm is not None else "N/A"
                 nz = r.get('nonzero_params') or 0
                 tot = r.get('total_params') or 0
                 sp = r.get('weight_sparsity') or 0
                 params = f"{nz:,}/{tot:,}"
                 sparsity = f"{sp:.1f}%"
-                print(f"{cv:15s} | {auroc:25s} | {aupr:25s} | {params:25s} | {sparsity:10s}")
+                print(f"{cv:15s} | {auroc:25s} | {aupr:25s} | {f1:25s} | {params:25s} | {sparsity:10s}")
                 found = True
     if not found:
-        print(f"{cv:15s} | {'FAILED':25s} |")
+        print(f"{cv:15s} | {'FAILED':25s} | {'N/A':25s} | {'N/A':25s} | {'N/A':25s} | {'N/A':10s}")
 PYSUMMARY
 
 echo ""

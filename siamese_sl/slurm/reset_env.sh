@@ -14,7 +14,7 @@
 # Recreate the Python venv from scratch on a GPU node.
 #
 # Uses pip (not uv) to avoid NFS caching/hardlink issues.
-# Must run on a GPU node (gpu1/gpu2) — devhouse has a different Python version.
+# Must run on a GPU node (gpu2/gpu3) — devhouse has a different Python version.
 #
 # Usage:
 #   cd ~/SLMGAE-pytorch/siamese_sl
@@ -23,7 +23,7 @@
 
 set -e
 
-# Must match the parent directory of PYTHON_PATH in config.sh
+# Must match the parent directory of PYTHON_PATH in config.conf
 VENV_DIR="/ddn_exa/campbell/kaiyang/pytorch"
 
 echo "============================================================================"
@@ -88,7 +88,8 @@ echo "--- Installing packages ---"
     tiktoken \
     mygene \
     robpy \
-    einops
+    einops \
+    openpyxl
 echo ""
 
 # Step 6: Verify
@@ -104,7 +105,7 @@ pkgs = [
     'networkx', 'esm', 'transformers', 'huggingface_hub', 'safetensors',
     'sentencepiece', 'sentence_transformers', 'gensim', 'obonet',
     'node2vec', 'pykeen', 'tiktoken', 'google.protobuf', 'mygene', 'robpy',
-    'einops',
+    'einops', 'openpyxl',
 ]
 ok = 0
 fail = 0

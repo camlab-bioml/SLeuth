@@ -214,9 +214,15 @@ class SiameseEncoder(nn.Module):
     """
     Shared encoder that projects gene embeddings to a latent space.
 
-    Architecture is defined by a list of layer dimensions.
+    Architecture is defined by a list of layer dimensions. The last entry is
+    the projection (latent) dim; everything before it is a hidden layer.
     Example: encoder_dims=[256, 128, 64] builds:
-        input + bias -> Linear(256)->LN->LReLU->Drop -> Linear(128)->LN->LReLU->Drop -> Linear(64)
+        input + bias
+          -> Linear(256)->LN->LReLU->Drop
+          -> Linear(128)->LN->LReLU->Drop
+          -> Linear(64)                  # projection, bare (latent dim 64)
+    (The current SLURM default ENCODER_DIMS targets the residual variant —
+    see `SiameseEncoderResidual` below.)
 
     A learnable per-feature input bias is added before the first layer to
     compensate for location information lost during normalization (global
@@ -281,6 +287,108 @@ class SiameseEncoder(nn.Module):
         return z, h
 
 
+class SiameseEncoderResidual(nn.Module):
+    """Residual-MLP variant of SiameseEncoder.
+
+    Same interface as SiameseEncoder (input_dim, encoder_dims, dropout,
+    last_layer_bias). Each hidden block is
+        F(x) = Dropout(LeakyReLU(LayerNorm(Linear(x))))
+    wrapped with a residual connection y = x + F(x) WHEN the block's input
+    and output widths match. Blocks where widths differ (typically the first
+    "entry lift" from input_dim and any dim-change in the middle) are plain
+    F-applies with no skip.
+
+    The projection (last entry of encoder_dims) is always a bare Linear
+    with no skip — the existing `pd_epsilon · h1ᵀh2` term in SiameseSL's
+    scoring already acts as a score-level residual around the projection.
+
+    Example (encoder_dims=[8, 8, 8, 8, 8, 8, 8]):
+        input(150d) + input_bias
+          -> Linear(150→8) + LN + LReLU + Drop              # entry, no skip
+          -> x + (Linear(8→8) + LN + LReLU + Drop)          # residual block 1
+          -> x + (Linear(8→8) + LN + LReLU + Drop)          # residual block 2
+          -> x + (Linear(8→8) + LN + LReLU + Drop)          # residual block 3
+          -> x + (Linear(8→8) + LN + LReLU + Drop)          # residual block 4
+          -> x + (Linear(8→8) + LN + LReLU + Drop)          # residual block 5
+          -> Linear(8→8)                                     # projection, bare
+
+    Rationale: depth alone (Telgarsky 2016; Raghu et al. 2017) gives
+    exponential expressivity gains over width, but plain deep narrow ReLU
+    MLPs suffer rank-collapse / gradient-path pathologies (Pennington et al.
+    2017; Hanin & Rolnick 2019). Residual connections preserve a
+    gradient-free path from loss to input and keep the activation's rank
+    from collapsing layer-by-layer. LayerNorm inside F(x) keeps the block
+    output's magnitude comparable to the skip branch at init.
+
+    Implementation notes:
+      - `residual_skips` is a Python list of bools derived from encoder_dims
+        at __init__. It's NOT a Parameter/Buffer — the structure is fully
+        determined by encoder_dims and is reconstructed in load_model at
+        inference.
+      - The skip uses pre-activation `x` and post-activation `F(x)` — a
+        simplified single-Linear ResNet block. For 5–6 blocks this variant
+        trains cleanly without explicit scaling; deeper stacks (>10 blocks)
+        would benefit from additional tricks (layer-scale init, stochastic
+        depth) that aren't implemented here.
+    """
+
+    def __init__(
+        self,
+        input_dim: int,
+        encoder_dims: list,
+        dropout: float = 0.2,
+        last_layer_bias: bool = True,
+    ):
+        super().__init__()
+
+        if not encoder_dims:
+            raise ValueError("encoder_dims must be non-empty")
+
+        self.input_bias = nn.Parameter(torch.zeros(input_dim))
+
+        hidden_widths = encoder_dims[:-1]
+        blocks = []
+        skips = []
+        in_dim = input_dim
+        for out_dim in hidden_widths:
+            blocks.append(
+                nn.Sequential(
+                    nn.Linear(in_dim, out_dim, bias=False),
+                    nn.LayerNorm(out_dim),
+                    nn.LeakyReLU(0.2),
+                    nn.Dropout(dropout),
+                ))
+            # Skip only when dims match; the entry lift (input_dim != first
+            # hidden width) and any mid-stack dim changes get plain blocks.
+            skips.append(in_dim == out_dim)
+            in_dim = out_dim
+        self.hidden_blocks = nn.ModuleList(blocks)
+        self.residual_skips = skips  # structural info; derived from encoder_dims
+
+        proj_in = hidden_widths[-1] if hidden_widths else input_dim
+        self.projection = nn.Linear(proj_in,
+                                    encoder_dims[-1],
+                                    bias=last_layer_bias)
+        nn.init.xavier_uniform_(self.projection.weight)
+        if self.projection.bias is not None:
+            nn.init.zeros_(self.projection.bias)
+
+    def _forward_hidden(self, x: torch.Tensor) -> torch.Tensor:
+        h = x + self.input_bias
+        for block, skip in zip(self.hidden_blocks, self.residual_skips):
+            out = block(h)
+            h = out + h if skip else out
+        return h
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        h = self._forward_hidden(x)
+        return self.projection(h)
+
+    def forward_with_hidden(self, x: torch.Tensor):
+        h = self._forward_hidden(x)
+        return self.projection(h), h
+
+
 class SiameseSL(nn.Module):
     """
     Siamese network for Synthetic Lethality prediction.
@@ -288,9 +396,9 @@ class SiameseSL(nn.Module):
     Takes two gene embeddings and predicts their SL probability
     using inner product with a learnable temperature.
 
-    Architecture example (encoder_dims=[256, 128, 64]):
-      gene1 -+-> Linear->LN->LReLU->Drop -> Linear->LN->LReLU->Drop -> Linear -> z1
-             |            (hidden layers)                               (projection) |
+    Architecture example (encoder_dims=[96, 80, 64, 48, 32, 32], the SLURM default):
+      gene1 -+-> (5x Linear->LN->LReLU->Drop hidden blocks, narrowing) -> Linear -> z1
+             |                                                            (projection) |
              |                                                                       |
              |          logit = τ · (z1ᵀz2 + ε · h1ᵀh2) + b -> sigmoid -> P(SL)    |
              |                                                                       |
@@ -313,6 +421,7 @@ class SiameseSL(nn.Module):
             dropout: float = 0.2,
             last_layer_bias: bool = True,
             pd_epsilon: float = 0.001,
+            siamese_encoder_type: str = "residual",
             **kwargs,  # ignore hidden_dim/latent_dim etc. for backward compat
     ):
         super().__init__()
@@ -324,10 +433,22 @@ class SiameseSL(nn.Module):
         if encoder_dims is None:
             encoder_dims = [256, 128, 64]
 
-        self.pd_epsilon = pd_epsilon
+        if siamese_encoder_type not in ("mlp", "residual"):
+            raise ValueError(
+                f"siamese_encoder_type must be 'mlp' or 'residual'; "
+                f"got {siamese_encoder_type!r}")
 
-        # Shared encoder for both genes
-        self.encoder = SiameseEncoder(
+        self.pd_epsilon = pd_epsilon
+        self.siamese_encoder_type = siamese_encoder_type
+
+        # Shared encoder for both genes. Residual is the default — same
+        # interface as SiameseEncoder but wraps same-width hidden blocks
+        # with y = x + F(x) skips, keeping gradient flow intact through
+        # deeper stacks. See SiameseEncoderResidual's docstring.
+        encoder_cls = (SiameseEncoderResidual
+                       if siamese_encoder_type == "residual"
+                       else SiameseEncoder)
+        self.encoder = encoder_cls(
             input_dim=input_dim,
             encoder_dims=encoder_dims,
             dropout=dropout,

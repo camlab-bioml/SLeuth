@@ -23,7 +23,7 @@
 # ============================================================================
 
 set -e
-source "$SLURM_SUBMIT_DIR/slurm/config.sh"
+source "$SLURM_SUBMIT_DIR/slurm/config.conf"
 source "$SLURM_SUBMIT_DIR/slurm/run_embedding_benchmark.conf"
 
 sleep 10  # let disk settle after benchmark array completes
@@ -89,7 +89,7 @@ for etype in emb_types:
             data[etype][cv] = None
 
 # ---------------------------------------------------------------------------
-# Print AUROC table
+# Print one table per metric (AUPR is the selection metric — printed first).
 # ---------------------------------------------------------------------------
 def fmt(summary, key_mean, key_std):
     if summary is None:
@@ -104,28 +104,37 @@ col_w = 20
 header = " | ".join(f"{cv_labels.get(cv, cv.upper()):<{col_w}s}" for cv in cv_types)
 table_w = 20 + len(cv_types) * (3 + col_w)
 
-print()
-print("=" * table_w)
-print("EMBEDDING BENCHMARK RESULTS (AUROC)".center(table_w))
-print("=" * table_w)
-print()
-print(f"{'Embedding':<20s} | {header}")
-print("-" * table_w)
-
+# Track success/fail once (AUPR — same as the selection metric).
 successful = 0
 failed = 0
-for etype in emb_types:
-    row = []
-    for cv in cv_types:
-        s = data[etype].get(cv)
-        cell = fmt(s, "auroc_mean", "auroc_std")
-        row.append(cell)
-        if s is not None and s.get("auroc_mean") is not None:
-            successful += 1
-        else:
-            failed += 1
-    row_str = " | ".join(f"{cell:<{col_w}s}" for cell in row)
-    print(f"{etype:<20s} | {row_str}")
+
+def print_table(metric_name, key_mean, key_std, count=False):
+    global successful, failed
+    print()
+    print("=" * table_w)
+    print(f"EMBEDDING BENCHMARK RESULTS ({metric_name})".center(table_w))
+    print("=" * table_w)
+    print()
+    print(f"{'Embedding':<20s} | {header}")
+    print("-" * table_w)
+    for etype in emb_types:
+        row = []
+        for cv in cv_types:
+            s = data[etype].get(cv)
+            cell = fmt(s, key_mean, key_std)
+            row.append(cell)
+            if count:
+                if s is not None and s.get(key_mean) is not None:
+                    successful += 1
+                else:
+                    failed += 1
+        row_str = " | ".join(f"{cell:<{col_w}s}" for cell in row)
+        print(f"{etype:<20s} | {row_str}")
+
+# AUPR is the selection metric — print it first and use it for run counts.
+print_table("AUPR — selection metric", "aupr_mean", "aupr_std", count=True)
+print_table("AUROC", "auroc_mean", "auroc_std")
+print_table("F1 (optimal threshold)", "f1_mean", "f1_std")
 
 print()
 print(f"Runs: {successful} successful, {failed} failed/missing (of {len(emb_types) * len(cv_types)})")
@@ -142,7 +151,7 @@ for etype in emb_types:
     summary["results"][etype] = {}
     for cv in cv_types:
         s = data[etype].get(cv)
-        if s is not None and s.get("auroc_mean") is not None:
+        if s is not None and s.get("aupr_mean") is not None:
             summary["results"][etype][cv] = {
                 "auroc": fmt(s, "auroc_mean", "auroc_std"),
                 "aupr": fmt(s, "aupr_mean", "aupr_std"),
