@@ -2,7 +2,7 @@
 #SBATCH --job-name=bench_emb
 #SBATCH --partition=gpu_Prosmn
 #SBATCH --nodes=1
-#SBATCH --nodelist=gpu2,gpu3
+#SBATCH --nodelist=gpu3,gpu4
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=12
@@ -34,7 +34,7 @@
 # ============================================================================
 
 set -e
-source "$SLURM_SUBMIT_DIR/slurm/config.sh"
+source "$SLURM_SUBMIT_DIR/slurm/config.conf"
 source "$SLURM_SUBMIT_DIR/slurm/run_embedding_benchmark.conf"
 
 sleep 10  # let disk settle after prior job
@@ -111,6 +111,8 @@ set +e
 $PYTHON_PATH train.py \
     --embeddings_paths "$EMB_PATH" \
     --sl_path "$SL_PATH" \
+    ${NEG_PATH:+--neg_pairs_path "$NEG_PATH"} \
+    $CELL_LINE_ARGS \
     --output_dir "$OUTPUT_DIR" \
     --cv_type "$CV" \
     $MODEL_ARGS \
@@ -129,6 +131,9 @@ $PYTHON_PATH train.py \
     --num_folds $NUM_FOLDS \
     --pos_neg_ratio $POS_NEG_RATIO \
     --seed $SEED \
+    --preprocessing_fit_scope "${PREPROCESSING_FIT_SCOPE:-train}" \
+    --pca_method "${PCA_METHOD:-robust}" \
+    --siamese_encoder_type "${SIAMESE_ENCODER_TYPE:-residual}" \
     --no_post_pca
 TRAIN_EXIT=$?
 set -e
@@ -149,6 +154,14 @@ v, s = d['auroc_mean'], d['auroc_std']
 print(f'{v:.4f} +/- {s:.4f}' if v is not None else 'N/A')
 " 2>/dev/null || echo "N/A")
 
+# AUPRG: cell-line selection metric; .get() -> 'N/A' in single-output mode.
+AUPRG=$($PYTHON_PATH -c "
+import json
+d = json.load(open('$OUTPUT_DIR/results.json'))['summary']
+v, s = d.get('auprg_mean'), d.get('auprg_std')
+print(f'{v:.4f} +/- {s:.4f}' if v is not None else 'N/A')
+" 2>/dev/null || echo "N/A")
+
 PARAMS=$($PYTHON_PATH -c "
 import json
 d = json.load(open('$OUTPUT_DIR/results.json'))['summary']
@@ -156,5 +169,5 @@ print(f\"{d.get('nonzero_params',0):,}/{d.get('total_params',0):,} ({d.get('weig
 " 2>/dev/null || echo "N/A")
 
 echo "SUCCESS: $ETYPE / $CV"
-echo "  AUROC=$AUROC  Params=$PARAMS"
+echo "  AUROC=$AUROC  AUPRG=$AUPRG  Params=$PARAMS"
 echo "  Completed at: $(date)"

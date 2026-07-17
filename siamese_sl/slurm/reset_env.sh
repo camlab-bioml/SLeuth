@@ -2,7 +2,7 @@
 #SBATCH --job-name=reset_env
 #SBATCH --partition=gpu_Prosmn
 #SBATCH --nodes=1
-#SBATCH --nodelist=gpu2,gpu3
+#SBATCH --nodelist=gpu3,gpu4
 #SBATCH --gres=gpu:1
 #SBATCH --mem=16G
 #SBATCH --cpus-per-task=4
@@ -14,7 +14,7 @@
 # Recreate the Python venv from scratch on a GPU node.
 #
 # Uses pip (not uv) to avoid NFS caching/hardlink issues.
-# Must run on a GPU node (gpu1/gpu2) — devhouse has a different Python version.
+# Must run on a GPU node (gpu2/gpu3) — devhouse has a different Python version.
 #
 # Usage:
 #   cd ~/SLMGAE-pytorch/siamese_sl
@@ -23,7 +23,7 @@
 
 set -e
 
-# Must match the parent directory of PYTHON_PATH in config.sh
+# Must match the parent directory of PYTHON_PATH in config.conf
 VENV_DIR="/ddn_exa/campbell/kaiyang/pytorch"
 
 echo "============================================================================"
@@ -61,6 +61,12 @@ echo "--- Upgrading pip ---"
 echo ""
 
 # Step 5: Install all packages (using pip, not uv — more reliable on NFS)
+# NOTE: setuptools is pinned <81 because setuptools 81 removed the bundled
+# `pkg_resources` module, and node2vec 0.4.3 (the version the resolver picks to
+# stay compatible with networkx/gensim/pykeen) still does `import pkg_resources`
+# at load time. Without the pin, pip installs setuptools >=81 and node2vec fails
+# to import ("No module named 'pkg_resources'"), which the verification below
+# treats as fatal (exit 1) and blocks the whole afterok pipeline.
 echo "--- Installing packages ---"
 "$VENV_DIR/bin/pip" install \
     numpy \
@@ -82,13 +88,14 @@ echo "--- Installing packages ---"
     node2vec \
     pykeen \
     regex \
-    setuptools \
+    "setuptools<81" \
     charset-normalizer \
     protobuf \
     tiktoken \
     mygene \
     robpy \
-    einops
+    einops \
+    openpyxl
 echo ""
 
 # Step 6: Verify
@@ -104,7 +111,7 @@ pkgs = [
     'networkx', 'esm', 'transformers', 'huggingface_hub', 'safetensors',
     'sentencepiece', 'sentence_transformers', 'gensim', 'obonet',
     'node2vec', 'pykeen', 'tiktoken', 'google.protobuf', 'mygene', 'robpy',
-    'einops',
+    'einops', 'openpyxl',
 ]
 ok = 0
 fail = 0

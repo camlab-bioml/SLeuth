@@ -617,7 +617,8 @@ class ESMEmbeddingGenerator:
         for gene in pbar:
             seq = gene_seqs[gene]
 
-            # Skip invalid sequences — mark as NaN for Huber imputation
+            # Skip invalid sequences — mark as NaN; filled at load time by
+            # the preprocessing pipeline (Huber in robust path, mean in plain).
             if not seq or len(seq) < 10:
                 failed_genes.append(gene)
                 all_embeddings[gene] = np.full(self.embed_dim,
@@ -653,7 +654,7 @@ class ESMEmbeddingGenerator:
         n_ok = len(gene_order) - n_failed
         print(f"\nGenerated {len(gene_order)} embeddings")
         print(f"  - Successful: {n_ok}")
-        print(f"  - Failed (NaN, Huber-imputed at load time): {n_failed}")
+        print(f"  - Failed (NaN, imputed at load time): {n_failed}")
 
         embeddings = torch.from_numpy(embedding_matrix).float()
         return (
@@ -671,7 +672,10 @@ class ESMEmbeddingGenerator:
         try:
             return self._generate_batch(batch), []
         except Exception as e:
-            pass
+            # Common cause: CUDA OOM on an unusually long sequence. Logged so
+            # the user can see it in slurm logs and tune --batch_size if needed.
+            print(f"  Batch failed ({len(batch)} seqs), retrying per-sequence: "
+                  f"{type(e).__name__}: {e}")
 
         # Batch failed — retry each sequence individually
         embeddings = {}
@@ -792,7 +796,7 @@ def main():
             "dimension": embeddings.shape[1],
             "pooling": args.pooling,
             "standardized":
-            False,  # Raw embeddings, Huber-imputed at load time
+            False,  # Raw embeddings; imputed + optionally standardized at load time
             "failed_genes": failed,
             "source": "NCBI RefSeq (gene2refseq + efetch)",
             "num_genes": len(gene_order),

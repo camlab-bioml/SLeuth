@@ -833,6 +833,14 @@ def align_embeddings(
     }
 
     print(f"  Gene coverage: {matched}/{len(gene_list)} ({coverage:.1f}%)")
+    if gene_list and coverage < 5.0:
+        # align_embeddings matches the reference gene_list against Entrez-mapped
+        # embedding keys. Near-zero coverage almost always means the --gene_list
+        # is not in Entrez IDs (e.g. a raw symbol list), which would otherwise
+        # save a silently all-NaN embedding file. Warn loudly.
+        print(f"  WARNING: coverage is only {coverage:.1f}% — the output would "
+              f"be almost entirely NaN. Is --gene_list in NCBI Entrez IDs? "
+              f"align_embeddings matches Entrez IDs, not gene symbols.")
     if missing:
         shown = missing[:20]
         print(f"  Missing Entrez IDs (first {len(shown)}): {shown}")

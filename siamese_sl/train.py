@@ -27,6 +27,7 @@ from datetime import datetime
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 from sklearn.metrics import (
@@ -36,8 +37,15 @@ from sklearn.metrics import (
 )
 from tqdm import tqdm
 
-from siamese_esm import SiameseSL, SiameseSLWithAttention, SiameseSLKernel, set_seed
+from siamese_esm import (
+    SiameseSL,
+    SiameseSLMultiCell,
+    SiameseSLWithAttention,
+    SiameseSLKernel,
+    set_seed,
+)
 from data_loader import SLDataManager, create_fold_dataloaders
+import cell_line_vocab
 
 
 def calculate_optimal_f1(labels: np.ndarray, scores: np.ndarray) -> float:
@@ -45,6 +53,87 @@ def calculate_optimal_f1(labels: np.ndarray, scores: np.ndarray) -> float:
     precision, recall, _ = precision_recall_curve(labels, scores)
     f1_scores = 2 * (precision * recall) / (precision + recall + 1e-8)
     return float(np.max(f1_scores))
+
+
+def _normalized_aupr(aupr: float, baseline: float) -> float:
+    """Baseline-normalized AUPR (a.k.a. AUPR skill score).
+
+    AUPR's random-classifier baseline equals the positive prevalence pi, so raw
+    AUPR is not comparable across heads / runs with different pi. This rescales
+    it to [random -> 0, perfect -> 1]:
+
+        aupr_norm = (aupr - pi) / (1 - pi)
+
+    A value < 0 means worse-than-random (kept unclipped, since that is
+    informative). Returns NaN when pi is undefined (pi >= 1, i.e. no negatives)
+    or when aupr itself is NaN. NOTE: this min-max skill rescaling is a common
+    and transparent convention but is not as canonical as AUROC; the formally
+    established baseline-free PR metric is AUPRG (Flach & Kull, 2015).
+    """
+    if (aupr is None or np.isnan(aupr) or baseline is None
+            or np.isnan(baseline) or baseline >= 1.0):
+        return float("nan")
+    return float((aupr - baseline) / (1.0 - baseline))
+
+
+def _auprg(labels: np.ndarray, scores: np.ndarray) -> float:
+    """Area Under the Precision-Recall-Gain curve (Flach & Kull, NeurIPS 2015).
+
+    The principled baseline-free counterpart of AUPR: precision and recall are
+    replaced by their *gain* versions relative to the always-positive baseline
+    (prevalence pi), so a random classifier scores ~0 and the metric is
+    comparable across heads / runs with different pi. Unlike AUPR it is not
+    dominated by pi.
+
+    Uses the reference `prg` package when installed; otherwise falls back to a
+    self-contained implementation that integrates precision-gain over
+    recall-gain on [0, 1] (interpolating the recall-gain = 0 crossing).
+    Returns NaN when pi is degenerate (no positives or no negatives).
+    """
+    labels = np.asarray(labels, dtype=float)
+    scores = np.asarray(scores, dtype=float)
+    pi = float(np.mean(labels)) if labels.size else float("nan")
+    if not (0.0 < pi < 1.0) or len(np.unique(labels)) < 2:
+        return float("nan")
+
+    try:                                   # canonical reference implementation
+        import prg
+        return float(prg.calc_auprg(prg.create_prg_curve(labels, scores)))
+    except Exception:
+        pass
+
+    precision, recall, _ = precision_recall_curve(labels, scores)
+    odds = pi / (1.0 - pi)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        prec_gain = 1.0 - odds * (1.0 - precision) / precision
+        rec_gain = 1.0 - odds * (1.0 - recall) / recall
+    valid = recall > 0                     # drop the terminal recall=0 point
+    rg_v, pg_v = rec_gain[valid], prec_gain[valid]
+    # Collapse duplicate recall-gain values (vertical PR-gain segments) to their
+    # upper envelope: at each recall-gain keep the max precision-gain reached.
+    # sklearn emits many points at recall=1.0 (adding FPs at full recall), all
+    # of which map to recall_gain=1.0; a plain argsort orders those ties
+    # arbitrarily, so the trapezoid up to recall_gain=1.0 can descend to a
+    # low-precision tie and a perfect ranker returns 0.875 instead of 1.0 (and
+    # the result becomes numpy/platform tie-order dependent). np.unique also
+    # returns the recall-gains sorted ascending, giving a clean L->R trace.
+    rg = np.unique(rg_v)
+    pg = np.array([pg_v[rg_v == u].max() for u in rg])
+
+    def _interp(r, r0, r1, p0, p1):
+        if r1 == r0:
+            return p1
+        return p0 + (r - r0) / (r1 - r0) * (p1 - p0)
+
+    area = 0.0
+    for i in range(1, len(rg)):
+        r0, r1, p0, p1 = rg[i - 1], rg[i], pg[i - 1], pg[i]
+        lo, hi = max(0.0, min(r0, r1)), min(1.0, max(r0, r1))
+        if hi <= lo:                       # segment outside [0, 1] recall-gain
+            continue
+        area += (hi - lo) * (_interp(lo, r0, r1, p0, p1)
+                             + _interp(hi, r0, r1, p0, p1)) / 2.0
+    return float(area)
 
 
 class Trainer:
@@ -76,27 +165,50 @@ class Trainer:
         with open(self.output_dir / "config.json", "w") as f:
             json.dump(vars(args), f, indent=2)
 
-        # Load data (unified pipeline: impute → PCA → normalize → concat)
+        # Load RAW embeddings (no preprocessing). Preprocessing is fit
+        # PER FOLD on training-pair genes (excluding test-only genes) to
+        # prevent CV2/CV3 leakage of test-gene embeddings into the PCA /
+        # normalization basis. See SLDataManager.get_fold_embeddings.
+        # --preprocessing_fit_scope flips this to all-gene fit for A/B
+        # comparison with the legacy leaky pipeline.
         self.data_manager = SLDataManager(
             embeddings_paths=args.embeddings_paths,
             sl_pairs_path=args.sl_path,
+            neg_pairs_path=args.neg_pairs_path,
             gene_list_path=args.gene_list_path,
             seed=args.seed,
             pca_dims=args.pca_dims,
             post_pca=args.post_pca,
+            preprocessing_fit_scope=args.preprocessing_fit_scope,
+            pca_method=args.pca_method,
+            use_cell_lines=args.use_cell_lines,
         )
 
-        # Auto-detect input_dim from loaded embeddings
-        actual_dim = self.data_manager.embeddings.shape[1]
-        if args.input_dim is not None and args.input_dim != actual_dim:
-            print(f"Warning: --input_dim={args.input_dim} overrides "
-                  f"detected dim={actual_dim}")
-        else:
-            args.input_dim = actual_dim
-        print(f"Input dim: {args.input_dim}")
+        # input_dim is resolved per-fold once that fold's preprocessing is
+        # fit (variance-target PCA may pick a different k per fold).
+        if args.input_dim is not None:
+            print(f"Warning: --input_dim={args.input_dim} is ignored; "
+                  f"per-fold input_dim is detected from the fold's "
+                  f"preprocessed embedding matrix.")
+        args.input_dim = None
 
     def create_model(self) -> nn.Module:
         """Create the model."""
+        if self.args.use_cell_lines:
+            encoder_dims = self.args.encoder_dims or [
+                self.args.hidden_dim, self.args.latent_dim
+            ]
+            model = SiameseSLMultiCell(
+                input_dim=self.args.input_dim,
+                num_heads=cell_line_vocab.NUM_HEADS,
+                encoder_dims=encoder_dims,
+                dropout=self.args.dropout,
+                last_layer_bias=self.args.last_layer_bias,
+                pd_epsilon=self.args.pd_epsilon,
+                siamese_encoder_type=self.args.siamese_encoder_type,
+                cell_line_dim=self.args.cell_line_dim,
+            )
+            return model.to(self.device)
         if self.args.model_type == "attention":
             model = SiameseSLWithAttention(
                 input_dim=self.args.input_dim,
@@ -128,6 +240,7 @@ class Trainer:
                 dropout=self.args.dropout,
                 last_layer_bias=self.args.last_layer_bias,
                 pd_epsilon=self.args.pd_epsilon,
+                siamese_encoder_type=self.args.siamese_encoder_type,
             )
         return model.to(self.device)
 
@@ -143,14 +256,28 @@ class Trainer:
         total_loss = 0.0
         num_batches = 0
 
-        for x1, x2, labels in train_loader:
-            x1 = x1.to(self.device)
-            x2 = x2.to(self.device)
-            labels = labels.to(self.device).unsqueeze(1)
-
+        for batch in train_loader:
             optimizer.zero_grad()
-            logits = model(x1, x2)
-            loss = criterion(logits, labels)
+            if self.args.use_cell_lines:
+                # batch = (x1, x2, label_vec(H), mask_vec(H))
+                x1, x2, labels, mask = batch
+                x1 = x1.to(self.device)
+                x2 = x2.to(self.device)
+                labels = labels.to(self.device)   # (B, H)
+                mask = mask.to(self.device)        # (B, H)
+                logits = model(x1, x2)             # (B, H)
+                per = F.binary_cross_entropy_with_logits(
+                    logits, labels, reduction="none")  # (B, H); no pos_weight
+                # Masked mean over supervised (pair, head) cells — the only
+                # weighting (each observed cell weighted equally).
+                loss = (per * mask).sum() / mask.sum().clamp_min(1.0)
+            else:
+                x1, x2, labels = batch
+                x1 = x1.to(self.device)
+                x2 = x2.to(self.device)
+                labels = labels.to(self.device).unsqueeze(1)
+                logits = model(x1, x2)
+                loss = criterion(logits, labels)
             loss.backward()
             optimizer.step()
 
@@ -193,6 +320,8 @@ class Trainer:
         test_loader,
     ) -> dict:
         """Evaluate model on test set."""
+        if self.args.use_cell_lines:
+            return self._evaluate_multilabel(model, test_loader)
         model.eval()
         all_labels = []
         all_scores = []
@@ -219,18 +348,162 @@ class Trainer:
             return {
                 "auroc": float("nan"),
                 "aupr": float("nan"),
+                "aupr_baseline": float("nan"),
+                "aupr_norm": float("nan"),
+                "auprg": float("nan"),
                 "f1": float("nan"),
             }
 
         # Compute metrics
         auroc = roc_auc_score(all_labels, all_scores)
         aupr = average_precision_score(all_labels, all_scores)
+        baseline = float(np.mean(all_labels))          # positive prevalence (pi)
+        aupr_norm = _normalized_aupr(aupr, baseline)   # skill score: random -> 0
+        auprg = _auprg(all_labels, all_scores)         # baseline-free (Flach&Kull)
         f1 = calculate_optimal_f1(all_labels, all_scores)
 
         return {
             "auroc": auroc,
             "aupr": aupr,
+            "aupr_baseline": baseline,
+            "aupr_norm": aupr_norm,
+            "auprg": auprg,
             "f1": f1,
+        }
+
+    @torch.no_grad()
+    def _evaluate_multilabel(self, model: nn.Module, test_loader) -> dict:
+        """Cell-line-mode evaluation, three views.
+
+        PRIMARY = STRATIFIED: pool every observed (pair, cell_line) cell into
+        one long set and compute AUROC / AUPR / AUPRG / F1 on it. Stratified
+        AUPRG is the model-selection metric.
+        GLOBAL (`*_any`): one-time headline — collapse the head axis per pair
+        (label = SL in any line; score = max over heads).
+        PER-CELL-LINE (`*_macro`, `per_head_*`): equal-weight-per-line
+        diagnostic. Heads with <2 classes this fold are skipped.
+        """
+        model.eval()
+        logits_all, labels_all, masks_all = [], [], []
+        for x1, x2, labels, mask in test_loader:
+            x1 = x1.to(self.device)
+            x2 = x2.to(self.device)
+            logits = model(x1, x2)  # (B, H)
+            logits_all.append(logits.cpu())
+            labels_all.append(labels)
+            masks_all.append(mask)
+        L = torch.cat(logits_all).numpy()
+        Y = torch.cat(labels_all).numpy()
+        M = torch.cat(masks_all).numpy()
+        P = 1.0 / (1.0 + np.exp(-L))  # sigmoid -> per-head probabilities
+
+        per_head_aupr, per_head_auroc, per_head_f1 = {}, [], []
+        per_head_baseline, per_head_aupr_norm, per_head_auprg = {}, {}, {}
+        aupr_list = []            # raw per-head AUPRs (macro-averaged for report)
+        aupr_norm_list = []       # normalized per-head AUPRs (reported)
+        auprg_list = []           # per-head AUPRG (macro diagnostic)
+        baseline_list = []        # per-head prevalence of scored heads
+        pooled_y, pooled_s = [], []
+        for h, name in enumerate(cell_line_vocab.HEADS):
+            sel = M[:, h] == 1
+            if sel.sum() == 0:
+                per_head_aupr[name] = float("nan")
+                per_head_baseline[name] = float("nan")
+                per_head_aupr_norm[name] = float("nan")
+                per_head_auprg[name] = float("nan")
+                continue
+            yh, sh = Y[sel, h], P[sel, h]
+            pooled_y.extend(yh.tolist())
+            pooled_s.extend(sh.tolist())
+            pi = float(np.mean(yh))            # this head's positive prevalence
+            per_head_baseline[name] = pi
+            if len(np.unique(yh)) < 2:
+                per_head_aupr[name] = float("nan")
+                per_head_aupr_norm[name] = float("nan")
+                per_head_auprg[name] = float("nan")
+                continue
+            ap = average_precision_score(yh, sh)
+            ap_norm = _normalized_aupr(ap, pi)
+            ap_g = _auprg(yh, sh)
+            per_head_aupr[name] = float(ap)
+            per_head_aupr_norm[name] = ap_norm
+            per_head_auprg[name] = ap_g
+            aupr_list.append(ap)
+            baseline_list.append(pi)
+            if not np.isnan(ap_norm):
+                aupr_norm_list.append(ap_norm)
+            if not np.isnan(ap_g):
+                auprg_list.append(ap_g)
+            per_head_auroc.append(roc_auc_score(yh, sh))
+            per_head_f1.append(calculate_optimal_f1(yh, sh))
+
+        pooled_y = np.array(pooled_y)
+        pooled_s = np.array(pooled_s)
+
+        # --- STRATIFIED (PRIMARY): pool every observed (pair, cell_line) cell -
+        # The "cell_line x N observations" long form — each supervised
+        # (pair, head) cell is one row. Selection AND the headline run on this
+        # pooled set. Prevalence-weighted (dense lines like K562 dominate); the
+        # per-cell-line macro below is the equal-weight-per-line complement.
+        if len(np.unique(pooled_y)) >= 2:
+            strat_aupr = float(average_precision_score(pooled_y, pooled_s))
+            strat_auroc = float(roc_auc_score(pooled_y, pooled_s))
+            strat_f1 = float(calculate_optimal_f1(pooled_y, pooled_s))
+        else:
+            strat_aupr = strat_auroc = strat_f1 = float("nan")
+        strat_baseline = (float(np.mean(pooled_y)) if pooled_y.size
+                          else float("nan"))
+        strat_aupr_norm = _normalized_aupr(strat_aupr, strat_baseline)
+        strat_auprg = _auprg(pooled_y, pooled_s)   # <- selection metric
+
+        # --- GLOBAL (one-time headline): collapse the head axis per pair ------
+        # "SL in ANY cell line": one row per pair.
+        #   label = 1 if the pair is SL in any supervised line, else 0 (a pair
+        #           both SL and non-SL across lines counts positive).
+        #   score = max over ALL heads of the SL probability.
+        sup = M == 1
+        has_pos = (sup & (Y == 1)).any(axis=1)
+        has_neg = (sup & (Y == 0)).any(axis=1)
+        agg_keep = has_pos | has_neg          # every pair has >=1 supervised head
+        agg_y = has_pos[agg_keep].astype(np.float32)
+        agg_s = P[agg_keep].max(axis=1)       # max over all heads -> one score/pair
+        baseline_any = float(np.mean(agg_y)) if agg_y.size else float("nan")
+        if len(np.unique(agg_y)) >= 2:
+            aupr_any = float(average_precision_score(agg_y, agg_s))
+            auroc_any = float(roc_auc_score(agg_y, agg_s))
+        else:
+            aupr_any = auroc_any = float("nan")
+        aupr_any_norm = _normalized_aupr(aupr_any, baseline_any)
+        auprg_any = _auprg(agg_y, agg_s)
+
+        # --- PER-CELL-LINE macro (diagnostic; equal weight per line) ---------
+        macro = lambda xs: float(np.mean(xs)) if xs else float("nan")
+        return {
+            # PRIMARY = stratified pooled (drives selection + headline).
+            "auroc": strat_auroc,
+            "aupr": strat_aupr,
+            "auprg": strat_auprg,             # stratified AUPRG -> selection
+            "aupr_norm": strat_aupr_norm,
+            "aupr_baseline": strat_baseline,
+            "f1": strat_f1,
+            # GLOBAL one-time headline (SL in any cell line, max over heads).
+            "auroc_any": auroc_any,
+            "aupr_any": aupr_any,
+            "auprg_any": auprg_any,
+            "aupr_any_norm": aupr_any_norm,
+            "baseline_any": baseline_any,
+            # PER-CELL-LINE macro + breakdown (diagnostic, equal weight/line).
+            "auroc_macro": macro(per_head_auroc),
+            "aupr_macro": macro(aupr_list),
+            "auprg_macro": macro(auprg_list),
+            "aupr_norm_macro": macro(aupr_norm_list),
+            "aupr_baseline_macro": macro(baseline_list),
+            "f1_macro": macro(per_head_f1),
+            "per_head_aupr": per_head_aupr,
+            "per_head_aupr_norm": per_head_aupr_norm,
+            "per_head_auprg": per_head_auprg,
+            "per_head_baseline": per_head_baseline,
+            "n_heads_scored": len(aupr_list),
         }
 
     def train_fold(self, fold_data: dict) -> dict:
@@ -240,9 +513,18 @@ class Trainer:
         print(f"Training Fold {fold_idx + 1}")
         print(f"{'='*60}")
 
+        # Fit preprocessing on THIS fold's training-pair genes, apply to all.
+        # Returns the per-fold embedding matrix + the transform we must save
+        # alongside the checkpoint so inference can rebuild the same feature
+        # space from the raw .pt files.
+        fold_embeddings, fold_transform = \
+            self.data_manager.get_fold_embeddings(fold_data)
+        self.args.input_dim = fold_embeddings.shape[1]
+        print(f"Fold {fold_idx + 1} input_dim: {self.args.input_dim}")
+
         # Create dataloaders
         train_loader, test_loader = create_fold_dataloaders(
-            embeddings=self.data_manager.embeddings,
+            embeddings=fold_embeddings,
             fold_data=fold_data,
             batch_size=self.args.batch_size,
         )
@@ -250,12 +532,18 @@ class Trainer:
         # Create model and optimizer
         model = self.create_model()
 
+        # No pos_weight anywhere (by design): class imbalance is left to the
+        # masked-mean BCE and the rank metrics (AUPR/AUPRG). The masked mean is
+        # the only weighting.
+
         # Build per-layer L1 lambda map: param_name -> lambda
-        # Only weight matrices (dim >= 2) are penalized
+        # Only weight matrices (dim >= 2) are penalized. Cell-line embedding
+        # params (cell_emb) are categorical context, not feature-selection
+        # weights — excluded so --l1_lambdas keeps matching the encoder.
         self._l1_map = {}
         if self.args.l1_lambdas:
             weight_params = [(n, p) for n, p in model.named_parameters()
-                             if p.dim() >= 2]
+                             if p.dim() >= 2 and not n.startswith("cell_")]
             if len(self.args.l1_lambdas) != len(weight_params):
                 raise ValueError(
                     f"--l1_lambdas has {len(self.args.l1_lambdas)} values but "
@@ -278,11 +566,20 @@ class Trainer:
         )
         criterion = nn.BCEWithLogitsLoss()
 
-        # Training loop
-        best_auroc = 0.0
+        # Training loop. Best-checkpoint metric:
+        #   cell-line mode  -> STRATIFIED AUPRG (pooled over every observed
+        #                      (pair, cell_line) cell; baseline-free).
+        #   single-output   -> raw AUPR (unchanged project convention, so the
+        #                      benchmark stays comparable to prior runs).
+        # Early stopping shares the same metric — patience increments only when
+        # it fails to improve. A NaN selection value (degenerate split) never
+        # beats best_sel because NaN > x is False, so the save is skipped.
+        sel_metric = "auprg" if self.args.use_cell_lines else "aupr"
+        best_sel = float("-inf")
         best_epoch = 0
         patience_counter = 0
         best_metrics = {}
+        n_evals = 0  # how many periodic evaluations actually ran
 
         pbar = tqdm(range(self.args.epochs), desc=f"Fold {fold_idx + 1}")
         for epoch in pbar:
@@ -294,18 +591,47 @@ class Trainer:
             # Evaluate periodically
             if (epoch + 1) % self.args.eval_interval == 0:
                 metrics = self.evaluate(model, test_loader)
+                n_evals += 1
 
-                pbar.set_postfix({
+                postfix = {
                     "loss": f"{train_loss:.4f}",
+                    "aupr": f"{metrics['aupr']:.4f}",
+                    "auprg": f"{metrics['auprg']:.4f}",
                     "auroc": f"{metrics['auroc']:.4f}",
-                })
+                }
+                pbar.set_postfix(postfix)
 
-                # Save best model (based on AUROC)
-                if metrics["auroc"] > best_auroc:
-                    best_auroc = metrics["auroc"]
+                if metrics[sel_metric] > best_sel:
+                    best_sel = metrics[sel_metric]
                     best_epoch = epoch + 1
                     best_metrics = metrics.copy()
                     patience_counter = 0
+                    if self.args.use_cell_lines:
+                        ph = metrics.get("per_head_aupr", {})
+                        phb = metrics.get("per_head_baseline", {})
+                        phn = metrics.get("per_head_aupr_norm", {})
+                        phg = metrics.get("per_head_auprg", {})
+                        nan = float("nan")
+                        print("\n  cell-line metrics  [baseline | raw AUPR | "
+                              "norm AUPR | AUPRG]")
+                        print(f"    strat : {metrics['aupr_baseline']:.3f} | "
+                              f"{metrics['aupr']:.3f} | "
+                              f"{metrics['aupr_norm']:.3f} | "
+                              f"{metrics['auprg']:.3f}   <- AUPRG selects")
+                        print(f"    any   : {metrics['baseline_any']:.3f} | "
+                              f"{metrics['aupr_any']:.3f} | "
+                              f"{metrics['aupr_any_norm']:.3f} | "
+                              f"{metrics['auprg_any']:.3f}   "
+                              f"(AUROC {metrics['auroc_any']:.3f})")
+                        print(f"    macro : {metrics['aupr_baseline_macro']:.3f}"
+                              f" | {metrics['aupr_macro']:.3f} | "
+                              f"{metrics['aupr_norm_macro']:.3f} | "
+                              f"{metrics['auprg_macro']:.3f}   (per-line avg)")
+                        for n in cell_line_vocab.HEADS:
+                            print(f"    {n:<7}: {phb.get(n, nan):.3f} | "
+                                  f"{ph.get(n, nan):.3f} | "
+                                  f"{phn.get(n, nan):.3f} | "
+                                  f"{phg.get(n, nan):.3f}")
 
                     torch.save(
                         {
@@ -314,6 +640,14 @@ class Trainer:
                             "optimizer_state_dict": optimizer.state_dict(),
                             "metrics": metrics,
                             "config": vars(self.args),
+                            "input_dim": int(self.args.input_dim),
+                            "preprocessing_transform": fold_transform,
+                            "gene_order": [
+                                self.data_manager.idx_to_gene[i]
+                                for i in range(self.data_manager.num_genes)
+                            ],
+                            "embeddings_paths": list(
+                                self.args.embeddings_paths),
                         }, self.output_dir / "checkpoints" /
                         f"fold_{fold_idx}_best.pt")
                 else:
@@ -322,11 +656,20 @@ class Trainer:
                         print(f"\nEarly stopping at epoch {epoch + 1}")
                         break
 
-        # Handle case where no evaluation occurred (epochs < eval_interval)
+        # No checkpoint was saved during the loop. Two distinct causes:
+        #   n_evals == 0 — epochs < eval_interval, so evaluate() never ran.
+        #   n_evals  > 0 — every eval returned a NaN selection value (degenerate
+        #                  fold), so `NaN > best_sel` was always False -> no save.
         if not best_metrics:
-            print(
-                f"\nWarning: No evaluation performed (epochs={self.args.epochs} < eval_interval={self.args.eval_interval})"
-            )
+            if n_evals == 0:
+                print(
+                    f"\nWarning: No evaluation performed "
+                    f"(epochs={self.args.epochs} < "
+                    f"eval_interval={self.args.eval_interval})")
+            else:
+                print(
+                    f"\nWarning: all {n_evals} evaluation(s) returned undefined "
+                    f"AUPR (degenerate fold); saving the final-epoch checkpoint")
             best_metrics = self.evaluate(model, test_loader)
             best_epoch = self.args.epochs
             # Save checkpoint so nonzero counting and downstream loading work
@@ -337,6 +680,13 @@ class Trainer:
                     "optimizer_state_dict": optimizer.state_dict(),
                     "metrics": best_metrics,
                     "config": vars(self.args),
+                    "input_dim": int(self.args.input_dim),
+                    "preprocessing_transform": fold_transform,
+                    "gene_order": [
+                        self.data_manager.idx_to_gene[i]
+                        for i in range(self.data_manager.num_genes)
+                    ],
+                    "embeddings_paths": list(self.args.embeddings_paths),
                 },
                 self.output_dir / "checkpoints" / f"fold_{fold_idx}_best.pt")
 
@@ -493,6 +843,36 @@ class Trainer:
             },
         }
 
+        # Cell-line mode: summarize the three views across folds. The primary
+        # `aupr`/`auroc`/`auprg` above are STRATIFIED (pooled over observed
+        # cells); these add the per-cell-line macro diagnostic and the global
+        # "SL in any line" one-time headline.
+        if self.args.use_cell_lines:
+            def _fold_mean_std(key):
+                arr = np.array([m.get(key, float("nan")) for m in all_metrics],
+                               dtype=float)
+                return float(np.nanmean(arr)), float(np.nanstd(arr))
+            for key in ("auprg", "aupr_norm", "aupr_baseline",
+                        "auprg_macro", "aupr_macro", "aupr_norm_macro",
+                        "aupr_baseline_macro",
+                        "aupr_any", "aupr_any_norm", "auprg_any", "auroc_any"):
+                mean, std = _fold_mean_std(key)
+                summary["summary"][f"{key}_mean"] = mean
+                summary["summary"][f"{key}_std"] = std
+            s = summary["summary"]
+            print("\nCell-line metrics (mean over folds):")
+            print("  STRATIFIED (pooled per-cell-line obs; SELECTION basis):")
+            print(f"    baseline(pi) {s['aupr_baseline_mean']:.4f}  "
+                  f"AUPR {s['aupr_mean']:.4f}  normAUPR {s['aupr_norm_mean']:.4f}"
+                  f"  AUPRG {s['auprg_mean']:.4f}  AUROC {s['auroc_mean']:.4f}")
+            print("  GLOBAL (SL in any cell line; one-time headline):")
+            print(f"    AUPRG {s['auprg_any_mean']:.4f} "
+                  f"± {s['auprg_any_std']:.4f}   AUPR {s['aupr_any_mean']:.4f}"
+                  f"   AUROC {s['auroc_any_mean']:.4f}")
+            print("  PER-LINE macro (equal weight/line; diagnostic):")
+            print(f"    AUPRG {s['auprg_macro_mean']:.4f}  "
+                  f"AUPR {s['aupr_macro_mean']:.4f}")
+
         def _nan_to_none(obj):
             """Replace NaN with None for valid JSON serialization."""
             if isinstance(obj, (float, np.floating)) and np.isnan(obj):
@@ -528,11 +908,36 @@ def main():
                         default=None,
                         help="One or more .pt embedding files. Each modality "
                         "is imputed, optionally PCA-reduced, and "
-                        "MAD-normalized before concatenation.")
+                        "normalized before concatenation (see --pca_method).")
     parser.add_argument("--sl_path",
                         type=str,
                         default="../data/SL_SynLethDB_experimental.txt",
                         help="Path to SL pairs file")
+    parser.add_argument(
+        "--neg_pairs_path",
+        type=str,
+        default=None,
+        help="Optional path to a curated NON-SL pairs file (gene1 TAB "
+        "gene2), e.g. ../data/SL_SynLethDB_experimental_negatives.txt. When "
+        "set, these experimentally screened negatives replace the benchmark's "
+        "random negative sampling. Only pairs whose both genes also appear in "
+        "a positive pair are usable; --pos_neg_ratio still controls balance.")
+    parser.add_argument(
+        "--use_cell_lines",
+        action="store_true",
+        help="Enable masked multi-label cell-line conditioning. The unit "
+        "becomes a gene pair with a per-head (label, mask) over "
+        "[K562, JURKAT, A549, HELA, A375, 293T, PC9, OTHER]; cell embeddings "
+        "are concatenated onto the gene features (SiameseSLMultiCell), and the "
+        "model predicts SL per head. Reads cell context from the "
+        "'.sources.tsv' sidecars next to --sl_path / --neg_pairs_path; "
+        "requires --neg_pairs_path. Selection metric is STRATIFIED AUPRG "
+        "(pooled over observed cells; global 'any-line' + per-line reported).")
+    parser.add_argument(
+        "--cell_line_dim",
+        type=int,
+        default=8,
+        help="Cell-line embedding dimension (only used with --use_cell_lines).")
     parser.add_argument("--gene_list_path",
                         type=str,
                         default=None,
@@ -584,8 +989,20 @@ def main():
         type=int,
         nargs='+',
         default=None,
-        help="Encoder layer dims for siamese model (e.g., 256 128 64). "
-        "Falls back to --hidden_dim/--latent_dim if not set.")
+        help="Encoder layer dims for siamese model (e.g., 8 8 8 8 8 8 8 — "
+        "the SLURM default for the residual encoder, 6 hidden + 1 "
+        "projection). The last entry is the projection (latent) dim. Falls "
+        "back to --hidden_dim/--latent_dim if not set.")
+    parser.add_argument(
+        "--siamese_encoder_type",
+        type=str,
+        default="residual",
+        choices=["mlp", "residual"],
+        help="Architecture of the shared siamese encoder. "
+        "'residual' (default): same-width hidden blocks get y = x + F(x) "
+        "skip connections — gradient-friendly, enables deeper stacks. "
+        "'mlp': plain stack of Linear→LN→LReLU→Dropout blocks (no skips). "
+        "Kernel and attention siamese variants are unaffected by this flag.")
 
     # RKHS/Kernel model specific
     parser.add_argument(
@@ -654,6 +1071,30 @@ def main():
         action="store_true",
         default=False,
         help="Disable the post-concat ROBPCA step (on by default).")
+    parser.add_argument(
+        "--preprocessing_fit_scope",
+        type=str,
+        default="train",
+        choices=["train", "all"],
+        help="Which gene rows to fit preprocessing (Huber-impute, ROBPCA, "
+        "median/MAD normalize) on, PER FOLD.  "
+        "'train' (default): only training-pair genes + non-SL genes — "
+        "leak-free.  "
+        "'all': every gene — matches pre-refactor legacy behavior and "
+        "reintroduces CV2/CV3 leakage of test-gene embeddings into the "
+        "basis. Use ONLY for A/B comparison.")
+    parser.add_argument(
+        "--pca_method",
+        type=str,
+        default="robust",
+        choices=["robust", "plain", "svd"],
+        help="PCA algorithm for per-modality and post-concat reduction. "
+        "'robust': ROBPCA (Hubert et al. 2005) with alpha retries and a "
+        "median-centered-SVD fallback; global median/MAD normalize. "
+        "'plain': per-column mean/std standardize + SVD (each dim equal "
+        "weight). 'svd': matrix-wise global-scalar normalize + median-"
+        "centered SVD, NO per-column standardize (keeps per-dim variance "
+        "importance) and NO ROBPCA (fast at high concat dims).")
     parser.add_argument(
         "--l1_lambdas",
         type=float,

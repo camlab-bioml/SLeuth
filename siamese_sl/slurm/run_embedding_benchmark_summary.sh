@@ -2,7 +2,7 @@
 #SBATCH --job-name=bench_summary
 #SBATCH --partition=gpu_Prosmn
 #SBATCH --nodes=1
-#SBATCH --nodelist=gpu2,gpu3
+#SBATCH --nodelist=gpu3,gpu4
 #SBATCH --gres=gpu:1
 #SBATCH --mem=8G
 #SBATCH --cpus-per-task=2
@@ -23,7 +23,7 @@
 # ============================================================================
 
 set -e
-source "$SLURM_SUBMIT_DIR/slurm/config.sh"
+source "$SLURM_SUBMIT_DIR/slurm/config.conf"
 source "$SLURM_SUBMIT_DIR/slurm/run_embedding_benchmark.conf"
 
 sleep 10  # let disk settle after benchmark array completes
@@ -131,6 +131,26 @@ print()
 print(f"Runs: {successful} successful, {failed} failed/missing (of {len(emb_types) * len(cv_types)})")
 print("=" * table_w)
 
+# AUPRG table — the cell-line selection metric (train.py selects checkpoints on
+# macro AUPRG when USE_CELL_LINES=1). Shown only when present in a loaded
+# summary; single-output runs (no auprg_mean) skip it silently. The AUROC table
+# and its success sentinel above are left as the mode-agnostic liveness check.
+has_auprg = any((data[etype].get(cv) or {}).get("auprg_mean") is not None
+                for etype in emb_types for cv in cv_types)
+if has_auprg:
+    print()
+    print("=" * table_w)
+    print("EMBEDDING BENCHMARK RESULTS (AUPRG - cell-line selection metric)".center(table_w))
+    print("=" * table_w)
+    print()
+    print(f"{'Embedding':<20s} | {header}")
+    print("-" * table_w)
+    for etype in emb_types:
+        row = [fmt(data[etype].get(cv), "auprg_mean", "auprg_std") for cv in cv_types]
+        row_str = " | ".join(f"{cell:<{col_w}s}" for cell in row)
+        print(f"{etype:<20s} | {row_str}")
+    print("=" * table_w)
+
 # ---------------------------------------------------------------------------
 # Save JSON summary
 # ---------------------------------------------------------------------------
@@ -146,6 +166,10 @@ for etype in emb_types:
             summary["results"][etype][cv] = {
                 "auroc": fmt(s, "auroc_mean", "auroc_std"),
                 "aupr": fmt(s, "aupr_mean", "aupr_std"),
+                # AUPRG / normalized AUPR: cell-line selection metrics. Absent in
+                # single-output results.json -> fmt() returns "N/A" (no KeyError).
+                "auprg": fmt(s, "auprg_mean", "auprg_std"),
+                "aupr_norm": fmt(s, "aupr_norm_mean", "aupr_norm_std"),
                 "f1": fmt(s, "f1_mean", "f1_std"),
                 "total_params": s.get("total_params", 0),
                 "nonzero_params": s.get("nonzero_params", 0),

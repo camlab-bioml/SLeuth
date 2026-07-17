@@ -2,7 +2,7 @@
 #SBATCH --job-name=siamese_gen_emb
 #SBATCH --partition=gpu_Prosmn
 #SBATCH --nodes=1
-#SBATCH --nodelist=gpu2,gpu3
+#SBATCH --nodelist=gpu3,gpu4
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=12
@@ -36,7 +36,7 @@
 # ============================================================================
 
 set -e
-source "$SLURM_SUBMIT_DIR/slurm/config.sh"
+source "$SLURM_SUBMIT_DIR/slurm/config.conf"
 source "$SLURM_SUBMIT_DIR/slurm/run_generate_embeddings.conf"
 
 echo "SIAMESE SL - EMBEDDING GENERATION"
@@ -89,15 +89,54 @@ echo ""
 echo "--- STEP 0: SynLethDB Experimental SL Pairs ---"
 sleep 10
 
-if [ -f "$SL_PATH" ]; then
+# Skip only when BOTH the pairs .txt AND its .sources.tsv sidecar exist. The
+# sidecar carries the per-cell-line provenance that USE_CELL_LINES=1 (now the
+# default) needs; a .txt left without its sidecar would make every cell-mode
+# train.py call crash at _setup_multilabel. Regenerate if either is missing.
+SL_SIDECAR="${SL_PATH%.txt}.sources.tsv"
+if [ -f "$SL_PATH" ] && [ -f "$SL_SIDECAR" ]; then
     echo "Already exist, skipping"
     wc -l "$SL_PATH" | awk '{print "  " $1 " SL pairs"}'
 else
-    echo "Downloading SynLethDB 2.0 and filtering to experimental pairs..."
+    echo "Downloading SynLethDB and filtering to experimental SL pairs..."
     $PYTHON_PATH download_synlethdb.py \
         --output "$SL_PATH" \
         --cache_dir "$CACHE_DIR"
-    [ -f "$SL_PATH" ] || { echo "FAILED"; exit 1; }
+    { [ -f "$SL_PATH" ] && [ -f "$SL_SIDECAR" ]; } \
+        || { echo "FAILED (missing pairs .txt or .sources.tsv sidecar)"; exit 1; }
+fi
+
+# Experimentally screened NON-SL pairs + provenance sidecar. With cell-line
+# conditioning ON by default (USE_CELL_LINES=1 -> NEG_PATH non-empty), these are
+# REQUIRED and the download is FATAL on failure — cell mode has no random-
+# negative fallback. Set USE_CELL_LINES=0 and NEG_PATH="" for the random-negative
+# benchmark, where a missing negatives file is non-fatal. Skip only when BOTH the
+# .txt and its sidecar exist; retry a transient (network/Drive) failure.
+NEG_SIDECAR="${NEG_PATH_FILE%.txt}.sources.tsv"
+if [ -f "$NEG_PATH_FILE" ] && [ -f "$NEG_SIDECAR" ]; then
+    echo "Negatives already exist, skipping"
+    wc -l "$NEG_PATH_FILE" | awk '{print "  " $1 " non-SL pairs"}'
+else
+    echo "Downloading SynLethDB experimental NON-SL pairs (negatives)..."
+    for attempt in 1 2 3; do
+        if $PYTHON_PATH download_synlethdb.py \
+            --relation NONSL \
+            --output "$NEG_PATH_FILE" \
+            --cache_dir "$CACHE_DIR"; then
+            break
+        fi
+        echo "WARNING: negatives download attempt $attempt/3 returned non-zero"
+        sleep $((attempt * 15))
+    done
+    if [ ! -f "$NEG_PATH_FILE" ] || [ ! -f "$NEG_SIDECAR" ]; then
+        if [ -n "${NEG_PATH:-}" ]; then
+            echo "ERROR: NEG_PATH is set (cell-line / experimental-negative mode)" \
+                 "but the negatives pairs+sidecar download failed after retries."
+            exit 1
+        fi
+        echo "WARNING: could not download negatives; continuing (not needed" \
+             "unless NEG_PATH is set)."
+    fi
 fi
 echo ""
 

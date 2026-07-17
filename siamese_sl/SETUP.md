@@ -36,10 +36,10 @@ pip install numpy torch scipy scikit-learn pandas tqdm requests networkx \
 
 - **devhouse vs GPU nodes**: devhouse runs Python 3.9, GPU nodes (gpu1/gpu2) run Python 3.12. A venv created on devhouse will NOT work on GPU nodes.
 - **NFS errors (os error 61)**: The NFS filesystem can be flaky. If `pip install` fails with "No data available (os error 61)", retry with `TMPDIR=/tmp pip install --no-cache-dir ...`
-- **TensorFlow conflict**: An old TensorFlow install causes `transformers` to crash on import. Fixed by `export TRANSFORMERS_NO_TF=1` (already set in `slurm/config.sh`).
+- **TensorFlow conflict**: An old TensorFlow install causes `transformers` to crash on import. Fixed by `export TRANSFORMERS_NO_TF=1` (already set in `slurm/config.conf`).
 - **setuptools / pkg_resources**: If `import pkg_resources` fails, run `pip install --force-reinstall setuptools` (use `pip`, not `uv` — `uv` sometimes installs to the wrong `lib`/`lib64` path).
-- **SLURM scripts use `python3` not `python`**: The `PYTHON_PATH` in `slurm/config.sh` must point to `python3` (not `python` or `python3.9`), since the venv resolves the unversioned symlinks differently across nodes.
+- **SLURM scripts use `python3` not `python`**: The `PYTHON_PATH` in `slurm/config.conf` must point to `python3` (not `python` or `python3.9`), since the venv resolves the unversioned symlinks differently across nodes.
 
 ## Config
 
-All SLURM scripts source `slurm/config.sh` for paths, environment, training hyperparameters, and the embedding catalog. Per-job `.conf` files add job-specific settings (PCA variance target, embedding catalog with categories). See `slurm/README.md` for the full configuration structure.
+All SLURM scripts source `slurm/config.conf` for paths, environment, training hyperparameters, and the embedding catalog. Per-job `.conf` files add job-specific settings (PCA variance target, embedding catalog with categories). See `slurm/README.md` for the full configuration structure.

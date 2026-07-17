@@ -78,6 +78,19 @@ L1 on $\mathbf{W}$ pushes columns toward zero, making $\mathbf{W}^\top \mathbf{W
 
 ---
 
+## Cell-line conditioning (optional, `--use_cell_lines`)
+
+`SiameseSLMultiCell` is a separate model for **masked multi-label, concat-at-input** prediction: instead of one SL score per pair, it predicts SL for every cell-line **head** at once. Heads (`cell_line_vocab.HEADS`, 8): `K562, JURKAT, A549, HELA, A375, 293T, PC9` + an `OTHER` catch-all (absorbs rare lines and pairs with no recorded line).
+
+- **Concat-at-input.** A per-head embedding $\mathbf{c}_h \in \mathbb{R}^{d_c}$ is concatenated onto each gene's feature vector *before* the shared encoder, so the cell context interacts with the biological embedding inside the network. The encoder input widens from $D$ to $D + d_c$ ($d_c$ = `--cell_line_dim`, default 8).
+- **Per-head score.** For head $h$: $\text{logit}_h = \tau\,(\mathbf{z}_1^{(h)\top}\mathbf{z}_2^{(h)} + \varepsilon\,\mathbf{h}_1^{(h)\top}\mathbf{h}_2^{(h)}) + b_h$, where $\mathbf{z}^{(h)}$ is the encoding of $[\mathbf{x}\,\Vert\,\mathbf{c}_h]$ and $b_h$ is a per-head bias (cell-line base rate). Same PD-kernel as above, per head; symmetric in $(\mathbf{x}_1,\mathbf{x}_2)$. `forward → (B, 8)`.
+- **Masked objective.** Each pair carries `(label, mask)` over the 8 heads (a head known SL *and* non-SL is masked). Loss $= \sum (\text{mask}\cdot \text{BCE}) / \sum \text{mask}$, with per-fold per-head `pos_weight = #neg/#pos`. Only supervised cells contribute.
+- **Metric.** Macro per-head AUPR (selection), plus micro (pooled) and per-head AUPR.
+- The cell embedding (`cell_emb`) is **not** L1-penalized, so `--l1_lambdas` still maps one-to-one onto the encoder's weight matrices.
+- Not consumed by `predict.py` / `eval_finetuning.py` yet (multi-head output) — the SLURM orchestrator auto-skips external eval when `USE_CELL_LINES=1`.
+
+---
+
 ## Node Feature Creation
 
 Gene embeddings come from various sources (one embedding type per benchmark run):
@@ -106,13 +119,35 @@ Gene embeddings come from various sources (one embedding type per benchmark run)
 
 **Gene identifiers**: All `.pt` files use NCBI Entrez Gene IDs (strings) as the canonical identifier in `gene_order`. A static reference mapping is at `data/gene_id_mapping.tsv` (derived from HGNC). At runtime, `gene_name_utils.py` downloads the HGNC complete set for symbol/Entrez mapping.
 
-**Missing gene handling**: Genes without embeddings receive NaN vectors in the `.pt` file. At load time, `data_loader.py` replaces NaN with per-dimension Huber M-estimates across all non-missing genes (robust imputation, c=1.345 for 95% normal efficiency). No per-fold standardization is applied. See the Preprocessing Pipeline below for the full sequence.
+**Missing gene handling**: Genes without embeddings receive NaN vectors in the `.pt` file. At fit time, `data_loader.py` fills NaN cells with per-column locations fit on the training subset — either a Huber M-estimate (robust path, c=1.345 for 95% normal efficiency) or the column mean (plain path). See the Preprocessing Pipeline below for the full sequence.
 
 ---
 
 ## Preprocessing Pipeline
 
-`load_multimodal_embeddings()` runs a single pipeline whether one `.pt` is passed or several — a single-modality run is just a one-element list. Steps 1–5 run **per modality**; step 6 runs once on the concatenated tensor.
+### Fit/apply split (per-fold)
+
+Every preprocessing statistic — impute locations, per-column standardization (plain only), PCA projection `V`, scalar normalize center/scale — is **fit** on a training-gene subset and **applied** to the full gene matrix. `SLDataManager.get_fold_embeddings(fold_data)` is called once per CV fold; the fitted transform dict is stored alongside each checkpoint so `predict.py` / `eval_finetuning.py` can rebuild the exact same feature space at inference.
+
+The fit subset is controlled by `--preprocessing_fit_scope`:
+
+- `train` *(default, leak-free)*: training-pair genes ∪ non-SL genes. Test-only genes are excluded from the fit, so their embeddings can't shape the PCA basis. CV1 mask is all-True (test pairs reuse training genes); CV3 excludes ~half of the SL gene set.
+- `all`: every gene regardless of fold. Reproduces the pre-refactor behavior — reintroduces CV2/CV3 leakage. Kept for A/B comparison.
+
+### Two preprocessing variants (`--pca_method`)
+
+The whole pipeline — impute, PCA, normalize — switches together. No mixing.
+
+| stage | `robust` *(default)* | `plain` |
+|---|---|---|
+| Impute NaN | per-column **Huber M-estimate** | per-column **mean** |
+| Pre-PCA | *(none — ROBPCA handles centering internally)* | per-column **mean + std** (z-score) |
+| PCA | **ROBPCA** (median-centered-SVD fallback) | **SVD** on standardized data |
+| Post-PCA normalize | global **median / MAD** | global **mean / std** |
+
+All PCA ops use deterministic `torch.linalg.svd` internally — per-fold `V` is bitwise reproducible across runs.
+
+### Stage order (per fold)
 
 ```
   .pt file (raw d-dim) ──┐
@@ -121,22 +156,23 @@ Gene embeddings come from various sources (one embedding type per benchmark run)
     (1) Load + normalize gene names (HGNC corrections) + dedup collisions
                          │
                          ▼
-    (2) Impute NaN with per-dimension Huber M-estimate (c=1.345)
-                         │
+    (2) Impute NaN   — fit location on fit-subset rows, apply to all rows
+                         │    (Huber if robust, mean if plain)
                          ▼
-    (3) Robust PCA (optional): ROBPCA on clean data, d → k_i
-                         │                    (target: --pca_variance or --pca_dims)
+    (3) PCA (optional)  — fit V on fit rows, apply to all rows
+                         │    (robust: ROBPCA; plain: per-column standardize + SVD)
                          ▼
-    (4) Normalize: (x − global_median) / (1.4826 · global_MAD)
-                         │
-                         └──► (5) Concatenate across modalities along feature axis
+    (4) Normalize — fit scalar center/scale on fit rows, apply to all
+                         │    (robust: median/MAD; plain: mean/std)
+                         ▼
+                         └──► (5) Concatenate modalities along feature axis
                                                 │
                                                 ▼
-                        (6) Post-concat Robust PCA (optional, on by default):
-                            ROBPCA once on the concatenated matrix, Σk_i → k_out
+                        (6) Post-concat PCA (optional, on by default)
+                            fit on fit rows of concat, apply to all rows
                                                 │
                                                 ▼
-                        (7) Re-normalize (global median / MAD) after post-PCA
+                        (7) Re-normalize after post-PCA (global scalar)
                                                 │
                                                 ▼
                                 model input  (n_genes, k_out)
@@ -144,20 +180,26 @@ Gene embeddings come from various sources (one embedding type per benchmark run)
 
 ### Why two PCA stages
 
-**Per-modality PCA (step 3)** runs on raw, imputed-but-unnormalized features so ROBPCA sees each embedding's natural variance structure. Each modality is reduced independently (e.g., ESM-2 1280d → ~21d at 80% variance; Geneformer → ~453d). Normalization (step 4) happens *after* per-modality PCA so cross-modality scales are equalized on the reduced representation.
+**Per-modality PCA (step 3)** runs on raw, imputed features so each embedding's natural variance structure is preserved. Each modality is reduced independently (e.g., ESM-2 1280d → ~21d at 80% variance; Geneformer → ~453d). Normalization (step 4) happens *after* per-modality PCA so cross-modality scales are equalized on the reduced representation.
 
-**Post-concat PCA (step 6)** runs on the already-normalized, concatenated matrix. Motivation: multi-modal combos can still leave 1,000+d inputs after step 5 (summed across modalities), which blows up the first-layer parameter count. A single ROBPCA pass on the joint normalized space compresses redundancy across modalities (e.g., two protein-sequence embeddings encode overlapping signal). Running on normalized data ensures ROBPCA's Stahel–Donoho outlyingness step sees a comparable-scale joint distribution.
+**Post-concat PCA (step 6)** runs on the already-normalized, concatenated matrix. Multi-modal combos can still leave 1,000+d inputs after step 5 (summed across modalities), which blows up the first-layer parameter count. A single PCA pass on the joint space compresses redundancy across modalities.
 
-**Re-normalization after post-PCA (step 7)** is required because PCA output has per-component variance structure (leading PCs carry far more variance than trailing ones). Without it, the first Linear layer's Kaiming init is mis-calibrated. Step 7 uses the same global median / MAD rescaling as step 4, which is a uniform rescale that preserves the PCA decomposition.
+**Re-normalization after post-PCA (step 7)** is required because PCA output has per-component variance structure (leading PCs carry far more variance than trailing). Without it, the first Linear's Kaiming init is mis-calibrated. Step 7 mirrors step 4's scalar rescaling — a uniform rescale that preserves the PCA decomposition.
 
-### ROBPCA details
+### ROBPCA details (robust path only)
 
 - Implementation: `robpy.ROBPCA` (Hubert, Rousseeuw & Vanden Branden, 2005).
 - Pipeline: Stahel–Donoho outlyingness on a classical-PCA subspace → h-subset eigendecomp → orthogonal-distance (OD) filter → final eigenvectors from cov of OD-filtered subset.
 - The optional final FastMCD step is disabled (crashes on high-k score matrices near the rank limit); the step-4 OD-filtered eigenvectors are already robust per Hubert et al. 2005.
 - Rank-deficient feature dims are removed via SVD pre-conditioning before ROBPCA.
 - If ROBPCA fails (near-singular covariance, NaN components), retries with α ∈ {0.85, 0.90, 0.95}.
-- Fallback: plain PCA (median centering + truncated SVD) when `robpy` is unavailable or all retries fail.
+- Fallback (still inside the robust path): median-centered SVD when `robpy` is unavailable or all retries raise.
+
+### Plain PCA details (plain path only)
+
+- Per-column mean + (unbiased) std computed on fit rows; std clamped to 1e-8.
+- Fit rows standardized → deterministic `torch.linalg.svd`; top-k right-singular vectors become `V`.
+- Apply: test rows are standardized with the stored fit mean/std, then projected by `V`.
 
 ### Default behavior in the SLURM pipelines
 
@@ -167,6 +209,8 @@ Gene embeddings come from various sources (one embedding type per benchmark run)
 | `run_best_per_category.sh` (single-modality) | `--pca_variance 0.8` | disabled (redundant) |
 | `run_best_per_category_combo.sh` (multi-modal) | `--pca_variance 0.8` | `--post_pca_variance 0.8` |
 | Direct `python train.py` | off unless `--pca_variance` passed | on by default (0.8) |
+
+All three training scripts thread `--preprocessing_fit_scope "${PREPROCESSING_FIT_SCOPE:-train}"` and `--pca_method "${PCA_METHOD:-robust}"`. Override by env var, e.g., `PCA_METHOD=plain ./slurm/submit_pipeline.sh`.
 
 ---
 
@@ -222,17 +266,26 @@ Recommended schedule: $\lambda_1 > \lambda_2 > \lambda_3$ (strongest on input la
 
 ```bash
 # Architecture
---encoder_dims 256 128 64       # Layer widths (any number of layers)
---no-last-layer-bias            # Remove projection bias (gene degree prior)
---pd_epsilon 0.001              # PD regularizer epsilon (0 to disable)
---dropout 0.2                   # Dropout rate for hidden layers
+--encoder_dims 6 6 6 6 6 6 6         # Layer widths (any number of layers;
+                                     # last entry is the projection/latent dim).
+                                     # SLURM default: entry lift + 5 residual blocks + projection.
+--siamese_encoder_type residual      # residual (y=x+F(x) skips, default) | mlp (no skips)
+--no-last-layer-bias                 # Remove projection bias (gene degree prior)
+--pd_epsilon 0.001                   # PD regularizer epsilon (0 to disable; also acts as score-level skip)
+--dropout 0.2                        # Dropout rate for hidden layers
 
 # Preprocessing / dimensionality reduction
---pca_variance 0.8              # Per-modality ROBPCA variance target (0,1)
+--pca_variance 0.8              # Per-modality PCA variance target (0,1)
 --pca_dims N1 N2 ...            # Per-modality exact component counts (alt to --pca_variance)
---post_pca_variance 0.8         # Post-concat ROBPCA variance target (default 0.8)
---post_pca_dim K                # Post-concat ROBPCA exact component count (overrides variance)
---no_post_pca                   # Disable the post-concat ROBPCA step
+--post_pca_variance 0.8         # Post-concat PCA variance target (default 0.8)
+--post_pca_dim K                # Post-concat PCA exact component count (overrides variance)
+--no_post_pca                   # Disable the post-concat PCA step
+--pca_method robust             # Pipeline variant:
+                                #   robust: Huber-impute + ROBPCA + median/MAD normalize
+                                #   plain : mean-impute + mean+std standardize + SVD + mean/std normalize
+--preprocessing_fit_scope train # Which gene rows fit the preprocessing, per fold:
+                                #   train: training-pair + non-SL genes only (leak-free, default)
+                                #   all  : every gene (legacy, leaky; for A/B comparison)
 
 # Regularization
 --l1_lambdas 0.02 0.01 0.002   # Per-layer L1 (must match encoder_dims count)
