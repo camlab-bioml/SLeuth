@@ -51,7 +51,7 @@ from typing import Set
 # Google Drive file IDs from the SynLethDB v3 download page
 # (https://www.synlethdb.com/download). "SL" is byte-identical to the v2 export.
 DRIVE_IDS = {
-    "SL": "1yDVv789aRbY3eBJz7qetrWQMn1zHoR6X",     # Human.SL.detailed.tsv
+    "SL": "1yDVv789aRbY3eBJz7qetrWQMn1zHoR6X",  # Human.SL.detailed.tsv
     "NONSL": "1SQRINp58iL5mN6EOYvQ5I9g9WvpD_F2T",  # Human.non.SL.detailed.tsv
 }
 RAW_NAMES = {

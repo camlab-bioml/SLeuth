@@ -61,7 +61,7 @@
 #                         as `--array=0-N%MAX_CONCURRENT`. Throttles GPU contention.
 #   SELECTION_CV          Which CV to use when picking best-per-category winners (default cv1)
 #   PREPROCESSING_FIT_SCOPE  "train" (default, leak-free) or "all" (legacy leaky)
-#   PCA_METHOD            "robust" (default, ROBPCA) or "plain" (classical SVD)
+#   PCA_METHOD            "plain" (default, classical SVD) or "robust" (ROBPCA)
 #   SIAMESE_ENCODER_TYPE  "residual" (default) or "mlp"
 #
 # Every sbatch invocation below uses `--export=ALL` so any env var set above
@@ -73,9 +73,15 @@
 set -e
 
 # MAX_CONCURRENT: throttle simultaneous array tasks. Default 4 matches what
-# CLAUDE.md and slurm/README.md document. Applied to BOTH benchmark and
-# best-per-category arrays so a full pipeline run cannot exceed 2×N at once.
+# slurm/README.md documents. Applied to the benchmark,
+# best-per-category and ablation arrays. The benchmark and best-cat arrays run
+# concurrently (2xN), and later the ablation array runs alongside the
+# external-screen eval, so the standing ceiling is
+# MAX_CONCURRENT + EVAL_CONCURRENT tasks on gpu3 in the tail stage.
+# EVAL_CONCURRENT (default 3) throttles the eval array separately because its
+# task count is fixed by EVAL_CV_TYPES, not by the embedding catalog.
 MAX_CONCURRENT="${MAX_CONCURRENT:-4}"
+EVAL_CONCURRENT="${EVAL_CONCURRENT:-3}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -98,6 +104,19 @@ if [ "$PWD" != "$WORK_DIR" ]; then
     exit 1
 fi
 
+# ---------------------------------------------------------------------------
+# How many cv_types the external-screen eval will run.
+# EVAL_CV_TYPES lives in eval_finetuning.conf, which this script does not source
+# (it resolves MODEL_DIR, which can legitimately fail on the login node). Read
+# just that array in a subshell and fall back to 3. Over-counting is harmless:
+# eval_finetuning.sh exits 0 for a task id beyond the configured list.
+eval_cv_count() {
+    local n
+    n=$( ( set +u; source "$SCRIPT_DIR/eval_finetuning.conf" >/dev/null 2>&1; \
+           echo "${#EVAL_CV_TYPES[@]}" ) 2>/dev/null )
+    case "$n" in ''|*[!0-9]*|0) echo 3 ;; *) echo "$n" ;; esac
+}
+
 # ============================================================================
 # Parse command-line arguments
 # ============================================================================
@@ -109,6 +128,11 @@ RUN_BENCHMARK=true
 RUN_BEST_CAT=true
 RUN_EVAL=true
 EVAL_ONLY_DIR=""
+# Ablation runs as a normal stage. It retrains the combo once per (dropped
+# category, CV) and never touches the reported models — the reference row is
+# the already-trained combo, which is not retrained. --skip-ablation opts out.
+RUN_ABLATION=true
+ABLATION_ONLY=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -125,17 +149,27 @@ while [[ $# -gt 0 ]]; do
             fi
             AFTER_JOB="$2"; shift 2 ;;
         --benchmark-only)
-            RUN_BEST_CAT=false; RUN_EVAL=false; shift ;;
+            RUN_BEST_CAT=false; RUN_EVAL=false; RUN_ABLATION=false; shift ;;
         --best-cat-only)
             RUN_BENCHMARK=false; shift ;;
         --skip-eval)
             RUN_EVAL=false; shift ;;
+        --ablation)
+            RUN_ABLATION=true; shift ;;       # retained for back-compat (now the default)
+        --skip-ablation)
+            RUN_ABLATION=false; shift ;;
+        --ablation-only)
+            # Reuses the existing best_per_category.json and the already-trained
+            # reference combo; retrains nothing else.
+            RUN_ABLATION=true; ABLATION_ONLY=true
+            RUN_BENCHMARK=false; RUN_BEST_CAT=false; RUN_EVAL=false
+            RESET_ENV=false; SKIP_GENERATE=true; shift ;;
         --eval-only)
             if [ -z "${2:-}" ]; then
                 echo "ERROR: --eval-only requires a combo model directory argument"
                 exit 1
             fi
-            EVAL_ONLY_DIR="$2"; shift 2 ;;
+            EVAL_ONLY_DIR="$2"; RUN_ABLATION=false; shift 2 ;;
         -h|--help)
             # Print the file-top doc block (all leading lines that start with '#').
             awk '/^#/{print} !/^#/{exit}' "$0" | tail -n +2 | sed 's/^# \?//'
@@ -165,6 +199,8 @@ if [ -n "$EVAL_ONLY_DIR" ]; then
        || [ "$RUN_BENCHMARK" = false ] || [ "$RUN_BEST_CAT" = false ]; then
         echo "ERROR: --eval-only cannot be combined with training flags."
         echo "  --eval-only only submits eval_finetuning.sh against an existing combo."
+        echo "  --skip-ablation omits the leave-one-category-out ablation stage."
+        echo "  --ablation-only runs just the ablation against an existing best_per_category.json."
         exit 1
     fi
     if [ ! -d "$EVAL_ONLY_DIR" ]; then
@@ -190,17 +226,23 @@ if [ -n "$EVAL_ONLY_DIR" ]; then
     # job. This handles special characters in the path safely, unlike the
     # `--export=ALL,KEY=value` form which is bash-word-split on whitespace.
     export EVAL_MODEL_DIR="$EVAL_ONLY_DIR"
+    EVAL_TASKS=$(eval_cv_count)
     EVAL_JOB=$(sbatch --parsable \
         $EVAL_DEP \
         --export=ALL \
+        --array=0-$((EVAL_TASKS - 1))%${EVAL_CONCURRENT:-3} \
         "$SCRIPT_DIR/eval_finetuning.sh")
-    echo "  Eval job: $EVAL_JOB"
-    echo "  Tail:   tail -f $WORK_DIR/slurm/logs/eval_finetuning_${EVAL_JOB}.out"
+    echo "  Eval job: $EVAL_JOB  ($EVAL_TASKS cv_types, one per array task)"
+    echo "  Tail:   tail -f $WORK_DIR/slurm/logs/eval_finetuning_${EVAL_JOB}_0.out"
     exit 0
 fi
 
-# Reject conflicting flags
-if [ "$RUN_BENCHMARK" = false ] && [ "$RUN_BEST_CAT" = false ]; then
+# Reject conflicting flags.
+# --ablation-only legitimately disables both training stages (it reuses an
+# existing best_per_category.json), so it is exempt — without this guard the
+# "both false" state is indistinguishable from --benchmark-only --best-cat-only.
+if [ "$RUN_BENCHMARK" = false ] && [ "$RUN_BEST_CAT" = false ] \
+   && [ "$ABLATION_ONLY" != true ]; then
     echo "ERROR: --benchmark-only and --best-cat-only cannot be used together."
     exit 1
 fi
@@ -370,12 +412,99 @@ if [ "$RUN_EVAL" = true ] && [ "$RUN_BEST_CAT" = true ]; then
     echo "--- Submitting external-screen eval + fine-tuning ---"
     echo "  Target combo: resolved at job-start from results/latest_combo_cv3.txt"
     echo "  Datasets:     Adamson, Corn, Gilbert (see eval_finetuning.conf)"
+    # One array task per cv_type, so the three evaluations overlap.
+    EVAL_TASKS=$(eval_cv_count)
     EVAL_JOB=$(sbatch --parsable \
         --dependency=afterok:$COMBO_JOB \
         --export=ALL \
+        --array=0-$((EVAL_TASKS - 1))%${EVAL_CONCURRENT:-3} \
         "$SCRIPT_DIR/eval_finetuning.sh")
-    echo "  Eval job:     $EVAL_JOB"
-    echo "  Tail:         tail -f slurm/logs/eval_finetuning_${EVAL_JOB}.out"
+    echo "  Eval job:     $EVAL_JOB  ($EVAL_TASKS cv_types, one per array task)"
+    echo "  Tail:         tail -f slurm/logs/eval_finetuning_${EVAL_JOB}_0.out"
+    echo ""
+fi
+
+# ============================================================================
+# Step 5: Leave-one-category-out ablation
+# ============================================================================
+# Retrains the combo once per (dropped category, CV), reusing the winners in
+# results/best_per_category.json. The full combo is NOT retrained — the summary
+# reads results/best_cat_*_<cv> as its reference row, so this stage cannot
+# change any reported number.
+#
+# Runs by default; --skip-ablation opts out. Chains off the COMBO, in parallel
+# with the external-screen eval — both become eligible as soon as the combo
+# lands and SLURM overlaps them, throttled by %MAX_CONCURRENT. With
+# --ablation-only there is no dependency and best_per_category.json must
+# already exist.
+
+if [ "$RUN_ABLATION" = true ]; then
+    # run_best_per_category.conf carries EMB_CATALOG (the source of the category
+    # labels) and is NOT sourced above when --ablation-only skips the other
+    # stages. NUM_CVS is likewise only assigned inside those stages, so recompute
+    # it here from CV_TYPES (config.conf, sourced at the top) rather than
+    # inheriting a variable that may never have been set.
+    source "$SCRIPT_DIR/run_best_per_category.conf"
+    source "$SCRIPT_DIR/run_ablation.conf"
+    ABL_NUM_CVS=${#CV_TYPES[@]}
+    N_ABL_CAT=${#ABLATE_CATEGORIES[@]}
+    ABL_TASKS=$((N_ABL_CAT * ABL_NUM_CVS))
+
+    if [ "$ABL_TASKS" -lt 1 ]; then
+        echo "ERROR: ablation resolved to $ABL_TASKS tasks (categories=$N_ABL_CAT, cvs=$ABL_NUM_CVS)."
+        exit 1
+    fi
+
+    if [ "$ABLATION_ONLY" != true ] && [ "$RUN_BEST_CAT" != true ]; then
+        echo "--- Skipping ablation: no combo is being trained this run ---"
+        echo "  Use --ablation-only to ablate an existing best_per_category.json."
+        echo ""
+        RUN_ABLATION=false
+    fi
+fi
+
+if [ "$RUN_ABLATION" = true ]; then
+    if [ "$ABLATION_ONLY" = true ] && [ ! -f results/best_per_category.json ]; then
+        echo "ERROR: --ablation-only needs results/best_per_category.json, which is missing."
+        echo "  Run the best-per-category pipeline first: ./slurm/submit_pipeline.sh --best-cat-only"
+        exit 1
+    fi
+
+    echo "--- Submitting leave-one-category-out ablation ---"
+    echo "  $N_ABL_CAT categories x $ABL_NUM_CVS CVs = $ABL_TASKS tasks"
+    echo "  Max concurrent: $MAX_CONCURRENT"
+    if [ -n "${ABLATION_POST_PCA_DIM:-}" ]; then
+        echo "  Post-concat PCA pinned for the ablation: dim=$ABLATION_POST_PCA_DIM"
+    else
+        echo "  Post-concat PCA inherits config.conf (retained k shrinks with the modality set)"
+    fi
+
+    # Chains off the COMBO, not off the eval, so the ablation array and the
+    # external-screen eval are both eligible to run as soon as the combo lands
+    # and SLURM can overlap them. The array throttle (%MAX_CONCURRENT) is what
+    # bounds GPU contention; serialising the two stages here would only trade
+    # wall-clock for a guarantee SLURM already provides.
+    ABL_DEP=""
+    if [ "$ABLATION_ONLY" != true ] && [ -n "${COMBO_JOB:-}" ]; then
+        ABL_DEP="--dependency=afterok:$COMBO_JOB"
+        echo "  Runs concurrently with the external-screen eval (both after job $COMBO_JOB)"
+    fi
+
+    ABL_JOB=$(sbatch --parsable \
+        $ABL_DEP \
+        --export=ALL \
+        --array=0-$((ABL_TASKS - 1))%${MAX_CONCURRENT} \
+        "$SCRIPT_DIR/run_ablation.sh")
+    echo "  Ablation array job: $ABL_JOB"
+
+    # afterany, not afterok: a single failed category should still produce a
+    # table for the ones that succeeded, with the failures shown as "not run".
+    ABL_SUMM=$(sbatch --parsable \
+        --dependency=afterany:$ABL_JOB \
+        --export=ALL \
+        "$SCRIPT_DIR/run_ablation_summary.sh")
+    echo "  Ablation summary:   $ABL_SUMM"
+    echo "  Output:             results/ablation_summary.csv"
     echo ""
 fi
 
@@ -386,4 +515,14 @@ echo "==========================================================================
 echo "All jobs submitted. Monitor with:"
 echo "  squeue -u $(whoami)"
 echo "  tail -f slurm/logs/<job_file>.out"
+echo ""
+echo "Results land in:"
+echo "  results/best_cat_*_<cv>/results.json          multimodal combo"
+if [ "$RUN_EVAL" = true ]; then
+echo "  <combo>/eval_finetuning_<cv>/                 external screens (Adamson/Corn/Gilbert)"
+fi
+if [ "$RUN_ABLATION" = true ]; then
+echo "  results/ablate_no_<category>_<cv>/            leave-one-category-out runs"
+echo "  results/ablation_summary.csv                  ablation table"
+fi
 echo "============================================================================"

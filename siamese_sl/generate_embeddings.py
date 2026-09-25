@@ -430,9 +430,10 @@ _LOADERS = {
 # =============================================================================
 
 
-def _load_protein_sequences(cache_dir: str,
-                            gene_ids: Optional[List[str]] = None,
-                            ) -> Dict[str, str]:
+def _load_protein_sequences(
+    cache_dir: str,
+    gene_ids: Optional[List[str]] = None,
+) -> Dict[str, str]:
     """Load protein sequences from NCBI via Entrez Gene ID → RefSeq protein.
 
     Uses NCBI elink (Gene → Protein RefSeq) + efetch to retrieve canonical
@@ -472,7 +473,8 @@ def _load_protein_sequences(cache_dir: str,
         for name in ["all_genes_esm2.pt", "all_genes_esm1b.pt"]:
             pt_path = os.path.join(os.path.dirname(cache_dir), name)
             if os.path.exists(pt_path):
-                data = torch.load(pt_path, map_location="cpu",
+                data = torch.load(pt_path,
+                                  map_location="cpu",
                                   weights_only=False)
                 gene_ids = list(data["gene_order"])
                 print(f"  Loaded {len(gene_ids)} gene IDs from {pt_path}")
@@ -517,19 +519,23 @@ def _load_protein_sequences(cache_dir: str,
                     link_db = linkset.find(".//LinkSetDb")
                     if link_db is None:
                         continue
-                    pids = [l.find("Id").text for l in link_db.findall("Link")
-                            if l.find("Id") is not None]
+                    pids = [
+                        l.find("Id").text for l in link_db.findall("Link")
+                        if l.find("Id") is not None
+                    ]
                     if pids:
                         gene_to_protein[gid] = pids[0]
                 break
             except Exception as e:
                 if attempt < 2:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2**attempt)
                 else:
                     print(f"  elink batch failed: {e}")
         time.sleep(0.35)
 
-    print(f"  Found RefSeq protein links for {len(gene_to_protein)}/{len(gene_ids)} genes")
+    print(
+        f"  Found RefSeq protein links for {len(gene_to_protein)}/{len(gene_ids)} genes"
+    )
 
     # Step 2: Resolve GI numbers → accessions via esummary, so we can
     # match FASTA headers (which use accessions, not GIs).
@@ -543,11 +549,13 @@ def _load_protein_sequences(cache_dir: str,
         for attempt in range(3):
             try:
                 import requests as _req
-                resp = _req.post(esummary_url, data={
-                    "db": "protein",
-                    "id": ",".join(batch),
-                    "retmode": "json",
-                }, timeout=60)
+                resp = _req.post(esummary_url,
+                                 data={
+                                     "db": "protein",
+                                     "id": ",".join(batch),
+                                     "retmode": "json",
+                                 },
+                                 timeout=60)
                 resp.raise_for_status()
                 data = resp.json()
                 for gi in batch:
@@ -558,7 +566,7 @@ def _load_protein_sequences(cache_dir: str,
                 break
             except Exception as e:
                 if attempt < 2:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2**attempt)
                 else:
                     print(f"  esummary batch failed: {e}")
         time.sleep(0.35)
@@ -572,16 +580,20 @@ def _load_protein_sequences(cache_dir: str,
         for attempt in range(3):
             try:
                 import requests as _req
-                resp = _req.post(efetch_url, data={
-                    "db": "protein", "id": ",".join(batch),
-                    "rettype": "fasta", "retmode": "text",
-                }, timeout=60)
+                resp = _req.post(efetch_url,
+                                 data={
+                                     "db": "protein",
+                                     "id": ",".join(batch),
+                                     "rettype": "fasta",
+                                     "retmode": "text",
+                                 },
+                                 timeout=60)
                 resp.raise_for_status()
                 all_fasta.append(resp.text)
                 break
             except Exception as e:
                 if attempt < 2:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2**attempt)
                 else:
                     print(f"  efetch batch failed: {e}")
         time.sleep(0.35)
@@ -682,9 +694,9 @@ def _load_uniprot_sequences_fallback(cache_dir: str) -> Dict[str, str]:
                 current_seq.append(line)
         _save()
 
-    print(f"  Loaded {len(gene_seqs)} protein sequences from UniProt (fallback)")
+    print(
+        f"  Loaded {len(gene_seqs)} protein sequences from UniProt (fallback)")
     return gene_seqs
-
 
 
 def _load_go_graph_and_annotations(
@@ -838,9 +850,10 @@ def align_embeddings(
         # embedding keys. Near-zero coverage almost always means the --gene_list
         # is not in Entrez IDs (e.g. a raw symbol list), which would otherwise
         # save a silently all-NaN embedding file. Warn loudly.
-        print(f"  WARNING: coverage is only {coverage:.1f}% — the output would "
-              f"be almost entirely NaN. Is --gene_list in NCBI Entrez IDs? "
-              f"align_embeddings matches Entrez IDs, not gene symbols.")
+        print(
+            f"  WARNING: coverage is only {coverage:.1f}% — the output would "
+            f"be almost entirely NaN. Is --gene_list in NCBI Entrez IDs? "
+            f"align_embeddings matches Entrez IDs, not gene symbols.")
     if missing:
         shown = missing[:20]
         print(f"  Missing Entrez IDs (first {len(shown)}): {shown}")
@@ -1574,7 +1587,8 @@ def extract_esmc(cache_dir: str) -> Optional[str]:
     try:
         device = _torch.device("cuda" if _torch.cuda.is_available() else "cpu")
         model = AutoModelForMaskedLM.from_pretrained(
-            "Synthyra/ESMplusplus_large", trust_remote_code=True,
+            "Synthyra/ESMplusplus_large",
+            trust_remote_code=True,
         ).to(device)
         model.eval()
         tokenizer = model.tokenizer
@@ -2234,8 +2248,8 @@ def extract_kg_complex(cache_dir: str) -> Optional[str]:
                 # ComplEx returns a complex-dtype array of length embedding_dim.
                 # Concatenate [real, imag] to preserve all learned information
                 # (final dim = 2 * embedding_dim = 512).
-                emb_dict[entity] = np.concatenate(
-                    [emb.real, emb.imag]).astype(np.float32)
+                emb_dict[entity] = np.concatenate([emb.real, emb.imag
+                                                   ]).astype(np.float32)
 
         dim = len(next(iter(emb_dict.values())))
         print(f"  Generated {len(emb_dict)} KG-ComplEx embeddings ({dim}d)")

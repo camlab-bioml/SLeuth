@@ -1,0 +1,14 @@
+============================================================================
+Job: bestcat_emb | ID: 1177267 | Node: gpu3
+Array task: 22 (of job 1166079)
+Start: Thu Aug 27 19:47:34 EDT 2026
+NVIDIA L40, 46068 MiB, 649 MiB
+NVIDIA L40, 46068 MiB, 0 MiB
+NVIDIA L40, 46068 MiB, 613 MiB
+NVIDIA L40, 46068 MiB, 613 MiB
+============================================================================
+
+Task 22: scprint (protein_seq) / cv2  [PCA=0.8]
+  Embedding: /ddn_exa/campbell/kaiyang/SLMGAE-pytorch/data/all_genes_scprint.pt
+
+SKIP: all_genes_scprint.pt not found in /ddn_exa/campbell/kaiyang/SLMGAE-pytorch/data

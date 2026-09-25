@@ -5,7 +5,8 @@
 ```bash
 cd siamese_sl
 
-# Full pipeline: env reset → generate → (benchmark ∥ best-per-category) → combo → external-screen eval
+# Full pipeline: env reset → generate → (benchmark ∥ best-per-category) → combo
+#                → external-screen eval → leave-one-category-out ablation
 ./slurm/submit_pipeline.sh
 
 # Skip generation (embeddings already exist)
@@ -17,6 +18,12 @@ cd siamese_sl
 # Run eval only against an existing combo (no training)
 ./slurm/submit_pipeline.sh --eval-only results/best_cat_..._cv3
 
+# Leave-one-category-out ablation against an already-trained combo
+./slurm/submit_pipeline.sh --ablation-only
+
+# Everything except the ablation sweep
+./slurm/submit_pipeline.sh --skip-ablation
+
 # Monitor jobs
 squeue -u $(whoami)
 tail -f slurm/logs/bench_<JOB_ID>_<TASK_ID>.out
@@ -24,10 +31,11 @@ tail -f slurm/logs/bench_<JOB_ID>_<TASK_ID>.out
 
 ## Pipeline Overview
 
-The pipeline has four stages. Stages 2 and 3 run **in parallel** (independent
-output directories). Stage 4 chains after Stage 3 on success. Each training
-stage uses **SLURM array jobs** so every (embedding, CV) combination runs as a
-separate task on its own GPU.
+The pipeline has five stages. Stages 2 and 3 run **in parallel** (independent
+output directories). Stage 4 chains after Stage 3 on success, and Stage 5
+runs concurrently with Stage 4 (both chain off Stage 3). Each training stage uses
+**SLURM array jobs** so every (embedding, CV) combination runs as a separate
+task on its own GPU.
 
 ```
 Stage 1: Embedding Generation (single job)
@@ -48,8 +56,20 @@ Stage 1: Embedding Generation (single job)
                      Zero-shot (closed-form OLS) + LP_last + Full FT against
                      Adamson, Corn, Gilbert CRISPR screens on the CV3 combo.
                      MODEL_DIR auto-resolved from results/latest_combo_cv3.txt.
-                     Output: ${MODEL_DIR}/eval_finetuning/*
+                     Output: ${MODEL_DIR}/eval_finetuning_<cv>/*
                      Skip with --skip-eval.
+                       │
+                       └──► Stage 5: Leave-one-category-out ablation
+                             (array → summary; chained afterany so a failed
+                             eval cannot strand it, and so the 18-task sweep
+                             queues behind the short transfer job)
+                             Each task: the combo minus ONE biological
+                             category, on one CV. 6 categories × 3 CVs.
+                             The full combo is NOT retrained — it is the
+                             reference row, so no reported number can move.
+                             Output: results/ablate_no_<category>_<cv>/
+                                     results/ablation_summary.csv
+                             Skip with --skip-ablation.
 ```
 
 Array sizes are **computed dynamically** from the `.conf` files. Adding or
@@ -62,7 +82,7 @@ adjusts the number of SLURM tasks — no script changes needed.
 
 | File | Description |
 |------|-------------|
-| `submit_pipeline.sh` | **Login-node script.** Parses `.conf` files to compute array sizes, then submits all SLURM jobs with correct dependencies. Supports `--skip-reset-env`, `--skip-generate`, `--after <JOB_ID>`, `--benchmark-only`, `--best-cat-only`, `--skip-eval`, and `--eval-only <combo_dir>`. Set `MAX_CONCURRENT` env var to limit parallel GPU tasks (default: 4). |
+| `submit_pipeline.sh` | **Login-node script.** Parses `.conf` files to compute array sizes, then submits all SLURM jobs with correct dependencies. Supports `--skip-reset-env`, `--skip-generate`, `--after <JOB_ID>`, `--benchmark-only`, `--best-cat-only`, `--skip-eval`, `--eval-only <combo_dir>`, `--skip-ablation`, and `--ablation-only`. Stage order is generate → benchmark → best-cat+combo → {external screens ∥ ablation}; the eval and the 18-task ablation array both chain off the combo and run concurrently, throttled by `%MAX_CONCURRENT`. Set `MAX_CONCURRENT` env var to limit parallel GPU tasks (default: 4). |
 
 ### Shared Configuration
 
@@ -86,7 +106,7 @@ adjusts the number of SLURM tasks — no script changes needed.
 
 | File | Description |
 |------|-------------|
-| `run_embedding_benchmark.sh` | **SLURM array worker.** Each array task trains the siamese model on one (embedding, CV) combination at native dimensions (no PCA). Maps `SLURM_ARRAY_TASK_ID` to `(embedding_index, cv_index)` using `ALL_EMBEDDINGS[]` and `CV_TYPES[]`. Skips gracefully if the embedding file is missing. Resume-safe: skips if `results.json` already exists. |
+| `run_embedding_benchmark.sh` | **SLURM array worker.** Each array task trains the siamese model on one (embedding, CV) combination at native dimensions (no PCA). Maps `SLURM_ARRAY_TASK_ID` to `(embedding_index, cv_index)` using `ALL_EMBEDDINGS[]` and `CV_TYPES[]`. Skips gracefully if the embedding file is missing. NOT resume-safe: the task deletes its output directory and retrains unconditionally. That is deliberate — skipping on an existing `results.json` would let a stale row from a previous fold set or config survive a re-run and be tabulated as if it were fresh — but it means re-submitting the array after a partial failure retrains every task, not just the failed ones. |
 | `run_embedding_benchmark_summary.sh` | **SLURM job** (runs after array). Collects `results.json` from all benchmark directories, prints an AUROC summary table, and saves `results/embedding_benchmark_summary.json`. |
 | `run_embedding_benchmark.conf` | **Config.** Empty by default (shared training hyperparameters, CV types, and `ALL_EMBEDDINGS[]` come from `config.conf`). Uncomment overrides here to tune the benchmark independently. |
 
@@ -94,15 +114,18 @@ adjusts the number of SLURM tasks — no script changes needed.
 
 | File | Description |
 |------|-------------|
-| `run_best_per_category.sh` | **SLURM array worker.** Each array task trains the siamese model on one (embedding, CV) combination with per-modality PCA (`PCA_VARIANCE` variance target, `PCA_METHOD` = robust or plain). Preprocessing is fit per-fold on `PREPROCESSING_FIT_SCOPE` rows (default `train`, leak-free). Maps `SLURM_ARRAY_TASK_ID` to `(embedding_index, cv_index)` using `EMB_CATALOG[]` and `CV_TYPES[]`. Resume-safe: skips if `results.json` already exists. |
+| `run_best_per_category.sh` | **SLURM array worker.** Each array task trains the siamese model on one (embedding, CV) combination with per-modality PCA (`PCA_VARIANCE` variance target, `PCA_METHOD` = plain (default), robust or svd). Preprocessing is fit per-fold on `PREPROCESSING_FIT_SCOPE` rows (default `train`, leak-free). Maps `SLURM_ARRAY_TASK_ID` to `(embedding_index, cv_index)` using `EMB_CATALOG[]` and `CV_TYPES[]`. NOT resume-safe: the task deletes its output directory and retrains unconditionally. That is deliberate — skipping on an existing `results.json` would let a stale row from a previous fold set or config survive a re-run and be tabulated as if it were fresh — but it means re-submitting the array after a partial failure retrains every task, not just the failed ones. |
 | `run_best_per_category_combo.sh` | **SLURM job** (runs after array). Step 2: selects the best AUROC embedding per biological category per CV. Step 3: trains multi-modal combos by concatenating winners with per-modality PCA + post-concat PCA. Step 4: prints summary table. |
-| `run_best_per_category.conf` | **Config.** Job-specific settings: `PCA_VARIANCE` (overridable via `BEST_CAT_PCA_VARIANCE` env var), `PCA_METHOD` (robust ∣ plain), `PREPROCESSING_FIT_SCOPE` (train ∣ all), and `EMB_CATALOG[]` (type:file:category, genept excluded for data leakage). Shared training hyperparameters come from `config.conf`; uncomment overrides here to tune independently. |
+| `run_best_per_category.conf` | **Config.** Job-specific settings: `PCA_VARIANCE` (overridable via `BEST_CAT_PCA_VARIANCE` env var), `PCA_METHOD` (plain, default ∣ robust ∣ svd), `PREPROCESSING_FIT_SCOPE` (train ∣ all), and `EMB_CATALOG[]` (type:file:category, genept excluded for data leakage). Post-concat PCA for the combo uses the `POST_PCA_VARIANCE=0.8` target in `config.conf` (`POST_PCA_DIM` is unset; set it to an integer to pin an exact count instead — note 0.8 resolves to k≈1087 under `plain` vs 145 under `svd`, and k drifts with the combo's modality selection). Shared training hyperparameters come from `config.conf`; uncomment overrides here to tune independently. |
 
 ### Stage 4: External-Screen Evaluation + Fine-tuning
 
 | File | Description |
 |------|-------------|
 | `eval_finetuning.sh` | **SLURM job** (chained after `run_best_per_category_combo.sh` via `afterok`). Runs `eval_finetuning.py` against the CV3 combo: zero-shot (closed-form OLS of an `(a, c)` affine head) + `LP_last` and `Full` SGD fine-tuning modes against Adamson, Corn, Gilbert external CRISPR screens. Per-fold metrics and a 5-fold ensemble. Skippable via `--skip-eval` in the orchestrator. |
+| `run_ablation.sh` | **SLURM array worker** (Stage 5, chained after `eval_finetuning.sh` via `afterany`). Each array task retrains the multi-modal combo with **one biological category removed**, on one CV — `\|ABLATE_CATEGORIES\|` × `\|CV_TYPES\|` = 18 tasks. Reuses `results/best_per_category.json`, so no re-selection happens. Every hyperparameter, fold and preprocessing setting matches `run_best_per_category_combo.sh` Step 3; only the modality list differs. The full combo is **not** retrained — the summary reads `results/best_cat_*_<cv>` as its reference row, so this stage cannot change any reported number. Writes `results/ablate_no_<category>_<cv>/`, stamps `results.json["ablation"]`, and deletes checkpoints afterwards (`ABLATION_PURGE_CHECKPOINTS=1`) since no ablated model is ever reloaded. |
+| `run_ablation_summary.sh` | **SLURM job** (runs after the ablation array, `afterany` so partial failures still produce a table). Writes `results/ablation_summary.csv` and prints a per-CV table pairing each category's **leave-one-out Δ** against that category's **standalone** score from the best-per-category pass. Reading the Δ alone is how ablation tables mislead — under redundancy a strong category costs nothing to remove — so both columns are reported side by side. A **positive** Δ means removing the category *helped*. |
+| `run_ablation.conf` | **Config.** `ABLATE_CATEGORIES[]` (must match the category labels in `EMB_CATALOG`), checkpoint/prediction retention flags, and the post-concat PCA policy. Documents why the ablation drops a **category** rather than an embedding (dropping one embedding merely promotes its category's runner-up), and the confound that a variance-target PCA makes the encoder narrower as modalities are removed — set `ABLATION_POST_PCA_DIM` to pin the width and control for capacity. |
 | `eval_finetuning.conf` | **Config.** `MODEL_DIR` resolution order: `EVAL_MODEL_DIR` env var → `results/latest_combo_cv3.txt` marker (written by combo script) → hardcoded fallback. Plus `EMBEDDINGS_PATHS[]` (must match combo's modalities), `DATASETS[]`, `FT_MODES[]`, and fine-tuning hyperparameters (`FT_EPOCHS`, `FT_LR`, `TRAIN_FRAC`, `SPLIT_SEED`). |
 
 ### Utilities

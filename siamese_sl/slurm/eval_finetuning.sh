@@ -2,13 +2,17 @@
 #SBATCH --job-name=eval_finetuning
 #SBATCH --partition=gpu_Prosmn
 #SBATCH --nodes=1
-#SBATCH --nodelist=gpu3,gpu4
+# Pinned to gpu3 (2026-08-10, by request). gpu3 threw a transient "CUDA
+# unknown error" at torch init in 2026-07 and the whole tree was moved to
+# gpu2 for that; if it recurs, the symptom is a torch.cuda init failure in
+# the very first seconds of the job, not a training-time error.
+#SBATCH --nodelist=gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=12
 #SBATCH --time=0-12:00:00
-#SBATCH --output=slurm/logs/eval_finetuning_%j.out
-#SBATCH --error=slurm/logs/eval_finetuning_%j.err
+#SBATCH --output=slurm/logs/eval_finetuning_%A_%a.out
+#SBATCH --error=slurm/logs/eval_finetuning_%A_%a.err
 
 # ============================================================================
 # eval_finetuning — External CRISPR-screen evaluation + fine-tuning
@@ -18,7 +22,9 @@
 # zero-shot calibrated metrics, then fine-tunes via MSE regression on an
 # (a, c) affine head + optional last-layer / full-encoder unfreezes.
 #
-# Produces under $MODEL_DIR/eval_finetuning/:
+# Produces under $MODEL_DIR/eval_finetuning_<cv_type>/ (one directory per
+# cv_type in EVAL_CV_TYPES — the script never passes --out_dir, so
+# eval_finetuning.py derives the name from the cv_type):
 #   config_used.json
 #   gene_coverage.csv
 #   zero_shot_metrics.csv  / zero_shot_summary.csv
@@ -98,7 +104,15 @@ done
 # ============================================================================
 # Build post-PCA argument
 # ============================================================================
-if [ -n "${POST_PCA_VARIANCE:-}" ]; then
+# POST_PCA_DIM wins over POST_PCA_VARIANCE. Default is the variance target
+# (POST_PCA_DIM empty). Be aware the same fraction resolves to a different k
+# under `plain` than under `robust`/`svd` (correlation vs raw spectrum: 1087 vs
+# 145 on the 6-modality combo), and that k drifts with the combo's modality
+# selection, so the encoder width is not fixed run to run. Set POST_PCA_DIM to
+# pin it. See config.conf.
+if [ -n "${POST_PCA_DIM:-}" ]; then
+    POST_PCA_ARGS="--post_pca_dim $POST_PCA_DIM"
+elif [ -n "${POST_PCA_VARIANCE:-}" ]; then
     POST_PCA_ARGS="--post_pca_variance $POST_PCA_VARIANCE"
 else
     POST_PCA_ARGS=""
@@ -129,7 +143,8 @@ echo "MODEL_DIR:        $MODEL_DIR"
 echo "EMBEDDINGS (${#EMBEDDINGS_PATHS[@]}):"
 for p in "${EMBEDDINGS_PATHS[@]}"; do echo "    $p"; done
 echo "PCA_VARIANCE:     $PCA_VARIANCE"
-echo "POST_PCA_VARIANCE:${POST_PCA_VARIANCE:-(disabled)}"
+echo "POST_PCA_DIM:     ${POST_PCA_DIM:-(unset)}"
+echo "POST_PCA_VARIANCE:${POST_PCA_VARIANCE:-(disabled)}${POST_PCA_DIM:+  (ignored: POST_PCA_DIM wins)}"
 echo "DATASETS (${#DATASETS[@]}):"
 for d in "${DATASETS[@]}"; do echo "    $d"; done
 echo "EVAL_CV_TYPES:    ${EVAL_CV_TYPES[*]}"
@@ -141,7 +156,25 @@ echo "SLDB_FILTER:      ${REPORT_SLDB_FILTERED:-true}"
 echo "PER_HEAD:         ${PER_HEAD:-false}"
 echo ""
 
-for CV_TYPE in "${EVAL_CV_TYPES[@]}"; do
+# Array-aware. Submitted with --array=0-N the job runs ONE cv_type per task, so
+# the three evaluations overlap instead of running back to back; submitted
+# without --array it falls back to the serial loop so a bare
+# `sbatch slurm/eval_finetuning.sh` still works. Each cv_type writes its own
+# ${MODEL_DIR}/eval_finetuning_<cv>/ directory, so the tasks never collide.
+if [ -n "${SLURM_ARRAY_TASK_ID:-}" ]; then
+    if [ "$SLURM_ARRAY_TASK_ID" -ge "${#EVAL_CV_TYPES[@]}" ]; then
+        echo "Task $SLURM_ARRAY_TASK_ID is beyond ${#EVAL_CV_TYPES[@]} configured cv_types. Nothing to do."
+        exit 0
+    fi
+    RUN_CV_TYPES=("${EVAL_CV_TYPES[$SLURM_ARRAY_TASK_ID]}")
+    echo "Array task $SLURM_ARRAY_TASK_ID -> cv_type ${RUN_CV_TYPES[0]}"
+else
+    RUN_CV_TYPES=("${EVAL_CV_TYPES[@]}")
+    echo "No --array: running all ${#EVAL_CV_TYPES[@]} cv_types serially"
+fi
+echo ""
+
+for CV_TYPE in "${RUN_CV_TYPES[@]}"; do
     echo "============================================================"
     echo "  Running eval_finetuning with --cv_type $CV_TYPE"
     echo "============================================================"

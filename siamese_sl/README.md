@@ -153,7 +153,7 @@ The pipeline has five SLURM jobs: environment reset, embedding generation, bench
 
 ### Step 0: Reset Environment (`reset_env.sh`)
 
-Recreates the Python venv from scratch on a GPU node. Must run on a GPU node (gpu1/gpu2). Run this first if the environment is missing or broken.
+Recreates the Python venv from scratch on a GPU node. Must run on a GPU node (gpu3). Run this first if the environment is missing or broken.
 
 ```bash
 cd siamese_sl
@@ -296,7 +296,6 @@ siamese_sl/
 ├── gene_embeddings_reference.md # Reference guide for embedding methods
 ├── ARCHITECTURE.md             # Detailed model architecture + math
 ├── SETUP.md                    # Server environment setup notes
-├── CLAUDE.md                   # Claude Code guidance
 ├── README.md
 ├── slurm/                      # SLURM job scripts
 │   ├── config.conf             # Shared config (env, modules, paths, data files)

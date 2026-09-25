@@ -1,0 +1,73 @@
+==================================================
+SL comparison — task 5 of 9
+  Model: SLMGAE
+  CV:    cv2
+Start: Fri Aug 28 10:05:16 EDT 2026 | Job: 1177332 | Node: gpu3
+==================================================
+--- training SLMGAE / cv2 ---
+Using GPU: NVIDIA L40
+  Custom gene corrections: 86 mappings loaded
+  Non-coding genes: 65 known (will get NaN embeddings)
+  HGNC loaded: 44981 current symbols, 60055 aliases/previous symbols, 44373 Entrez IDs
+  Warning: 1 genes could not be mapped to Entrez IDs: ['TCL6']
+  List_Proteins is in SYMBOL space -> mapped to Entrez (6374/6375; 1 unmapped)
+Loading ../data/Human_GOsim.txt
+Loading ../data/Human_GOsim_CC.txt
+Loading ../data/biogrid_ppi_sparse.txt
+Shared universe: 8844 genes | folds: 5 | support views remapped (4587/6375 List_Proteins genes in universe, 72.0%, id_space=symbol->entrez)
+  support view: GO BP similarity       ../data/Human_GOsim.txt
+  support view: GO CC similarity       ../data/Human_GOsim_CC.txt
+  support view: BioGRID PPI            ../data/biogrid_ppi_sparse.txt
+============================================================
+SLMGAE on shared folds (CV2), 5 folds
+============================================================
+
+Training fold 1/5...
+  Trainable parameters: 253,547,952 (total 253,547,952) [SLMGAE]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 15e1a39cf91a5615
+  Saved 8844x8844 score matrix -> fold_0_cv2_predictions.npy
+  Best fold 1: epoch 225 (selected on val, val AUROC 0.8011) | TEST AUC=0.7801, AP=0.6180, F1=0.5986
+
+Training fold 2/5...
+  Trainable parameters: 253,547,952 (total 253,547,952) [SLMGAE]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 15e1a39cf91a5615
+  Saved 8844x8844 score matrix -> fold_1_cv2_predictions.npy
+  Best fold 2: epoch 175 (selected on val, val AUROC 0.7103) | TEST AUC=0.7434, AP=0.5579, F1=0.5197
+
+Training fold 3/5...
+  Trainable parameters: 253,547,952 (total 253,547,952) [SLMGAE]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 15e1a39cf91a5615
+  Saved 8844x8844 score matrix -> fold_2_cv2_predictions.npy
+  Best fold 3: epoch 200 (selected on val, val AUROC 0.7934) | TEST AUC=0.7769, AP=0.5466, F1=0.5151
+
+Training fold 4/5...
+  Trainable parameters: 253,547,952 (total 253,547,952) [SLMGAE]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 15e1a39cf91a5615
+  Saved 8844x8844 score matrix -> fold_3_cv2_predictions.npy
+  Best fold 4: epoch 125 (selected on val, val AUROC 0.8367) | TEST AUC=0.7611, AP=0.5873, F1=0.5433
+
+Training fold 5/5...
+  Trainable parameters: 253,547,952 (total 253,547,952) [SLMGAE]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 15e1a39cf91a5615
+  Saved 8844x8844 score matrix -> fold_4_cv2_predictions.npy
+  Best fold 5: epoch 300 (selected on val, val AUROC 0.7880) | TEST AUC=0.7655, AP=0.5562, F1=0.5395
+
+AUC 0.7654 | AP 0.5732 | F1 0.5432  (self-eval; see evaluate_model.py)
+--- scoring SLMGAE / cv2 ---
+  WARNING: SLMGAE-in-pytorch/results/slmgae_shared_cv2/fold_0_cv2_predictions.npy: 19.1% of scored test genes have a CONSTANT score row — their @k metrics are tie-break artifacts, not model output, and will not reproduce across numpy versions.
+  fold 0: AUROC 0.7801 AP 0.6180 AUPRG 0.9346 NDCG@10 0.0982 (corrected 0.0929)
+  WARNING: SLMGAE-in-pytorch/results/slmgae_shared_cv2/fold_1_cv2_predictions.npy: 19.5% of scored test genes have a CONSTANT score row — their @k metrics are tie-break artifacts, not model output, and will not reproduce across numpy versions.
+  fold 1: AUROC 0.7434 AP 0.5579 AUPRG 0.7846 NDCG@10 0.0193 (corrected 0.0147)
+  WARNING: SLMGAE-in-pytorch/results/slmgae_shared_cv2/fold_2_cv2_predictions.npy: 12.3% of scored test genes have a CONSTANT score row — their @k metrics are tie-break artifacts, not model output, and will not reproduce across numpy versions.
+  fold 2: AUROC 0.7769 AP 0.5466 AUPRG 0.8142 NDCG@10 0.0103 (corrected 0.0080)
+  WARNING: SLMGAE-in-pytorch/results/slmgae_shared_cv2/fold_3_cv2_predictions.npy: 20.5% of scored test genes have a CONSTANT score row — their @k metrics are tie-break artifacts, not model output, and will not reproduce across numpy versions.
+  fold 3: AUROC 0.7611 AP 0.5873 AUPRG 0.8815 NDCG@10 0.1369 (corrected 0.1151)
+  WARNING: SLMGAE-in-pytorch/results/slmgae_shared_cv2/fold_4_cv2_predictions.npy: 17.0% of scored test genes have a CONSTANT score row — their @k metrics are tie-break artifacts, not model output, and will not reproduce across numpy versions.
+  fold 4: AUROC 0.7655 AP 0.5562 AUPRG 0.9034 NDCG@10 0.0810 (corrected 0.0623)
+
+SLMGAE(253,547,952)/cv2: AUROC 0.7654 | AP 0.5732 | AUPRG 0.8637 | R@50 0.1786  -> sl_comparison/results/SLMGAE_cv2.json
+
+==================================================
+SUCCESS: SLMGAE / cv2
+Completed at: Fri Aug 28 10:10:20 EDT 2026
+==================================================

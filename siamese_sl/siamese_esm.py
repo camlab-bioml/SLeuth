@@ -302,15 +302,16 @@ class SiameseEncoderResidual(nn.Module):
     with no skip — the existing `pd_epsilon · h1ᵀh2` term in SiameseSL's
     scoring already acts as a score-level residual around the projection.
 
-    Example (encoder_dims=[6, 6, 6, 6, 6, 6, 6]):
-        input(150d) + input_bias
-          -> Linear(150→6) + LN + LReLU + Drop              # entry, no skip
-          -> x + (Linear(6→6) + LN + LReLU + Drop)          # residual block 1
-          -> x + (Linear(6→6) + LN + LReLU + Drop)          # residual block 2
-          -> x + (Linear(6→6) + LN + LReLU + Drop)          # residual block 3
-          -> x + (Linear(6→6) + LN + LReLU + Drop)          # residual block 4
-          -> x + (Linear(6→6) + LN + LReLU + Drop)          # residual block 5
-          -> Linear(6→6)                                     # projection, bare
+    Example (encoder_dims=[16, 16, 16, 16, 16, 16, 16], the live SLURM default;
+    D is the post-preprocessing input width plus CELL_LINE_DIM):
+        input(Dd) + input_bias
+          -> Linear(D→16) + LN + LReLU + Drop               # entry, no skip
+          -> x + (Linear(16→16) + LN + LReLU + Drop)        # residual block 1
+          -> x + (Linear(16→16) + LN + LReLU + Drop)        # residual block 2
+          -> x + (Linear(16→16) + LN + LReLU + Drop)        # residual block 3
+          -> x + (Linear(16→16) + LN + LReLU + Drop)        # residual block 4
+          -> x + (Linear(16→16) + LN + LReLU + Drop)        # residual block 5
+          -> Linear(16→16)                                   # projection, bare
 
     Rationale: depth alone (Telgarsky 2016; Raghu et al. 2017) gives
     exponential expressivity gains over width, but plain deep narrow ReLU
@@ -396,17 +397,23 @@ class SiameseSL(nn.Module):
     Takes two gene embeddings and predicts their SL probability
     using inner product with a learnable temperature.
 
-    Architecture example (encoder_dims=[96, 80, 64, 48, 32, 32], the SLURM default):
-      gene1 -+-> (5x Linear->LN->LReLU->Drop hidden blocks, narrowing) -> Linear -> z1
+    Architecture example (encoder_dims=[16, 16, 16, 16, 16, 16, 16] — the live
+    SLURM default, slurm/config.conf; note every width is EQUAL, which is what
+    lets SiameseEncoderResidual fire a skip on each hidden block. A narrowing
+    stack such as [96, 80, 64, 48, 32, 32] gets zero skips under that encoder):
+      gene1 -+-> (entry lift + 5x residual Linear->LN->LReLU->Drop) -> Linear -> z1
              |                                                            (projection) |
              |                                                                       |
              |          logit = τ · (z1ᵀz2 + ε · h1ᵀh2) + b -> sigmoid -> P(SL)    |
              |                                                                       |
       gene2 -+-> (same shared encoder) -------------------------------------------> z2
 
-    The score is h1ᵀ(WᵀW + εI)h2, where W is the projection matrix.
-    WᵀW + εI is strictly positive definite (ε > 0 prevents degeneracy
-    when L1 pushes columns of W to zero).
+    With last_layer_bias=False the score is h1ᵀ(WᵀW + εI)h2, where W is the
+    projection matrix; WᵀW + εI is strictly positive definite (ε > 0 prevents
+    degeneracy when L1 pushes columns of W to zero). With a projection bias b
+    the identity picks up per-gene terms — the score becomes
+    h1ᵀ(WᵀW + εI)h2 + bᵀW(h1 + h2) + ‖b‖² — which is exactly the gene-specific
+    baseline described below, and is no longer a pure kernel in (h1, h2).
 
     Last layer is a bare linear projection (Xavier init, no activation).
     Use last_layer_bias=False to remove the gene-specific baseline
@@ -445,9 +452,8 @@ class SiameseSL(nn.Module):
         # interface as SiameseEncoder but wraps same-width hidden blocks
         # with y = x + F(x) skips, keeping gradient flow intact through
         # deeper stacks. See SiameseEncoderResidual's docstring.
-        encoder_cls = (SiameseEncoderResidual
-                       if siamese_encoder_type == "residual"
-                       else SiameseEncoder)
+        encoder_cls = (SiameseEncoderResidual if siamese_encoder_type
+                       == "residual" else SiameseEncoder)
         self.encoder = encoder_cls(
             input_dim=input_dim,
             encoder_dims=encoder_dims,
@@ -456,8 +462,13 @@ class SiameseSL(nn.Module):
         )
 
         # Learnable temperature (log-space for positivity and numerical stability)
-        # For inner product with bare last layer: z1ᵀz2 ~ N(0, d).
-        # Init τ = 1/√d so initial logits have std ≈ 1.
+        # τ = 1/√d is the standard scaled-dot-product init, derived for a bare
+        # last layer where z1ᵀz2 ~ N(0, d) so initial logits have std ≈ 1.
+        # NOTE that derivation does NOT hold for siamese_encoder_type=residual,
+        # the live default: `h = out + h` is never re-normalised, so ‖h‖² grows
+        # with the number of skips and the initial logits are correspondingly
+        # larger than unit-scale. The temperature is trainable and recovers,
+        # but do not read this init as calibrating the residual encoder.
         latent_dim = encoder_dims[-1]
         self.log_temperature = nn.Parameter(
             torch.tensor(-0.5 * np.log(float(latent_dim)),
@@ -533,23 +544,22 @@ class SiameseSLMultiCell(nn.Module):
     """
 
     def __init__(
-            self,
-            input_dim: int,
-            num_heads: int,
-            encoder_dims: list = None,
-            dropout: float = 0.2,
-            last_layer_bias: bool = True,
-            pd_epsilon: float = 0.001,
-            siamese_encoder_type: str = "residual",
-            cell_line_dim: int = 8,
-            **kwargs,
+        self,
+        input_dim: int,
+        num_heads: int,
+        encoder_dims: list = None,
+        dropout: float = 0.2,
+        last_layer_bias: bool = True,
+        pd_epsilon: float = 0.001,
+        siamese_encoder_type: str = "residual",
+        cell_line_dim: int = 8,
+        **kwargs,
     ):
         super().__init__()
         if kwargs:
             import warnings
-            warnings.warn(
-                f"SiameseSLMultiCell: ignoring unknown kwargs: "
-                f"{list(kwargs.keys())}")
+            warnings.warn(f"SiameseSLMultiCell: ignoring unknown kwargs: "
+                          f"{list(kwargs.keys())}")
         if encoder_dims is None:
             encoder_dims = [256, 128, 64]
         if siamese_encoder_type not in ("mlp", "residual"):
@@ -567,9 +577,8 @@ class SiameseSLMultiCell(nn.Module):
         nn.init.normal_(self.cell_emb.weight, std=0.1)
 
         # Shared encoder sees [gene_emb ‖ cell_emb], so its input is widened.
-        encoder_cls = (SiameseEncoderResidual
-                       if siamese_encoder_type == "residual"
-                       else SiameseEncoder)
+        encoder_cls = (SiameseEncoderResidual if siamese_encoder_type
+                       == "residual" else SiameseEncoder)
         self.encoder = encoder_cls(
             input_dim=input_dim + cell_line_dim,
             encoder_dims=encoder_dims,
@@ -929,7 +938,10 @@ class SiameseSLKernel(nn.Module):
         )
 
         # Step 3: Predictor from SYMMETRIC Hilbert space features
-        # Same symmetric aggregation as SiameseSL: [sum, product, abs_diff]
+        # Same symmetric aggregation as SiameseSLWithAttention:
+        # [sum, product, abs_diff]. (SiameseSL itself does NOT aggregate this
+        # way — it scores with a temperature-scaled inner product and no
+        # predictor MLP.)
         total_hilbert_dim = hilbert_dim + rff_dim
         self.predictor = nn.Sequential(
             nn.Linear(total_hilbert_dim * 3, predictor_hidden),

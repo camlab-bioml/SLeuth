@@ -12,12 +12,14 @@ Preprocessing pipeline (applied per modality, then concatenated):
   7. Re-normalize after post-PCA (global scalar) to restore ~unit scale
 
 Each stage has two variants selected by `pca_method`:
+  "plain"  (DEFAULT) — column-mean impute → per-column mean+std standardize →
+             SVD → global mean/std normalize (classical PCA end-to-end)
   "robust" — Huber M-estimate impute → ROBPCA (Hubert et al. 2005; falls back
              to median-centered SVD) → global median/MAD normalize
-  "plain"  — column-mean impute → per-column mean+std standardize → SVD →
-             global mean/std normalize (classical PCA end-to-end)
 All robust measures (Huber / median / MAD) stay in the robust path; all
-classical measures (mean / std) stay in the plain path.
+classical measures (mean / std) stay in the plain path. "plain" is the default
+as of 2026-08-10 — one classical pipeline for every run, rather than three
+regimes whose selection varied by job.
 
 Fit/apply split — every preprocessing statistic (impute locations, PCA
 standardization + projection, normalization center/scale) is fit on a
@@ -49,7 +51,6 @@ from torch.utils.data import Dataset, DataLoader
 import numpy as np
 from typing import Tuple, List, Dict, Optional, Set
 from gene_name_utils import get_mapper
-
 
 # =============================================================================
 # Huber M-estimator (helper — used for imputation fit only, never inside PCA)
@@ -169,8 +170,10 @@ def _fit_robpca_V(embeddings: torch.Tensor,
 
     X_np = reduced_emb.numpy().astype(np.float64)
 
-    pca = ROBPCA(n_components=n_components, alpha=alpha,
-                 final_MCD_step=False, random_seed=42)
+    pca = ROBPCA(n_components=n_components,
+                 alpha=alpha,
+                 final_MCD_step=False,
+                 random_seed=42)
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
@@ -195,10 +198,16 @@ def _fit_robpca_V(embeddings: torch.Tensor,
         raise ValueError("ROBPCA projection contains NaN")
 
     # Variance explained against the fit data.
-    X_orig_np = embeddings.numpy().astype(np.float64)
-    total_var = float(np.var(X_orig_np, axis=0, ddof=1).sum())
-    evals = pca.explained_variance_[:k_actual]
-    retained_var = float(np.sum(evals))
+    # Numerator and denominator must come from the SAME matrix and the same
+    # estimator. pca.explained_variance_ is ROBPCA's robust h-subset variance
+    # of the SCORES; dividing it by a classical ddof=1 variance of the raw
+    # embeddings compares two different quantities on two different matrices,
+    # so the printed percentage could exceed 100 or understate badly. Use the
+    # projection already computed above, centred the same way on both sides.
+    centered = embeddings - embeddings.mean(dim=0, keepdim=True)
+    scores = projected - projected.mean(dim=0, keepdim=True)
+    total_var = float((centered**2).sum())
+    retained_var = float((scores**2).sum())
     pct = (retained_var / total_var * 100) if total_var > 0 else 0.0
 
     print(f"    ROBPCA {orig_dim}d -> {k_actual}d "
@@ -237,13 +246,29 @@ def _fit_pca_fallback_V(embeddings: torch.Tensor,
     return V
 
 
-def _resolve_n_components(embeddings: torch.Tensor, target) -> int:
+def _resolve_n_components(embeddings: torch.Tensor,
+                          target,
+                          basis="raw") -> int:
     """Resolve PCA target to an integer number of components (on fit rows).
 
     Args:
         embeddings: (n_fit, dim) tensor with no NaN.
         target: int (exact component count) or float in (0, 1) for
             variance fraction.
+        basis: which spectrum this is being resolved on, for the log line only.
+            "correlation" under pca_method=plain (columns standardized first),
+            "raw" under robust/svd.
+
+    THE BASIS MATTERS AND IS NOT COSMETIC. A correlation spectrum is far flatter
+    than the covariance spectrum of the same matrix, because standardizing gives
+    every dimension equal variance. The SAME 0.8 target therefore retains far
+    more components under `plain` than under `robust`/`svd` — measured on the
+    6-modality combo (4,424d concat): plain k=1074, svd/robust k=144, a 7.5x
+    wider encoder input. Neither is wrong; they answer the same question about
+    different matrices. But the encoder width, the hand-tuned proximal-L1
+    schedule and the reported parameter count all follow from k, so the basis is
+    printed next to it rather than left for someone to infer from a jump in the
+    numbers.
     """
     if isinstance(target, int):
         return target
@@ -261,8 +286,9 @@ def _resolve_n_components(embeddings: torch.Tensor, target) -> int:
     k = min(k, embeddings.shape[1])
     k = max(k, 1)
 
-    print(f"    Variance target {target:.0%}: {k} components "
-          f"(explains {ratio[k-1]:.1%} of {embeddings.shape[1]}d)")
+    print(f"    Variance target {target:.0%} on the {basis} spectrum: "
+          f"{k} components (explains {ratio[k-1]:.1%} of "
+          f"{embeddings.shape[1]}d)")
     return k
 
 
@@ -308,9 +334,9 @@ def _fit_plain_pca_V(embeddings_standardized: torch.Tensor,
     _, _, Vh = torch.linalg.svd(embeddings_standardized, full_matrices=False)
     V = Vh[:n_components].T.contiguous()  # (orig_dim, n_components)
 
-    total_ss = (embeddings_standardized ** 2).sum()
+    total_ss = (embeddings_standardized**2).sum()
     retained_scores = embeddings_standardized @ V
-    retained_ss = (retained_scores ** 2).sum()
+    retained_ss = (retained_scores**2).sum()
     pct = (retained_ss / total_ss * 100).item() if total_ss > 0 else 0.0
     print(f"    Plain PCA {orig_dim}d -> {n_components}d "
           f"({pct:.1f}% variance, standardized)")
@@ -320,7 +346,7 @@ def _fit_plain_pca_V(embeddings_standardized: torch.Tensor,
 def _fit_pca_V(emb_fit: torch.Tensor,
                target,
                alpha: float = 0.75,
-               method: str = "robust") -> Optional[Dict]:
+               method: str = "plain") -> Optional[Dict]:
     """Fit PCA on emb_fit (fit rows only). Returns a dict describing the
     projection (or None when the target is a no-op, target >= orig_dim).
 
@@ -336,11 +362,11 @@ def _fit_pca_V(emb_fit: torch.Tensor,
         target: int (exact component count) or float in (0, 1) for variance
             fraction.
         alpha: ROBPCA coverage parameter (ignored when method="plain").
-        method: "robust" (default) — ROBPCA with alpha retries, plain-PCA
-            fallback (median-centered SVD) on failure. Keeps all robust
-            machinery even in the fallback.
-            "plain" — classical PCA: per-column mean centering + per-column
-            std scaling + SVD. No robust measures.
+        method: "plain" (default) — classical PCA: per-column mean centering
+            + per-column std scaling + SVD. No robust measures.
+            "robust" — ROBPCA with alpha retries, plain-PCA fallback
+            (median-centered SVD) on failure. Keeps all robust machinery
+            even in the fallback.
     """
     if method not in ("robust", "plain", "svd"):
         raise ValueError(
@@ -367,9 +393,11 @@ def _fit_pca_V(emb_fit: torch.Tensor,
         # (as the robust path does) would retain a different fraction than
         # requested whenever column variances are uneven.
         pre_center, pre_scale = _fit_column_standardize(emb_fit)
-        standardized = _apply_column_standardize(
-            emb_fit, pre_center, pre_scale)
-        n_components = _resolve_n_components(standardized, target)
+        standardized = _apply_column_standardize(emb_fit, pre_center,
+                                                 pre_scale)
+        n_components = _resolve_n_components(standardized,
+                                             target,
+                                             basis="correlation")
         if n_components >= orig_dim:
             return None
         V = _fit_plain_pca_V(standardized, n_components)
@@ -477,8 +505,8 @@ def _apply_huber_imputation(embeddings: torch.Tensor,
     return torch.where(nan_mask, col_locations.unsqueeze(0), embeddings)
 
 
-def _fit_column_standardize(embeddings: torch.Tensor
-                            ) -> Tuple[torch.Tensor, torch.Tensor]:
+def _fit_column_standardize(
+        embeddings: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     """Per-column mean + (unbiased) std on the fit matrix (no NaN).
 
     Returns (mean, std), both shape (dim,). std is clamped to 1e-8 to
@@ -488,25 +516,33 @@ def _fit_column_standardize(embeddings: torch.Tensor
     """
     mean = embeddings.mean(dim=0)
     std = embeddings.std(dim=0, unbiased=True)
-    std = torch.clamp(std, min=1e-8)
+    # Constant-only guard, NOT an absolute floor. `clamp(std, min=1e-8)` cannot
+    # tell a constant column from one whose real std is below 1e-8, and mashup's
+    # diffusion tail has 43 genuinely non-constant columns in that range. Under
+    # an absolute floor those columns come out with variance 0.44-0.74 instead
+    # of 1, so the z-score stops being scale-invariant: multiplying the same
+    # matrix by 1000 moved the retained k from 330 to 346 at the same 0.8
+    # variance target. k is the encoder input width, so the model's size would
+    # depend on the units a modality happened to be stored in.
+    std = torch.where(std > 0, std, torch.ones_like(std))
     return mean, std
 
 
-def _apply_column_standardize(embeddings: torch.Tensor,
-                              mean: torch.Tensor,
+def _apply_column_standardize(embeddings: torch.Tensor, mean: torch.Tensor,
                               std: torch.Tensor) -> torch.Tensor:
     """Per-column z-score using pre-fit mean/std."""
     return (embeddings - mean.unsqueeze(0)) / std.unsqueeze(0)
 
 
 def _fit_normalize_scalars(
-    embeddings: torch.Tensor, method: str = "robust",
+    embeddings: torch.Tensor,
+    method: str = "plain",
 ) -> Tuple[float, float]:
     """Global scalar normalization stats on the fit matrix (no NaN).
 
     Returns (center, scale):
-      method="robust" — global median, global MAD (× 1.4826 consistency).
-      method="plain"  — global mean, global (unbiased) std.
+      method="plain" (default) — global mean, global (unbiased) std.
+      method="robust"          — global median, MAD (× 1.4826 consistency).
     Scale is clamped to 1e-8 to avoid divide-by-zero on constant matrices.
     """
     if method == "plain":
@@ -516,6 +552,32 @@ def _fit_normalize_scalars(
         center = float(torch.median(embeddings).item())
         centered = embeddings - center
         scale = 1.4826 * float(torch.median(torch.abs(centered)).item())
+        # DEGENERATE-MAD GUARD.
+        #
+        # MAD measures the middle of the distribution. When more than half the
+        # entries sit at (near) the center, it collapses toward 0 while the
+        # actual signal lives in the tail — MAD is then not robust, it is
+        # meaningless. data/all_genes_mashup.pt is exactly this: 50.9% of its
+        # values are below 1e-7, giving MAD 9.9e-08 against std 5.0e-03, a
+        # MAD/std ratio of 2e-05. Dividing by that MAD multiplies the modality
+        # by ~1e7, so after concatenation it carries ~5e4x the variance of its
+        # co-modalities and the post-concat SVD basis becomes ~100% mashup —
+        # every other modality is annihilated in float32 and the "multi-modal"
+        # model is arithmetically single-modality, with nothing in the log
+        # saying so.
+        #
+        # The pre-existing `scale < 1e-8` clamp does not catch this: 9.9e-08
+        # slips past it. Trigger on the RATIO instead, which is scale-free.
+        # Measured over all 17 catalog embeddings the next-lowest ratio is
+        # 0.145 (ppi_svd), so 1e-3 separates the degenerate case by four
+        # orders of magnitude and cannot misfire on the others.
+        sd = float(embeddings.std(unbiased=True).item())
+        if sd > 0 and scale < 1e-3 * sd:
+            print(f"    WARNING: degenerate MAD {scale:.3e} vs std {sd:.3e} "
+                  f"(ratio {scale / sd:.1e}) — over half this modality's mass "
+                  f"sits at the center. Falling back to std so it cannot "
+                  f"dominate the concatenation.")
+            scale = sd
     if scale < 1e-8:
         scale = 1e-8
     return center, scale
@@ -564,31 +626,30 @@ def impute_nan_with_huber(embeddings: torch.Tensor,
 def apply_pca(embeddings: torch.Tensor,
               n_components,
               alpha: float = 0.75,
-              method: str = "robust") -> torch.Tensor:
+              method: str = "plain") -> torch.Tensor:
     """Fit + apply PCA on ALL genes. Legacy convenience.
 
-    method="robust" (default): ROBPCA first (Hubert et al. 2005);
-      median-centered-SVD fallback when robpy is unavailable or all alpha
-      retries raise.
-    method="plain": classical PCA — per-column mean + std standardization,
-      then SVD. No robust measures.
+    method="plain" (default): classical PCA — per-column mean + std
+      standardization, then SVD. No robust measures.
+    method="robust": ROBPCA first (Hubert et al. 2005); median-centered-SVD
+      fallback when robpy is unavailable or all alpha retries raise.
     """
     pca_t = _fit_pca_V(embeddings, n_components, alpha=alpha, method=method)
     if pca_t is None:
         return embeddings
     emb = embeddings
     if pca_t["pre_center"] is not None:
-        emb = _apply_column_standardize(
-            emb, pca_t["pre_center"], pca_t["pre_scale"])
+        emb = _apply_column_standardize(emb, pca_t["pre_center"],
+                                        pca_t["pre_scale"])
     return emb @ pca_t["V"]
 
 
 def normalize_modality(embeddings: torch.Tensor,
-                       method: str = "robust") -> torch.Tensor:
+                       method: str = "plain") -> torch.Tensor:
     """Fit + apply global scalar normalization on ALL rows. Legacy convenience.
 
-    method="robust" (default): global median / MAD.
-    method="plain":            global mean  / std.
+    method="plain" (default): global mean  / std.
+    method="robust":          global median / MAD.
     """
     center, scale = _fit_normalize_scalars(embeddings, method=method)
     return _apply_normalize(embeddings, center, scale)
@@ -729,8 +790,8 @@ def load_raw_multimodal(
         else:
             if gene_order != canonical_gene_order:
                 mismatches = []
-                for j, (a, b) in enumerate(
-                        zip(canonical_gene_order, gene_order)):
+                for j, (a,
+                        b) in enumerate(zip(canonical_gene_order, gene_order)):
                     if a != b:
                         mismatches.append(f"  idx {j}: {a} vs {b}")
                     if len(mismatches) >= 5:
@@ -756,7 +817,7 @@ def fit_multimodal_transform(
     pca_dims: Optional[List[float]] = None,
     post_pca: Optional[float] = None,
     labels: Optional[List[str]] = None,
-    pca_method: str = "robust",
+    pca_method: str = "plain",
 ) -> Dict:
     """Fit imputation + PCA + normalization stats on the fit subset of rows.
 
@@ -766,11 +827,11 @@ def fit_multimodal_transform(
         pca_dims: per-modality PCA targets (int or float in (0,1)). None to skip.
         post_pca: post-concat PCA target. None to skip.
         labels: optional per-modality display labels for logs.
-        pca_method: "robust" (default) — Huber-impute + ROBPCA (+ alpha
-            retries + median-centered-SVD fallback) + global median/MAD
-            normalize. All robust measures.
-            "plain" — mean-impute + per-column mean/std standardize + SVD +
-            global mean/std normalize. All classical measures.
+        pca_method: "plain" (default) — mean-impute + per-column mean/std
+            standardize + SVD + global mean/std normalize. All classical
+            measures.
+            "robust" — Huber-impute + ROBPCA (+ alpha retries +
+            median-centered-SVD fallback) + global median/MAD normalize.
             Selects the whole pipeline, applied uniformly to per-modality
             and post-concat stages.
 
@@ -798,9 +859,8 @@ def fit_multimodal_transform(
         plain (mean/std) path — kept for backward-compat schema.
     """
     if pca_dims is not None and len(pca_dims) != len(raw_per_modality):
-        raise ValueError(
-            f"pca_dims has {len(pca_dims)} values but "
-            f"{len(raw_per_modality)} modalities provided")
+        raise ValueError(f"pca_dims has {len(pca_dims)} values but "
+                         f"{len(raw_per_modality)} modalities provided")
 
     if len(raw_per_modality) == 0:
         raise ValueError("raw_per_modality must be a non-empty list")
@@ -829,8 +889,8 @@ def fit_multimodal_transform(
     # Pick the fit primitives that match the requested method.
     # robust: Huber-impute, ROBPCA (or median-SVD fallback), median/MAD normalize.
     # plain : mean-impute,  classical PCA (mean+std),           mean/std normalize.
-    impute_fitter = (_fit_mean_locations if pca_method == "plain"
-                     else _fit_huber_locations)
+    impute_fitter = (_fit_mean_locations
+                     if pca_method == "plain" else _fit_huber_locations)
     impute_label = "mean" if pca_method == "plain" else "Huber"
 
     for i, raw in enumerate(raw_per_modality):
@@ -856,8 +916,7 @@ def fit_multimodal_transform(
         fit_imputed = imputed_all[fit_mask]
         pca_t: Optional[Dict] = None
         if pca_dims is not None:
-            pca_t = _fit_pca_V(
-                fit_imputed, pca_dims[i], method=pca_method)
+            pca_t = _fit_pca_V(fit_imputed, pca_dims[i], method=pca_method)
 
         if pca_t is None:
             emb_all = imputed_all
@@ -869,8 +928,8 @@ def fit_multimodal_transform(
             pre_center = pca_t["pre_center"]
             pre_scale = pca_t["pre_scale"]
             if pre_center is not None:
-                emb_all = _apply_column_standardize(
-                    imputed_all, pre_center, pre_scale)
+                emb_all = _apply_column_standardize(imputed_all, pre_center,
+                                                    pre_scale)
             else:
                 emb_all = imputed_all
             emb_all = emb_all @ pca_V
@@ -900,21 +959,19 @@ def fit_multimodal_transform(
     post_mad: Optional[float] = None
     if post_pca is not None:
         concatenated_fit = torch.cat(imputed_fit_pieces, dim=1)
-        post_pca_t = _fit_pca_V(
-            concatenated_fit, post_pca, method=pca_method)
+        post_pca_t = _fit_pca_V(concatenated_fit, post_pca, method=pca_method)
         if post_pca_t is not None:
             post_pca_V = post_pca_t["V"]
             post_pca_pre_center = post_pca_t["pre_center"]
             post_pca_pre_scale = post_pca_t["pre_scale"]
             if post_pca_pre_center is not None:
                 concatenated_fit = _apply_column_standardize(
-                    concatenated_fit,
-                    post_pca_pre_center, post_pca_pre_scale)
+                    concatenated_fit, post_pca_pre_center, post_pca_pre_scale)
             concatenated_fit = concatenated_fit @ post_pca_V
         # Always re-normalize after the post-concat PCA (even if PCA was a
         # no-op) so the output scale matches the pre-refactor pipeline.
-        post_median, post_mad = _fit_normalize_scalars(
-            concatenated_fit, method=pca_method)
+        post_median, post_mad = _fit_normalize_scalars(concatenated_fit,
+                                                       method=pca_method)
 
     return {
         "per_modality": per_modality_t,
@@ -975,16 +1032,15 @@ def apply_multimodal_transform(
     post_pre_center = transform.get("post_pca_pre_center")
     post_pre_scale = transform.get("post_pca_pre_scale")
     if post_pre_center is not None:
-        concatenated = _apply_column_standardize(
-            concatenated, post_pre_center, post_pre_scale)
+        concatenated = _apply_column_standardize(concatenated, post_pre_center,
+                                                 post_pre_scale)
     post_V = transform.get("post_pca_V")
     if post_V is not None:
         concatenated = concatenated @ post_V
     # Post-normalize was fit whenever post_pca was requested (see
     # fit_multimodal_transform) regardless of whether post_V is None.
     if transform.get("post_median") is not None:
-        concatenated = _apply_normalize(concatenated,
-                                        transform["post_median"],
+        concatenated = _apply_normalize(concatenated, transform["post_median"],
                                         transform["post_mad"])
     return concatenated
 
@@ -994,7 +1050,7 @@ def load_multimodal_embeddings(
     gene_list_path: Optional[str] = None,
     pca_dims: Optional[List[float]] = None,
     post_pca: Optional[float] = None,
-    pca_method: str = "robust",
+    pca_method: str = "plain",
 ) -> Tuple[torch.Tensor, Dict[str, int], Dict[int, str]]:
     """Legacy entry: load, fit preprocessing on ALL genes, apply, concatenate.
 
@@ -1004,9 +1060,13 @@ def load_multimodal_embeddings(
     (see SLDataManager.get_fold_embeddings).
 
     pca_method:
-      "robust" (default) — Huber-impute + ROBPCA + median/MAD normalize.
-      "plain"            — mean-impute + per-column mean/std standardize +
-                           SVD + mean/std normalize (classical).
+      "plain" (DEFAULT)  — mean-impute + per-column mean/std standardize +
+                           SVD + global mean/std normalize (classical
+                           end-to-end). This is the default everywhere since
+                           2026-08-10; the signature above defaults to it.
+      "robust"           — Huber-impute + ROBPCA + median/MAD normalize.
+      "svd"              — Huber-impute + matrix-wise median/MAD rescale +
+                           median-centered SVD, no per-column standardize.
     """
     n = len(paths)
     desc = "modality" if n == 1 else f"{n} modalities"
@@ -1019,14 +1079,18 @@ def load_multimodal_embeddings(
     fit_mask = torch.ones(raw_per_modality[0].shape[0], dtype=torch.bool)
 
     transform = fit_multimodal_transform(
-        raw_per_modality, fit_mask, pca_dims=pca_dims, post_pca=post_pca,
-        labels=labels, pca_method=pca_method,
+        raw_per_modality,
+        fit_mask,
+        pca_dims=pca_dims,
+        post_pca=post_pca,
+        labels=labels,
+        pca_method=pca_method,
     )
     concatenated = apply_multimodal_transform(raw_per_modality, transform)
 
     total_dim_after_mod = sum(
-        (t["pca_V"].shape[1] if t["pca_V"] is not None
-         else raw_per_modality[i].shape[1])
+        (t["pca_V"].
+         shape[1] if t["pca_V"] is not None else raw_per_modality[i].shape[1])
         for i, t in enumerate(transform["per_modality"]))
     print(f"  -> Concatenated: {total_dim_after_mod}d "
           f"({concatenated.shape[0]} genes)")
@@ -1094,7 +1158,7 @@ class SLDataset(Dataset):
                 self.embeddings[i],
                 self.embeddings[j],
                 torch.tensor(self.labels[idx]),  # (num_heads,)
-                torch.tensor(self.mask[idx]),    # (num_heads,)
+                torch.tensor(self.mask[idx]),  # (num_heads,)
             )
         return (
             self.embeddings[i],
@@ -1130,8 +1194,9 @@ class SLDataManager:
         pca_dims: Optional[List[float]] = None,
         post_pca: Optional[float] = None,
         preprocessing_fit_scope: str = "train",
-        pca_method: str = "robust",
+        pca_method: str = "plain",
         use_cell_lines: bool = False,
+        folds_dir: Optional[str] = None,
     ):
         """
         Args:
@@ -1157,10 +1222,12 @@ class SLDataManager:
                   pre-refactor behavior and reintroduces CV2/CV3 leakage
                   of test-gene embeddings into the basis. Kept for A/B
                   comparison so the effect of the fix can be quantified.
-            pca_method: "robust" (default) — ROBPCA with alpha retries and
-                a plain-PCA fallback on failure. "plain" — median-centered
-                SVD directly, no outlier filtering. Applies uniformly to
-                per-modality and post-concat PCA.
+            pca_method: "plain" (DEFAULT) — per-column mean/std standardize
+                then classical SVD, with a global mean/std normalize.
+                "robust" — ROBPCA with alpha retries and a median-centered-SVD
+                fallback on failure. "svd" — median-centered SVD directly, no
+                per-column standardize, no outlier filtering. Applies
+                uniformly to per-modality and post-concat PCA.
             use_cell_lines: Enable masked multi-label cell-line conditioning.
                 Requires neg_pairs_path. The unit becomes a gene pair carrying
                 a per-head (label, mask) vector over cell_line_vocab.HEADS
@@ -1172,6 +1239,13 @@ class SLDataManager:
                 one logit per head. neg_pairs_path's pairs are NOT restricted
                 to the SL gene universe here; the gene universe is all pairs
                 that carry any known label.
+            folds_dir: Use the shared canonical CV folds in this directory
+                (e.g. ../sl_comparison/folds) instead of siamese's own
+                gene-disjoint partition. This is what makes the four-model
+                comparison fair: identical train/val/test division and
+                identical gene index space. Per-head labels stay siamese's,
+                so cell-line conditioning is unaffected — only the PARTITION
+                is shared. Requires use_cell_lines=True.
         """
         if not embeddings_paths:
             raise ValueError("embeddings_paths must be a non-empty list")
@@ -1180,9 +1254,8 @@ class SLDataManager:
                 f"preprocessing_fit_scope must be 'train' or 'all'; "
                 f"got {preprocessing_fit_scope!r}")
         if pca_method not in ("robust", "plain", "svd"):
-            raise ValueError(
-                f"pca_method must be 'robust', 'plain' or 'svd'; "
-                f"got {pca_method!r}")
+            raise ValueError(f"pca_method must be 'robust', 'plain' or 'svd'; "
+                             f"got {pca_method!r}")
 
         self.seed = seed
         set_seed(seed)
@@ -1191,6 +1264,11 @@ class SLDataManager:
             raise ValueError(
                 "use_cell_lines=True requires neg_pairs_path (the screened "
                 "non-SL pairs provide the negative labels per cell line).")
+        self.folds_dir = folds_dir or None
+        if self.folds_dir and not self.use_cell_lines:
+            raise ValueError(
+                "folds_dir requires use_cell_lines=True; the shared-fold "
+                "reader maps onto the multi-label pair universe.")
         self.embeddings_paths = list(embeddings_paths)
         self.pca_dims = pca_dims
         self.post_pca = post_pca
@@ -1308,8 +1386,7 @@ class SLDataManager:
 
         return np.array(pairs, dtype=np.int64), sl_genes
 
-    def _load_neg_pairs(self,
-                        neg_pairs_path: str) -> Tuple[np.ndarray, Dict]:
+    def _load_neg_pairs(self, neg_pairs_path: str) -> Tuple[np.ndarray, Dict]:
         """Load curated NON-SL pairs as a negative pool (SL-only indices).
 
         Mirrors _load_sl_pairs' gene handling, but a pair is kept only if:
@@ -1415,7 +1492,8 @@ class SLDataManager:
                 out[(idx1, idx2)] = cell_field
         return out
 
-    def _load_neg_pairs_full(self, neg_pairs_path: str) -> Set[Tuple[int, int]]:
+    def _load_neg_pairs_full(self,
+                             neg_pairs_path: str) -> Set[Tuple[int, int]]:
         """Load NON-SL pairs as canonical full-idx tuples (both genes embedded).
 
         Unlike _load_neg_pairs (single-label), this does NOT restrict to the
@@ -1472,6 +1550,8 @@ class SLDataManager:
         masks: List[np.ndarray] = []
         n_dropped_unlabeled = 0
         n_sidecar_missing = 0  # pair in a .txt set but absent from its sidecar
+        n_or_pairs = 0  # pairs with >=1 head asserted both ways
+        or_per_head = np.zeros(H, dtype=np.int64)
         for (i, j) in universe:
             is_sl = (i, j) in pos_set
             is_ns = (i, j) in neg_set
@@ -1482,9 +1562,17 @@ class SLDataManager:
             if (is_sl and (i, j) not in pos_raw) or \
                (is_ns and (i, j) not in neg_raw):
                 n_sidecar_missing += 1
-            lab, msk = cell_line_vocab.pair_label_mask(
-                pos_raw.get((i, j), ""), neg_raw.get((i, j), ""), is_sl, is_ns)
-            if msk.sum() == 0:  # no known head (e.g. all same-head contradiction)
+            sl_field = pos_raw.get((i, j), "")
+            ns_field = neg_raw.get((i, j), "")
+            both = cell_line_vocab.same_head_conflicts(sl_field, ns_field,
+                                                       is_sl, is_ns)
+            if both:
+                n_or_pairs += 1
+                for h in both:
+                    or_per_head[h] += 1
+            lab, msk = cell_line_vocab.pair_label_mask(sl_field, ns_field,
+                                                       is_sl, is_ns)
+            if msk.sum() == 0:  # no known head (never screened in any head)
                 n_dropped_unlabeled += 1
                 continue
             pairs.append([i, j])
@@ -1501,9 +1589,9 @@ class SLDataManager:
         genes = sorted({int(g) for pr in self.ml_pairs_full for g in pr})
         full_to_p = {g: p for p, g in enumerate(genes)}
         self.num_p_genes = len(genes)
-        self.ml_pairs_p = np.array(
-            [[full_to_p[int(i)], full_to_p[int(j)]]
-             for i, j in self.ml_pairs_full], dtype=np.int64)
+        self.ml_pairs_p = np.array([[full_to_p[int(i)], full_to_p[int(j)]]
+                                    for i, j in self.ml_pairs_full],
+                                   dtype=np.int64)
 
         if n_sidecar_missing:
             print(f"    WARNING: {n_sidecar_missing:,} pair(s) present in a "
@@ -1511,16 +1599,30 @@ class SLDataManager:
                   f"(treated as OTHER-head). Check the files are in sync.")
 
         # Summary.
-        known = self.ml_mask.sum(axis=0)             # per head, #supervised
+        known = self.ml_mask.sum(axis=0)  # per head, #supervised
         pos_per = (self.ml_label * self.ml_mask).sum(axis=0)
         print(f"Cell-line conditioning: ENABLED (masked multi-label, "
               f"{H} heads)")
         print(f"    labeled pairs: {len(self.ml_pairs_full):,} over "
               f"{self.num_p_genes:,} genes "
               f"(dropped {n_dropped_unlabeled:,} with no known head)")
+        if n_or_pairs:
+            # These are the pairs screened BOTH ways within one head. Under the
+            # legacy same_head="mask" rule they were unsupervised there; the OR
+            # rule labels them SL. Printed per head because the count is very
+            # unevenly distributed (JURKAT carries most of it) and a head whose
+            # positives are largely recovered conflicts should be read as such.
+            recovered = ", ".join(
+                f"{cell_line_vocab.HEADS[h]} {int(or_per_head[h]):,}"
+                for h in np.argsort(-or_per_head) if or_per_head[h])
+            print(f"    same-head SL/non-SL conflicts resolved by OR "
+                  f"(label=SL): {n_or_pairs:,} pairs -> "
+                  f"{int(or_per_head.sum()):,} head-cells [{recovered}]")
         for h, name in enumerate(cell_line_vocab.HEADS):
-            print(f"    {name:<8} known {int(known[h]):>7,}  "
-                  f"pos {int(pos_per[h]):>6,}  neg {int(known[h]-pos_per[h]):>7,}")
+            print(
+                f"    {name:<8} known {int(known[h]):>7,}  "
+                f"pos {int(pos_per[h]):>6,}  neg {int(known[h]-pos_per[h]):>7,}"
+                f"  (or-resolved {int(or_per_head[h]):>5,})")
 
     def _make_ml_folds(self, cv_type: str, num_folds: int) -> List[Tuple]:
         """Gene-disjoint CV folds for the multi-label universe (no benchmark
@@ -1549,8 +1651,8 @@ class SLDataManager:
             return folds
         # cv2 / cv3: partition genes into folds, classify pairs by gene group.
         gene_fold = np.empty(self.num_p_genes, dtype=np.int64)
-        for f, grp in enumerate(np.array_split(rng.permutation(self.num_p_genes),
-                                               num_folds)):
+        for f, grp in enumerate(
+                np.array_split(rng.permutation(self.num_p_genes), num_folds)):
             gene_fold[grp] = f
         g1 = gene_fold[self.ml_pairs_p[:, 0]]
         g2 = gene_fold[self.ml_pairs_p[:, 1]]
@@ -1565,28 +1667,155 @@ class SLDataManager:
             folds.append((train_idx, test_idx))
         return folds
 
-    def _ml_fold_data(self, fold: int, train_idx: np.ndarray,
-                      test_idx: np.ndarray) -> Dict:
+    def _shared_gene_map(self) -> Tuple[List[str], np.ndarray]:
+        """Load the shared gene index space and map it onto embedding rows.
+
+        Returns (shared_genes, shared_to_full) where shared_to_full[s] is the
+        row of this run's embedding matrix holding shared gene s, or -1 when
+        that gene has no embedding. With the genome-wide gene universe
+        (run_generate_embeddings.sh STEP 0b) nothing should be -1; any misses
+        are reported rather than silently dropped.
+        """
+        genes_file = Path(self.folds_dir) / "genes.txt"
+        if not genes_file.exists():
+            raise FileNotFoundError(
+                f"folds_dir={self.folds_dir!r} has no genes.txt — run "
+                f"sl_comparison/prepare_folds.py first.")
+        with open(genes_file) as f:
+            shared_genes = [ln.strip() for ln in f if ln.strip()]
+        s2f = np.full(len(shared_genes), -1, dtype=np.int64)
+        for s, g in enumerate(shared_genes):
+            fi = self.gene_to_idx.get(g)
+            if fi is not None:
+                s2f[s] = fi
+        return shared_genes, s2f
+
+    def _shared_ml_folds(self, cv_type: str, num_folds: int) -> List[Tuple]:
+        """Read sl_comparison/folds/<cv>/fold_k/*.npy -> ml_* row indices.
+
+        This is the fairness path: the train/val/test PARTITION comes from the
+        shared canonical folds (identical to SLMGAE / SLGNN / NSF4SL), while the
+        per-head labels stay siamese's own, so cell-line conditioning survives.
+        Because train rows are built ONLY from the shared train arrays, no
+        shared val/test pair can leak into training regardless of how the two
+        label universes differ.
+
+        Returns [(train_idx, val_idx, test_idx), ...].
+        """
+        shared_genes, s2f = self._shared_gene_map()
+        n_unmapped = int((s2f < 0).sum())
+        if n_unmapped:
+            print(f"    WARNING: {n_unmapped:,}/{len(shared_genes):,} shared "
+                  f"genes have no embedding row; their pairs are unusable. "
+                  f"Regenerate embeddings over the full gene universe.")
+
+        row_of = {
+            (int(a), int(b)): r
+            for r, (a, b) in enumerate(self.ml_pairs_full)
+        }
+
+        def rows(arr: np.ndarray) -> Tuple[np.ndarray, int]:
+            """Shared-index pairs -> ml row indices; count unrepresentable."""
+            out, miss = [], 0
+            for a, b in np.asarray(arr, dtype=np.int64):
+                fa, fb = s2f[a], s2f[b]
+                if fa < 0 or fb < 0:
+                    miss += 1
+                    continue
+                key = (int(fa), int(fb)) if fa < fb else (int(fb), int(fa))
+                r = row_of.get(key)
+                if r is None:
+                    miss += 1
+                    continue
+                out.append(r)
+            return np.array(sorted(set(out)), dtype=np.int64), miss
+
+        base = Path(self.folds_dir) / cv_type
+        folds: List[Tuple] = []
+        total_miss = 0
+        for f in range(num_folds):
+            d = base / f"fold_{f}"
+            if not d.exists():
+                raise FileNotFoundError(
+                    f"{d} missing — prepare_folds.py was run with fewer than "
+                    f"{num_folds} folds, or a different cv_types list.")
+
+            def part(*names):
+                nonlocal total_miss
+                idxs = []
+                for nm in names:
+                    p = d / f"{nm}.npy"
+                    if not p.exists():
+                        continue
+                    r, m = rows(np.load(p))
+                    total_miss += m
+                    idxs.append(r)
+                if not idxs:
+                    return np.array([], dtype=np.int64)
+                return np.unique(np.concatenate(idxs))
+
+            tr = part("train_pos", "train_neg")
+            va = part("val_pos", "val_neg")
+            te = part("test_pos", "test_neg")
+
+            # Guard the whole point of this path: training must not touch any
+            # pair the shared folds reserved for selection or scoring.
+            for other, nm in ((va, "val"), (te, "test")):
+                overlap = np.intersect1d(tr, other)
+                if len(overlap):
+                    raise RuntimeError(
+                        f"{cv_type} fold {f}: {len(overlap)} pairs appear in "
+                        f"both train and {nm} of the shared folds")
+            folds.append((tr, va, te))
+
+        if total_miss:
+            print(f"    {total_miss:,} shared fold pair-slots carry no "
+                  f"cell-line head in this run and are not trainable examples "
+                  f"(they are still scored — grading uses the dense matrix).")
+        return folds
+
+    def _ml_fold_data(self,
+                      fold: int,
+                      train_idx: np.ndarray,
+                      test_idx: np.ndarray,
+                      val_idx: Optional[np.ndarray] = None) -> Dict:
         """Assemble a multi-label fold dict by slicing the ml_* arrays."""
+
         def part(idx):
             return {
                 "pairs": self.ml_pairs_full[idx],
                 "labels": self.ml_label[idx],
                 "mask": self.ml_mask[idx],
             }
-        return {"fold": fold, "train": part(train_idx), "test": part(test_idx)}
+
+        out = {"fold": fold, "train": part(train_idx), "test": part(test_idx)}
+        if val_idx is not None and len(val_idx):
+            out["val"] = part(val_idx)
+        return out
 
     def _get_ml_splits(self, cv_type: str, num_folds: int) -> List[Dict]:
-        """Build + report gene-disjoint multi-label folds for one CV type."""
-        folds = self._make_ml_folds(cv_type, num_folds)
+        """Build + report multi-label folds for one CV type.
+
+        Shared canonical folds when folds_dir is set (fair four-model
+        comparison), otherwise siamese's own gene-disjoint partition.
+        """
+        if self.folds_dir:
+            folds = self._shared_ml_folds(cv_type, num_folds)
+        else:
+            folds = [(tr, None, te)
+                     for tr, te in self._make_ml_folds(cv_type, num_folds)]
         converted = []
-        for f, (tr, te) in enumerate(folds):
-            fd = self._ml_fold_data(f, tr, te)
+        for f, (tr, va, te) in enumerate(folds):
+            fd = self._ml_fold_data(f, tr, te, va)
             converted.append(fd)
-            print(f"  Fold {f + 1}: "
-                  f"train {len(tr):,} pairs/{int(fd['train']['mask'].sum()):,} "
-                  f"labels  test {len(te):,} pairs/"
-                  f"{int(fd['test']['mask'].sum()):,} labels")
+            vtxt = (f"  val {len(va):,} pairs/"
+                    f"{int(fd['val']['mask'].sum()):,} labels"
+                    if "val" in fd else "")
+            print(
+                f"  Fold {f + 1}: "
+                f"train {len(tr):,} pairs/{int(fd['train']['mask'].sum()):,} "
+                f"labels{vtxt}  test {len(te):,} pairs/"
+                f"{int(fd['test']['mask'].sum()):,} labels")
         return converted
 
     def _create_sl_index_mapping(self) -> None:
@@ -1754,7 +1983,10 @@ class SLDataManager:
             in the fit — they carry no label information to leak and keep
             the ROBPCA sample size high.
           - Genes that appear in test pairs but NOT in training pairs are
-            excluded. In CV1 this set is empty (gene reuse); in CV3 it is
+            excluded. In CV1 this set is small but NOT empty — an edge split
+            guarantees nothing about gene reuse for low-degree genes, and
+            2,629 genes have exactly one SL pair, so roughly a fifth of them
+            land test-only on any given 5-fold split; in CV3 it is
             the full test-pair gene set.
         """
         if self.preprocessing_fit_scope == "all":
@@ -1768,6 +2000,19 @@ class SLDataManager:
         for g1, g2 in fold_data["test"]["pairs"]:
             test_genes.add(int(g1))
             test_genes.add(int(g2))
+        # VAL is held out exactly like test and must be excluded on the same
+        # terms. The shared cv2/cv3 folds carve val by holding out a GENE group
+        # (prepare_folds.py:228-240), so val-only genes appear in no train pair
+        # and no test pair — without this they survive `test_genes -
+        # train_genes` and their raw embeddings shape the Huber locations, the
+        # ROBPCA basis and the median/MAD. That makes val transductive and
+        # optimistically biases the very number used both for per-epoch
+        # checkpoint selection and for cross-config ranking in
+        # collect_siamese.discover. Measured on the shared folds (fold 0):
+        # 602 such genes in cv2, 154 in cv3.
+        for g1, g2 in fold_data.get("val", {}).get("pairs", []):
+            test_genes.add(int(g1))
+            test_genes.add(int(g2))
         exclude = test_genes - train_genes
 
         mask = torch.ones(self.num_genes, dtype=torch.bool)
@@ -1777,7 +2022,8 @@ class SLDataManager:
         return mask
 
     def get_fold_embeddings(
-        self, fold_data: Dict,
+        self,
+        fold_data: Dict,
     ) -> Tuple[torch.Tensor, Dict]:
         """Fit preprocessing on this fold's training-gene subset; return
         (fold_embeddings, transform_dict).
@@ -1795,9 +2041,9 @@ class SLDataManager:
         }.get(self.pca_method, self.pca_method)
         print(f"\n[fold {fold_data['fold']}] fitting preprocessing "
               f"[method={self.pca_method}: {method_desc}; "
-              f"scope={self.preprocessing_fit_scope}]"
-              + (" (+ post-concat PCA + renorm)"
-                 if self.post_pca is not None else ""))
+              f"scope={self.preprocessing_fit_scope}]" +
+              (" (+ post-concat PCA + renorm)" if self.
+               post_pca is not None else ""))
         transform = fit_multimodal_transform(
             self.raw_per_modality,
             fit_mask,
@@ -1863,3 +2109,31 @@ def create_fold_dataloaders(
     )
 
     return train_loader, test_loader
+
+
+def create_val_dataloader(
+    embeddings: torch.Tensor,
+    fold_data: Dict,
+    batch_size: int = 256,
+    num_workers: int = 0,
+) -> Optional[DataLoader]:
+    """Loader over the shared VAL split, or None when the fold has no val.
+
+    Only shared canonical folds carry a val partition (prepare_folds.py
+    --val_frac); siamese's own folds do not, and those runs keep the legacy
+    select-on-test behaviour.
+    """
+    if "val" not in fold_data or len(fold_data["val"]["pairs"]) == 0:
+        return None
+    return DataLoader(
+        SLDataset(
+            embeddings=embeddings,
+            pairs=fold_data["val"]["pairs"],
+            labels=fold_data["val"]["labels"],
+            mask=fold_data["val"].get("mask"),
+        ),
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=torch.cuda.is_available(),
+    )

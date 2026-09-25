@@ -2,7 +2,11 @@
 #SBATCH --job-name=bench_emb
 #SBATCH --partition=gpu_Prosmn
 #SBATCH --nodes=1
-#SBATCH --nodelist=gpu3,gpu4
+# Pinned to gpu3 (2026-08-10, by request). gpu3 threw a transient "CUDA
+# unknown error" at torch init in 2026-07 and the whole tree was moved to
+# gpu2 for that; if it recurs, the symptom is a torch.cuda init failure in
+# the very first seconds of the job, not a training-time error.
+#SBATCH --nodelist=gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=12
@@ -132,7 +136,7 @@ $PYTHON_PATH train.py \
     --pos_neg_ratio $POS_NEG_RATIO \
     --seed $SEED \
     --preprocessing_fit_scope "${PREPROCESSING_FIT_SCOPE:-train}" \
-    --pca_method "${PCA_METHOD:-robust}" \
+    --pca_method "${PCA_METHOD:-plain}" \
     --siamese_encoder_type "${SIAMESE_ENCODER_TYPE:-residual}" \
     --no_post_pca
 TRAIN_EXIT=$?

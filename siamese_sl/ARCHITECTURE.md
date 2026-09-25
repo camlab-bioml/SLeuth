@@ -84,10 +84,10 @@ L1 on $\mathbf{W}$ pushes columns toward zero, making $\mathbf{W}^\top \mathbf{W
 
 - **Concat-at-input.** A per-head embedding $\mathbf{c}_h \in \mathbb{R}^{d_c}$ is concatenated onto each gene's feature vector *before* the shared encoder, so the cell context interacts with the biological embedding inside the network. The encoder input widens from $D$ to $D + d_c$ ($d_c$ = `--cell_line_dim`, default 8).
 - **Per-head score.** For head $h$: $\text{logit}_h = \tau\,(\mathbf{z}_1^{(h)\top}\mathbf{z}_2^{(h)} + \varepsilon\,\mathbf{h}_1^{(h)\top}\mathbf{h}_2^{(h)}) + b_h$, where $\mathbf{z}^{(h)}$ is the encoding of $[\mathbf{x}\,\Vert\,\mathbf{c}_h]$ and $b_h$ is a per-head bias (cell-line base rate). Same PD-kernel as above, per head; symmetric in $(\mathbf{x}_1,\mathbf{x}_2)$. `forward → (B, 8)`.
-- **Masked objective.** Each pair carries `(label, mask)` over the 8 heads (a head known SL *and* non-SL is masked). Loss $= \sum (\text{mask}\cdot \text{BCE}) / \sum \text{mask}$, with per-fold per-head `pos_weight = #neg/#pos`. Only supervised cells contribute.
-- **Metric.** Macro per-head AUPR (selection), plus micro (pooled) and per-head AUPR.
+- **Masked objective.** Each pair carries `(label, mask)` over the 8 heads. A head asserted SL *and* non-SL resolves by **OR** to label 1, supervised (`cell_line_vocab.pair_label_mask(..., same_head="positive")`, the default since 2026-08-10; `same_head="mask"` restores the older drop-it rule). On the shipped data that recovers 1,876 pairs / 2,171 head-cells — JURKAT 1,461, K562 406, HELA 125, OTHER 107, 293T 36, A549 30, A375 6 — so JURKAT's positives go 1,156 → 2,617 and should be read as largely recovered conflicts. Loss $= \sum (\text{mask}\cdot \text{BCE}) / \sum \text{mask}$. **No `pos_weight` anywhere, by design** — the masked mean is the only weighting. Only supervised cells contribute.
+- **Metric.** **Stratified AUPRG** — pooled over every observed (pair, cell-line) cell — is the checkpoint/early-stopping metric (`train.py`: `sel_metric = "auprg" if use_cell_lines else "aupr"`). Macro per-head and the pooled `*_any` view are reported alongside as diagnostics, not as the selection criterion.
 - The cell embedding (`cell_emb`) is **not** L1-penalized, so `--l1_lambdas` still maps one-to-one onto the encoder's weight matrices.
-- Not consumed by `predict.py` / `eval_finetuning.py` yet (multi-head output) — the SLURM orchestrator auto-skips external eval when `USE_CELL_LINES=1`.
+- `predict.py` still refuses multi-head checkpoints (single-pair CLI). `eval_finetuning.py --per_head` **does** consume them, scoring each external screen against its named head; `PER_HEAD` is auto-enabled in `eval_finetuning.conf` when `USE_CELL_LINES=1`.
 
 ---
 
@@ -138,7 +138,7 @@ The fit subset is controlled by `--preprocessing_fit_scope`:
 
 The whole pipeline — impute, PCA, normalize — switches together. No mixing.
 
-| stage | `robust` *(default)* | `plain` |
+| stage | `plain` *(default)* | `robust` |
 |---|---|---|
 | Impute NaN | per-column **Huber M-estimate** | per-column **mean** |
 | Pre-PCA | *(none — ROBPCA handles centering internally)* | per-column **mean + std** (z-score) |
@@ -210,7 +210,7 @@ All PCA ops use deterministic `torch.linalg.svd` internally — per-fold `V` is 
 | `run_best_per_category_combo.sh` (multi-modal) | `--pca_variance 0.8` | `--post_pca_variance 0.8` |
 | Direct `python train.py` | off unless `--pca_variance` passed | on by default (0.8) |
 
-All three training scripts thread `--preprocessing_fit_scope "${PREPROCESSING_FIT_SCOPE:-train}"` and `--pca_method "${PCA_METHOD:-robust}"`. Override by env var, e.g., `PCA_METHOD=plain ./slurm/submit_pipeline.sh`.
+All three training scripts thread `--preprocessing_fit_scope "${PREPROCESSING_FIT_SCOPE:-train}"` and `--pca_method "${PCA_METHOD:-plain}"`. Override by env var, e.g., `PCA_METHOD=robust ./slurm/submit_pipeline.sh`. **`plain` everywhere since 2026-08-10** — the tree previously ran `robust` for the per-embedding benchmark and `svd` for the combo.
 
 ---
 
@@ -278,11 +278,19 @@ Recommended schedule: $\lambda_1 > \lambda_2 > \lambda_3$ (strongest on input la
 --pca_variance 0.8              # Per-modality PCA variance target (0,1)
 --pca_dims N1 N2 ...            # Per-modality exact component counts (alt to --pca_variance)
 --post_pca_variance 0.8         # Post-concat PCA variance target (default 0.8)
---post_pca_dim K                # Post-concat PCA exact component count (overrides variance)
+--post_pca_dim K                # Post-concat PCA exact component count (overrides variance).
+                                # SLURM leaves this unset and uses the 0.8
+                                # variance target. Note the target is not
+                                # comparable across --pca_method (plain resolves
+                                # k on the correlation spectrum: 1087 vs svd's
+                                # 145 at the same 0.8), and k drifts with the
+                                # combo's modality selection. Set it to pin the
+                                # encoder width.
 --no_post_pca                   # Disable the post-concat PCA step
---pca_method robust             # Pipeline variant:
-                                #   robust: Huber-impute + ROBPCA + median/MAD normalize
+--pca_method plain              # Pipeline variant (default: plain):
                                 #   plain : mean-impute + mean+std standardize + SVD + mean/std normalize
+                                #   robust: Huber-impute + ROBPCA + median/MAD normalize
+                                #   svd   : matrix-wise normalize + median-centered SVD
 --preprocessing_fit_scope train # Which gene rows fit the preprocessing, per fold:
                                 #   train: training-pair + non-SL genes only (leak-free, default)
                                 #   all  : every gene (legacy, leaky; for A/B comparison)

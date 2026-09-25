@@ -49,9 +49,10 @@ EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 ESUMMARY_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
 
 
-def _ncbi_batch_elink(gene_ids: List[str],
-                      batch_size: int = 200,
-                      ) -> Tuple[Dict[str, str], Dict[str, str]]:
+def _ncbi_batch_elink(
+    gene_ids: List[str],
+    batch_size: int = 200,
+) -> Tuple[Dict[str, str], Dict[str, str]]:
     """Batch elink: Gene ID → RefSeq protein GI, then esummary GI → accession.
 
     Uses NCBI elink (gene → protein, RefSeq subset) to find the canonical
@@ -88,7 +89,7 @@ def _ncbi_batch_elink(gene_ids: List[str],
                 break
             except Exception as e:
                 if attempt < 2:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2**attempt)
                 else:
                     print(f"\n  elink batch failed: {e}")
                     resp = None
@@ -108,9 +109,10 @@ def _ncbi_batch_elink(gene_ids: List[str],
             if link_db is None:
                 continue
 
-            protein_ids = [link.find("Id").text
-                          for link in link_db.findall("Link")
-                          if link.find("Id") is not None]
+            protein_ids = [
+                link.find("Id").text for link in link_db.findall("Link")
+                if link.find("Id") is not None
+            ]
 
             if protein_ids:
                 gene_to_gi[gene_id] = protein_ids[0]
@@ -147,7 +149,7 @@ def _ncbi_batch_elink(gene_ids: List[str],
                 break
             except Exception as e:
                 if attempt < 2:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2**attempt)
                 else:
                     print(f"\n  esummary batch failed: {e}")
         time.sleep(0.35)
@@ -155,11 +157,12 @@ def _ncbi_batch_elink(gene_ids: List[str],
     return gene_to_gi, gi_to_acc
 
 
-def fetch_protein_sequences(gene_to_protein: Dict[str, str],
-                            cache_dir: str,
-                            batch_size: int = 200,
-                            gi_to_acc: Optional[Dict[str, str]] = None,
-                            ) -> Dict[str, str]:
+def fetch_protein_sequences(
+    gene_to_protein: Dict[str, str],
+    cache_dir: str,
+    batch_size: int = 200,
+    gi_to_acc: Optional[Dict[str, str]] = None,
+) -> Dict[str, str]:
     """Batch fetch protein sequences from NCBI.
 
     Args:
@@ -205,7 +208,7 @@ def fetch_protein_sequences(gene_to_protein: Dict[str, str],
                 break
             except Exception as e:
                 if attempt < 2:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2**attempt)
                 else:
                     print(f"\n  efetch batch failed: {e}")
 
@@ -219,10 +222,11 @@ def fetch_protein_sequences(gene_to_protein: Dict[str, str],
     return _parse_ncbi_fasta(cache_path, gene_to_protein, gi_to_acc)
 
 
-def _parse_ncbi_fasta(fasta_path: Path,
-                      gene_to_protein: Dict[str, str],
-                      gi_to_acc: Optional[Dict[str, str]] = None,
-                      ) -> Dict[str, str]:
+def _parse_ncbi_fasta(
+    fasta_path: Path,
+    gene_to_protein: Dict[str, str],
+    gi_to_acc: Optional[Dict[str, str]] = None,
+) -> Dict[str, str]:
     """Parse NCBI FASTA and map back to gene IDs via protein accession/GI.
 
     NCBI FASTA headers use accessions (e.g. ">NP_009225.1 ...") but elink
@@ -298,7 +302,8 @@ def fetch_sequences_for_genes(gene_ids: List[str],
               f"(non-coding or no RefSeq protein)")
 
     # Step 2: Batch fetch protein sequences
-    gene_seqs = fetch_protein_sequences(gene_to_protein, cache_dir,
+    gene_seqs = fetch_protein_sequences(gene_to_protein,
+                                        cache_dir,
                                         gi_to_acc=gi_to_acc)
 
     missing_seq = set(gene_to_protein.keys()) - set(gene_seqs.keys())
@@ -326,7 +331,7 @@ class StreamingAttentionAggregator:
 
     def __init__(self, model):
         self.model = model
-        self.max_attn = None        # running max: (B, H, T, T) on CPU
+        self.max_attn = None  # running max: (B, H, T, T) on CPU
         self._hooks = []
 
     def _hook_fn(self, module, inputs, outputs):
@@ -353,11 +358,16 @@ class StreamingAttentionAggregator:
             original_forward = layer.forward
 
             def make_patched(orig):
-                def patched(x, self_attn_mask=None,
+
+                def patched(x,
+                            self_attn_mask=None,
                             self_attn_padding_mask=None,
                             need_head_weights=False):
-                    return orig(x, self_attn_mask, self_attn_padding_mask,
+                    return orig(x,
+                                self_attn_mask,
+                                self_attn_padding_mask,
                                 need_head_weights=True)
+
                 return patched
 
             layer.forward = make_patched(original_forward)
@@ -504,11 +514,56 @@ class ESMEmbeddingGenerator:
         self.batch_size = batch_size
         self.pooling = pooling
 
-        # Detect device
-        if device == "cuda" and not torch.cuda.is_available():
-            print("CUDA not available, falling back to CPU")
-            device = "cpu"
-        self.device = torch.device(device)
+        # Detect + robustly initialize the compute device.
+        #
+        # model.to(device) below is the first real CUDA use; it triggers torch's
+        # built-in lazy init (torch._C._cuda_init()). On a flaky node that can
+        # raise a transient "CUDA unknown error ... Setting the available devices
+        # to be zero" (a cgroup/driver/stale-context race). We drive torch's
+        # built-in CUDA init here with a bounded retry + backoff so a transient
+        # clears instead of killing the whole generation job. Cluster runs must
+        # stay on GPU, so we RAISE on persistent failure rather than silently
+        # dropping to CPU; pass --device cpu explicitly for local CPU debugging.
+        # NOTE: the guard also accepts "cuda:0" (the SLURM launcher's value) —
+        # the old `device == "cuda"` check silently skipped it.
+        dev_str = str(device)
+        if dev_str.startswith("cuda"):
+            import time as _time
+            _last_err = None
+            for _attempt in range(1, 4):
+                try:
+                    torch.cuda.init()
+                    if not torch.cuda.is_available():
+                        raise RuntimeError(
+                            "torch.cuda.is_available() is False "
+                            f"(torch {torch.__version__}, "
+                            f"cuda {torch.version.cuda})")
+                    _probe = torch.zeros(1,
+                                         device=dev_str)  # forces _cuda_init
+                    _ = (_probe + 1).item()
+                    del _probe
+                    _last_err = None
+                    if _attempt > 1:
+                        print(f"CUDA init recovered on attempt {_attempt}/3")
+                    break
+                except RuntimeError as _e:
+                    _last_err = _e
+                    print(f"CUDA init attempt {_attempt}/3 on {dev_str} "
+                          f"failed: {_e}")
+                    try:
+                        torch.cuda.empty_cache()
+                    except Exception:
+                        pass
+                    if _attempt < 3:
+                        _time.sleep(10 * _attempt)
+            if _last_err is not None:
+                raise RuntimeError(
+                    f"CUDA unavailable on {dev_str} after 3 attempts "
+                    f"(torch {torch.__version__}, cuda {torch.version.cuda}). "
+                    f"Last error: {_last_err}. This is typically a transient "
+                    f"node-local CUDA-context failure; resubmit (SLURM steers "
+                    f"off the bad node) or pin a driver-matched torch build.")
+        self.device = torch.device(dev_str)
 
         print(f"Loading ESM model: {model_name}")
         print(f"Device: {self.device}")
@@ -529,7 +584,23 @@ class ESMEmbeddingGenerator:
 
         self.model, self.alphabet = esm.pretrained.load_model_and_alphabet(
             model_name)
-        self.model = self.model.to(self.device)
+        # Context already warmed above; retry the transfer once more in case the
+        # move itself hits a transient CUDA error on a flaky node.
+        for _attempt in range(1, 4):
+            try:
+                self.model = self.model.to(self.device)
+                break
+            except RuntimeError as _e:
+                if self.device.type != "cuda" or _attempt == 3:
+                    raise
+                print(f"model.to({self.device}) attempt {_attempt}/3 failed: "
+                      f"{_e}; retrying...")
+                try:
+                    torch.cuda.empty_cache()
+                except Exception:
+                    pass
+                import time as _time
+                _time.sleep(10 * _attempt)
         self.model.eval()
         self.batch_converter = self.alphabet.get_batch_converter()
 
@@ -647,7 +718,8 @@ class ESMEmbeddingGenerator:
 
         # Stack into tensor (failed genes have NaN, imputed at load time)
         if not gene_order:
-            return torch.empty(0, self.embed_dim), torch.empty(0, self.embed_dim), [], []
+            return torch.empty(0, self.embed_dim), torch.empty(
+                0, self.embed_dim), [], []
         embedding_matrix = np.stack([all_embeddings[g] for g in gene_order])
 
         n_failed = len(failed_genes)
@@ -674,8 +746,9 @@ class ESMEmbeddingGenerator:
         except Exception as e:
             # Common cause: CUDA OOM on an unusually long sequence. Logged so
             # the user can see it in slurm logs and tune --batch_size if needed.
-            print(f"  Batch failed ({len(batch)} seqs), retrying per-sequence: "
-                  f"{type(e).__name__}: {e}")
+            print(
+                f"  Batch failed ({len(batch)} seqs), retrying per-sequence: "
+                f"{type(e).__name__}: {e}")
 
         # Batch failed — retry each sequence individually
         embeddings = {}
@@ -686,7 +759,8 @@ class ESMEmbeddingGenerator:
                 embeddings.update(emb)
             except Exception:
                 failed.append(gene)
-                embeddings[gene] = np.full(self.embed_dim, np.nan,
+                embeddings[gene] = np.full(self.embed_dim,
+                                           np.nan,
                                            dtype=np.float32)
         return embeddings, failed
 
@@ -702,14 +776,14 @@ def main():
                         type=str,
                         default=None,
                         help="Path to .pt file (uses gene_order), "
-                             ".txt file (one Entrez Gene ID per line), or "
-                             "SL pairs file (two-column tab-separated Entrez IDs)")
+                        ".txt file (one Entrez Gene ID per line), or "
+                        "SL pairs file (two-column tab-separated Entrez IDs)")
     parser.add_argument("--sl_path",
                         type=str,
                         default=None,
                         help="Path to SL pairs file (two-column tab-separated "
-                             "Entrez IDs). Extracts unique gene IDs from both "
-                             "columns. Alternative to --gene_list.")
+                        "Entrez IDs). Extracts unique gene IDs from both "
+                        "columns. Alternative to --gene_list.")
     parser.add_argument("--cache_dir",
                         type=str,
                         default="../data/cache",
@@ -738,8 +812,7 @@ def main():
         raise ValueError(
             "--gene_list or --sl_path is required. Pass a .pt file "
             "(uses gene_order), .txt file (one Entrez Gene ID per line), "
-            "or SL pairs file (two-column tab-separated Entrez IDs)."
-        )
+            "or SL pairs file (two-column tab-separated Entrez IDs).")
 
     if gene_src.endswith(".pt"):
         d = torch.load(gene_src, map_location="cpu", weights_only=False)
@@ -764,7 +837,9 @@ def main():
     missing = [g for g in all_gene_ids if g not in gene_seqs]
     print(f"\nSequence coverage: {len(gene_seqs)}/{len(all_gene_ids)} genes")
     if missing:
-        print(f"  {len(missing)} genes have no protein sequence (will be NaN-imputed)")
+        print(
+            f"  {len(missing)} genes have no protein sequence (will be NaN-imputed)"
+        )
 
     # Generate embeddings
     generator = ESMEmbeddingGenerator(

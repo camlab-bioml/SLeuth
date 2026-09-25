@@ -1,0 +1,51 @@
+============================================================================
+Job: ablation_summary | ID: 1178681 | Node: gpu3
+Start: Tue Sep  1 07:34:58 EDT 2026
+NVIDIA L40, 46068 MiB, 34077 MiB
+NVIDIA L40, 46068 MiB, 0 MiB
+NVIDIA L40, 46068 MiB, 0 MiB
+NVIDIA L40, 46068 MiB, 0 MiB
+============================================================================
+
+================================================================================================
+cv1   reference: full 6-category combo   AUPRG=0.9551  AP=0.7626  AUROC=0.8996
+================================================================================================
+  dropped        n      AUPRG        Δ       AP        Δ    AUROC        Δ     solo  read as
+  --------------------------------------------------------------------------------------------
+  expression     5     0.9565  +0.0014   0.7656  +0.0029   0.9021  +0.0025   0.9448  no measurable effect
+  go             5     0.9528  -0.0023   0.7606  -0.0021   0.8946  -0.0049   0.9580  redundant (strong alone, free to drop)
+  kg             5     0.9552  +0.0001   0.7632  +0.0006   0.9024  +0.0028   0.9506  no measurable effect
+  ppi            5     0.9490  -0.0062   0.7458  -0.0168   0.8914  -0.0081   0.9708  contributes
+  protein_seq    5     0.9579  +0.0028   0.7708  +0.0082   0.8998  +0.0002   0.9478  no measurable effect
+  text           5     0.9458  -0.0093   0.7369  -0.0257   0.8936  -0.0060   0.9589  contributes
+
+================================================================================================
+cv2   reference: full 6-category combo   AUPRG=0.8707  AP=0.5973  AUROC=0.7959
+================================================================================================
+  dropped        n      AUPRG        Δ       AP        Δ    AUROC        Δ     solo  read as
+  --------------------------------------------------------------------------------------------
+  expression     5     0.8717  +0.0010   0.5974  +0.0000   0.7849  -0.0110   0.7861  no measurable effect
+  go             5     0.8898  +0.0190   0.6208  +0.0235   0.8042  +0.0083   0.8718  HARMFUL — removing it helps
+  kg             5     0.8840  +0.0133   0.6149  +0.0176   0.8026  +0.0067   0.8351  HARMFUL — removing it helps
+  ppi            5     0.8627  -0.0080   0.5668  -0.0306   0.7877  -0.0082   0.8860  contributes
+  protein_seq    5     0.8789  +0.0082   0.6021  +0.0047   0.7918  -0.0040   0.8860  HARMFUL — removing it helps
+  text           5     0.8586  -0.0121   0.5916  -0.0057   0.7911  -0.0048   0.8867  contributes
+
+================================================================================================
+cv3   reference: full 6-category combo   AUPRG=0.7323  AP=0.4187  AUROC=0.6766
+================================================================================================
+  dropped        n      AUPRG        Δ       AP        Δ    AUROC        Δ     solo  read as
+  --------------------------------------------------------------------------------------------
+  expression     5     0.7381  +0.0058   0.4435  +0.0248   0.7109  +0.0343   0.4298  HARMFUL — removing it helps
+  go             5     0.5998  -0.1325   0.3627  -0.0559   0.6436  -0.0331   0.8022  contributes
+  kg             5     0.7365  +0.0042   0.4300  +0.0113   0.6967  +0.0200   0.4113  no measurable effect
+  ppi            5     0.7100  -0.0223   0.3994  -0.0193   0.6822  +0.0056   0.7258  contributes
+  protein_seq    5     0.7151  -0.0172   0.4027  -0.0160   0.6920  +0.0153   0.7853  contributes
+  text           5     0.6892  -0.0431   0.3865  -0.0322   0.6749  -0.0017   0.8406  contributes
+
+Wrote results/ablation_summary.csv (18 rows)
+
+Columns: Δ is the ablated score minus the full-combo reference, so a
+POSITIVE Δ means the category was hurting the model. `solo` is that
+category's winning embedding trained on its own, from the
+best-per-category pass — no extra runs needed for it.

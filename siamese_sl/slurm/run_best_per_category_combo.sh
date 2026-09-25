@@ -2,7 +2,11 @@
 #SBATCH --job-name=bestcat_combo
 #SBATCH --partition=gpu_Prosmn
 #SBATCH --nodes=1
-#SBATCH --nodelist=gpu3,gpu4
+# Pinned to gpu3 (2026-08-10, by request). gpu3 threw a transient "CUDA
+# unknown error" at torch init in 2026-07 and the whole tree was moved to
+# gpu2 for that; if it recurs, the symptom is a torch.cuda init failure in
+# the very first seconds of the job, not a training-time error.
+#SBATCH --nodelist=gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=12
@@ -99,9 +103,18 @@ if SELECTION_CV not in cv_types:
 # results.json has NO auprg_mean, so we read SEL_KEY (never a bare key) and skip
 # any None, so the two modes never mix metrics in the argmax below.
 USE_CELL_LINES = "$USE_CELL_LINES" == "1"
-SEL_KEY = "auprg_mean" if USE_CELL_LINES else "aupr_mean"
+# PREFER THE VALIDATION KEY. This argmax picks which embedding modality wins its
+# category, and the winners are concatenated into the final combo model — so
+# ranking them on a TEST metric chooses the model's ARCHITECTURE on test, a
+# winner's curse over |catalog| candidates that sits underneath the per-config
+# one in collect_siamese.py. train.py writes val_auprg_mean whenever it ran with
+# --folds_dir; fall back to the test key only for older runs that lack it, and
+# say so rather than silently leaking.
+TEST_KEY = "auprg_mean" if USE_CELL_LINES else "aupr_mean"
+VAL_KEY = "val_auprg_mean" if USE_CELL_LINES else "val_aupr_mean"
 SEL_LABEL = "AUPRG" if USE_CELL_LINES else "AUPR"
 scores = {}
+bases = {}          # (etype, cv) -> "val" | "test", the basis of scores[...]
 for etype, efile, ecat in catalog:
     for cv in cv_types:
         rfile = results_dir / f"pcavar{PCA_VARIANCE}_{etype}_{cv}" / "results.json"
@@ -109,11 +122,43 @@ for etype, efile, ecat in catalog:
             try:
                 with open(rfile) as _f:
                     d = json.load(_f)["summary"]
-                aupr = d.get(SEL_KEY)
+                aupr = d.get(VAL_KEY)
+                basis = "val"
+                if aupr is None:
+                    aupr = d.get(TEST_KEY)
+                    basis = "test"
                 if aupr is not None:
                     scores[(etype, cv)] = aupr
+                    bases[(etype, cv)] = basis
             except (KeyError, json.JSONDecodeError):
                 pass
+
+# Count on the population the argmax ACTUALLY consumes — only SELECTION_CV
+# candidates decide the winners, so counting across every cv described the
+# wrong set.
+sel_bases = [b for (etype, cv), b in bases.items() if cv == SELECTION_CV]
+n_val = sel_bases.count("val")
+n_test = sel_bases.count("test")
+print(f"Selection basis on {SELECTION_CV}: {n_val} val / {n_test} test")
+if n_val and n_test:
+    # HARD STOP. val_auprg and test auprg are different quantities; a max()
+    # over a mix silently lets a test-selected candidate beat a val-selected
+    # one on a number that was never comparable, and the winner is then
+    # concatenated into the published combo model. Warning was not enough —
+    # the run would carry on and produce a table that looks fine.
+    print("ERROR: candidates for SELECTION_CV are scored on a MIX of val and "
+          "test — these are not comparable and must not share an argmax.")
+    for (etype, cv), b in sorted(bases.items()):
+        if cv == SELECTION_CV and b == "test":
+            print(f"  test-only (missing {VAL_KEY}): {etype}")
+    print("Re-run those embeddings with --folds_dir (SHARED_FOLDS) so every "
+          "candidate carries a validation score, or delete their stale "
+          "results.json so they are regenerated.")
+    raise SystemExit(1)
+if n_test:
+    print(f"WARNING: all {n_test} candidate(s) ranked on TEST {TEST_KEY} — no "
+          f"run carries {VAL_KEY}. The per-category winner is chosen on test "
+          f"(winner's curse). Re-run siamese with --folds_dir (SHARED_FOLDS).")
 
 if not scores:
     print("ERROR: No PCA benchmark results found.")
@@ -163,8 +208,18 @@ for cv in cv_types:
         }
 selection["_selection_meta"] = {
     "selection_cv": SELECTION_CV,
-    "selection_metric": SEL_KEY,
-    "rationale": "leakage-free: same winners reused across CV combos",
+    "selection_metric": VAL_KEY if n_val else TEST_KEY,
+    # Record the human label and the basis directly. The consumer used to
+    # re-derive the label by testing selection_metric == "auprg_mean", which is
+    # never true on the default path: with a validation split present the key is
+    # "val_auprg_mean", so the winners table printed AUPRG numbers under an
+    # "AUPR" header on every cell-line run.
+    "selection_label": SEL_LABEL,
+    "selection_basis": "val" if n_val else "test",
+    "n_scored_on_val": n_val,
+    "n_scored_on_test": n_test,
+    "rationale": "same winners reused across CV combos; ranked on the "
+                 "validation split when the runs carry it",
 }
 
 # Print summary. NOTE: the JSON "aupr" fields above hold whatever SEL_KEY
@@ -257,13 +312,28 @@ PYEXTRACT
 
     echo "  Modalities ($NUM_MODALITIES): $COMBO_NAME"
     echo "  PCA variance: $PCA_VARIANCE"
+    if [ -n "${POST_PCA_DIM:-}" ]; then
+        echo "  Post-concat PCA: exact dim=$POST_PCA_DIM"
+    elif [ -n "${POST_PCA_VARIANCE:-}" ]; then
+        echo "  Post-concat PCA: variance=$POST_PCA_VARIANCE"
+    else
+        echo "  Post-concat PCA: disabled"
+    fi
     echo "  Output: $OUTPUT_DIR"
     echo ""
 
     # Create output directory
     $PYTHON_PATH -c "from pathlib import Path; Path('$OUTPUT_DIR/checkpoints').mkdir(parents=True, exist_ok=True)"
 
-    if [ -n "$POST_PCA_VARIANCE" ]; then
+    # POST_PCA_DIM wins over POST_PCA_VARIANCE. Default is the variance target
+    # (POST_PCA_DIM empty). Be aware the same fraction resolves to a different k
+    # under `plain` than under `robust`/`svd` (correlation vs raw spectrum: 1087
+    # vs 145 on the 6-modality combo), and that k drifts with the combo's
+    # modality selection, so the encoder width is not fixed run to run. Set
+    # POST_PCA_DIM to pin it. See config.conf.
+    if [ -n "${POST_PCA_DIM:-}" ]; then
+        POST_PCA_ARGS="--post_pca_dim $POST_PCA_DIM"
+    elif [ -n "${POST_PCA_VARIANCE:-}" ]; then
         POST_PCA_ARGS="--post_pca_variance $POST_PCA_VARIANCE"
     else
         POST_PCA_ARGS="--no_post_pca"
@@ -294,7 +364,7 @@ PYEXTRACT
         --pos_neg_ratio $POS_NEG_RATIO \
         --seed $SEED \
         --preprocessing_fit_scope "${PREPROCESSING_FIT_SCOPE:-train}" \
-        --pca_method "${PCA_METHOD:-svd}" \
+        --pca_method "${PCA_METHOD:-plain}" \
         --siamese_encoder_type "${SIAMESE_ENCODER_TYPE:-residual}" \
         $POST_PCA_ARGS
     TRAIN_EXIT=$?
@@ -344,7 +414,14 @@ selection_cv = _meta.get("selection_cv", "unknown")
 # Label the winners table by the metric actually used (AUPRG in cell-line mode).
 # The per-entry field is still named "aupr" for backward compat, but it holds
 # the SEL_KEY value, so display the true metric name here.
-SEL_LABEL = "AUPRG" if _meta.get("selection_metric") == "auprg_mean" else "AUPR"
+# Read the label PYSELECT recorded; fall back to sniffing the metric key for
+# selection JSONs written before selection_label existed. The fallback matches
+# on a SUBSTRING because the key is "val_auprg_mean" whenever a validation
+# split is present — testing equality against "auprg_mean" silently mislabels
+# every default-path run.
+SEL_LABEL = _meta.get("selection_label") or (
+    "AUPRG" if "auprg" in str(_meta.get("selection_metric", "")) else "AUPR")
+SEL_BASIS = _meta.get("selection_basis", "unknown")
 
 # Step 1 results: selected winner's score across CVs.
 # After leakage-free selection, the same winner is chosen for every CV, so the

@@ -1,0 +1,200 @@
+============================================================================
+Job: eval_finetuning | ID: 1183283 | Node: gpu3
+Array task: 0 (of job 1183282)
+Start: Fri Sep 11 10:49:45 EDT 2026
+NVIDIA L40, 46068 MiB, 45379 MiB
+NVIDIA L40, 46068 MiB, 0 MiB
+NVIDIA L40, 46068 MiB, 36483 MiB
+NVIDIA L40, 46068 MiB, 0 MiB
+============================================================================
+
+[eval_finetuning.conf] MODEL_DIR resolved from marker: results/best_cat_geneformer_go2vec_kg_complex_ppi_raw_prot_t5_text_embed_cv3
+[eval_finetuning.sh] Auto-resolving embeddings_paths from results/best_cat_geneformer_go2vec_kg_complex_ppi_raw_prot_t5_text_embed_cv3/config.json
+MODEL_DIR:        results/best_cat_geneformer_go2vec_kg_complex_ppi_raw_prot_t5_text_embed_cv3
+EMBEDDINGS (6):
+    /ddn_exa/campbell/kaiyang/SLMGAE-pytorch/data/all_genes_geneformer.pt
+    /ddn_exa/campbell/kaiyang/SLMGAE-pytorch/data/all_genes_go2vec.pt
+    /ddn_exa/campbell/kaiyang/SLMGAE-pytorch/data/all_genes_kg_complex.pt
+    /ddn_exa/campbell/kaiyang/SLMGAE-pytorch/data/all_genes_ppi_raw.pt
+    /ddn_exa/campbell/kaiyang/SLMGAE-pytorch/data/all_genes_prot_t5.pt
+    /ddn_exa/campbell/kaiyang/SLMGAE-pytorch/data/all_genes_text_embed.pt
+PCA_VARIANCE:     0.8
+POST_PCA_DIM:     (unset)
+POST_PCA_VARIANCE:0.8
+DATASETS (3):
+    Adamson:external data/pair_sgRNA_phenotypes.txt:Gamma:-1:tsv:K562
+    Corn:external data/41586_2025_8815_MOESM5_ESM.csv:sens.score:-1:csv:OTHER
+    Gilbert:external data/mmc5.xlsx:K562_avg:-1:xlsx:K562
+EVAL_CV_TYPES:    cv1 cv2 cv3
+FT_MODES:         LP_last Full
+FT_EPOCHS:        100  (patience=10)
+FT_LR:            1e-4   FT_BATCH_SIZE=256   FT_WD=0.0
+SPLIT:            train=0.8  val=0.1  seed=42
+SLDB_FILTER:      true
+PER_HEAD:         true
+
+Array task 0 -> cv_type cv1
+
+============================================================
+  Running eval_finetuning with --cv_type cv1
+============================================================
+Loaded 5 fold checkpoints from results/best_cat_geneformer_go2vec_kg_complex_ppi_raw_prot_t5_text_embed_cv3/checkpoints
+
+Loading RAW embeddings (6 modalities; per-fold preprocessing transforms will be pulled from each checkpoint).
+  raw shapes: [(19397, 1152), (19397, 128), (19397, 512), (19397, 1024), (19397, 1024), (19397, 1024)]  genes: 19,397
+SynLethDB positives loaded: 22,166 pairs
+
+==============================================================================
+Dataset: Adamson
+==============================================================================
+  file    : /ddn_exa/campbell/kaiyang/SLMGAE-pytorch/external data/pair_sgRNA_phenotypes.txt
+  column  : Gamma
+  sign    : -1 (target = sign * raw_score)
+  head    : K562 (idx 0) [per-head cell-line eval]
+  Custom gene corrections: 86 mappings loaded
+  Non-coding genes: 65 known (will get NaN embeddings)
+  HGNC loaded: 44981 current symbols, 60055 aliases/previous symbols, 44373 Entrez IDs
+  coverage: raw=1,259,699  both_mapped=1,142,052  both_in_model=1,142,052  kept=146,583  sldb_overlap=612 (0.42%)
+  split(cv1): train=105,539  val=11,727  test=29,317
+  [fold 0] loading checkpoint fold_0_best.pt
+    zero-shot OLS: a=-0.0119  c=+0.1170
+  [fold 1] loading checkpoint fold_1_best.pt
+    zero-shot OLS: a=-0.0092  c=+0.1254
+  [fold 2] loading checkpoint fold_2_best.pt
+    zero-shot OLS: a=-0.0116  c=+0.1170
+  [fold 3] loading checkpoint fold_3_best.pt
+    zero-shot OLS: a=-0.0134  c=+0.1022
+  [fold 4] loading checkpoint fold_4_best.pt
+    zero-shot OLS: a=-0.0025  c=+0.1406
+
+================================================================================
+RESULTS: Adamson
+================================================================================
+
+Filter: unfiltered  (N = 29,317 test pairs)
+  Mode        Agg               Spearman          Pearson               R²      AUROC@top1%       AUPR@top1%      AUROC@bot1%       AUPR@bot1%
+  --------------------------------------------------------------------------------------------------------------------------------------------
+  Zero-shot   mean±std     +0.2021±0.067    +0.1562±0.065    +0.0278±0.017    +0.5236±0.054    +0.0133±0.004    +0.4080±0.048    +0.0078±0.001
+  Zero-shot   ensemble           +0.2831          +0.2254          +0.0396          +0.5363          +0.0138          +0.3727          +0.0072
+  LP_last     mean±std     +0.2900±0.058    +0.2749±0.055    +0.0778±0.030    +0.5390±0.071    +0.0162±0.006    +0.3129±0.056    +0.0067±0.001
+  LP_last     ensemble           +0.4418          +0.4175          +0.1176          +0.5724          +0.0155          +0.2015          +0.0057
+  Full        mean±std     +0.9738±0.001    +0.9676±0.003    +0.9146±0.032    +0.9752±0.005    +0.4584±0.090    +0.0053±0.001    +0.0051±0.000
+  Full        ensemble           +0.9769          +0.9710          +0.9271          +0.9762          +0.4817          +0.0028          +0.0051
+
+Filter: sldb_filtered  (N = 29,206 test pairs)
+  Mode        Agg               Spearman          Pearson               R²      AUROC@top1%       AUPR@top1%      AUROC@bot1%       AUPR@bot1%
+  --------------------------------------------------------------------------------------------------------------------------------------------
+  Zero-shot   mean±std     +0.2029±0.067    +0.1566±0.066    +0.0279±0.017    +0.5225±0.054    +0.0133±0.004    +0.4083±0.048    +0.0078±0.001
+  Zero-shot   ensemble           +0.2841          +0.2261          +0.0397          +0.5350          +0.0138          +0.3732          +0.0072
+  LP_last     mean±std     +0.2900±0.059    +0.2749±0.056    +0.0779±0.030    +0.5390±0.071    +0.0163±0.006    +0.3135±0.057    +0.0067±0.001
+  LP_last     ensemble           +0.4421          +0.4177          +0.1176          +0.5721          +0.0155          +0.2019          +0.0057
+  Full        mean±std     +0.9738±0.001    +0.9676±0.003    +0.9147±0.032    +0.9752±0.005    +0.4593±0.090    +0.0053±0.001    +0.0051±0.000
+  Full        ensemble           +0.9768          +0.9711          +0.9271          +0.9763          +0.4827          +0.0029          +0.0051
+
+  Note: @top1% metrics are the SL-aligned headline (higher = better ranking of SL-like pairs).
+        @bot1% metrics are diagnostic — well-calibrated models typically score < 0.5 there.
+
+==============================================================================
+Dataset: Corn
+==============================================================================
+  file    : /ddn_exa/campbell/kaiyang/SLMGAE-pytorch/external data/41586_2025_8815_MOESM5_ESM.csv
+  column  : sens.score
+  sign    : -1 (target = sign * raw_score)
+  head    : OTHER (idx 7) [per-head cell-line eval]
+  coverage: raw=149,787  both_mapped=149,787  both_in_model=149,787  kept=149,240  sldb_overlap=240 (0.16%)
+  split(cv1): train=107,453  val=11,939  test=29,848
+  [fold 0] loading checkpoint fold_0_best.pt
+    zero-shot OLS: a=+0.0086  c=+0.2058
+  [fold 1] loading checkpoint fold_1_best.pt
+    zero-shot OLS: a=+0.0064  c=+0.2025
+  [fold 2] loading checkpoint fold_2_best.pt
+    zero-shot OLS: a=+0.0160  c=+0.2274
+  [fold 3] loading checkpoint fold_3_best.pt
+    zero-shot OLS: a=+0.0122  c=+0.2200
+  [fold 4] loading checkpoint fold_4_best.pt
+    zero-shot OLS: a=+0.0052  c=+0.2031
+
+================================================================================
+RESULTS: Corn
+================================================================================
+
+Filter: unfiltered  (N = 29,848 test pairs)
+  Mode        Agg               Spearman          Pearson               R²      AUROC@top1%       AUPR@top1%      AUROC@bot1%       AUPR@bot1%
+  --------------------------------------------------------------------------------------------------------------------------------------------
+  Zero-shot   mean±std     +0.0310±0.011    +0.0414±0.014    +0.0017±0.001    +0.5463±0.024    +0.0126±0.001    +0.4879±0.008    +0.4807±0.007
+  Zero-shot   ensemble           +0.0445          +0.0629          +0.0028          +0.5725          +0.0138          +0.4853          +0.4795
+  LP_last     mean±std     +0.0613±0.017    +0.1016±0.015    +0.0105±0.003    +0.6369±0.038    +0.0192±0.004    +0.4830±0.010    +0.4733±0.008
+  LP_last     ensemble           +0.1071          +0.1695          +0.0172          +0.7324          +0.0272          +0.4699          +0.4627
+  Full        mean±std     +0.4424±0.002    +0.5694±0.001    +0.3228±0.002    +0.9447±0.001    +0.2331±0.008    +0.2995±0.001    +0.3656±0.001
+  Full        ensemble           +0.4451          +0.5723          +0.3264          +0.9456          +0.2385          +0.2983          +0.3651
+
+Filter: sldb_filtered  (N = 29,803 test pairs)
+  Mode        Agg               Spearman          Pearson               R²      AUROC@top1%       AUPR@top1%      AUROC@bot1%       AUPR@bot1%
+  --------------------------------------------------------------------------------------------------------------------------------------------
+  Zero-shot   mean±std     +0.0308±0.011    +0.0404±0.014    +0.0016±0.001    +0.5433±0.024    +0.0125±0.001    +0.4880±0.008    +0.4808±0.007
+  Zero-shot   ensemble           +0.0443          +0.0617          +0.0027          +0.5684          +0.0136          +0.4853          +0.4796
+  LP_last     mean±std     +0.0609±0.016    +0.1007±0.014    +0.0103±0.003    +0.6361±0.039    +0.0190±0.004    +0.4830±0.010    +0.4735±0.008
+  LP_last     ensemble           +0.1066          +0.1681          +0.0170          +0.7311          +0.0268          +0.4700          +0.4630
+  Full        mean±std     +0.4420±0.002    +0.5695±0.001    +0.3230±0.003    +0.9450±0.001    +0.2366±0.008    +0.2997±0.001    +0.3658±0.001
+  Full        ensemble           +0.4446          +0.5725          +0.3266          +0.9459          +0.2419          +0.2984          +0.3653
+
+  Note: @top1% metrics are the SL-aligned headline (higher = better ranking of SL-like pairs).
+        @bot1% metrics are diagnostic — well-calibrated models typically score < 0.5 there.
+
+==============================================================================
+Dataset: Gilbert
+==============================================================================
+  file    : /ddn_exa/campbell/kaiyang/SLMGAE-pytorch/external data/mmc5.xlsx
+  column  : K562_avg
+  sign    : -1 (target = sign * raw_score)
+  head    : K562 (idx 0) [per-head cell-line eval]
+  coverage: raw=100,128  both_mapped=100,128  both_in_model=99,681  kept=99,681  sldb_overlap=5,993 (6.01%)
+  split(cv1): train=71,771  val=7,974  test=19,936
+  [fold 0] loading checkpoint fold_0_best.pt
+    zero-shot OLS: a=+0.1431  c=+0.4320
+  [fold 1] loading checkpoint fold_1_best.pt
+    zero-shot OLS: a=+0.0743  c=+0.2380
+  [fold 2] loading checkpoint fold_2_best.pt
+    zero-shot OLS: a=+0.0982  c=+0.2900
+  [fold 3] loading checkpoint fold_3_best.pt
+    zero-shot OLS: a=+0.1013  c=+0.3643
+  [fold 4] loading checkpoint fold_4_best.pt
+    zero-shot OLS: a=+0.0587  c=+0.1361
+
+================================================================================
+RESULTS: Gilbert
+================================================================================
+
+Filter: unfiltered  (N = 19,936 test pairs)
+  Mode        Agg               Spearman          Pearson               R²      AUROC@top1%       AUPR@top1%      AUROC@bot1%       AUPR@bot1%
+  --------------------------------------------------------------------------------------------------------------------------------------------
+  Zero-shot   mean±std     +0.0867±0.021    +0.0749±0.022    +0.0056±0.003    +0.7250±0.030    +0.0235±0.003    +0.5521±0.017    +0.0127±0.001
+  Zero-shot   ensemble           +0.1099          +0.0988          +0.0085          +0.7799          +0.0288          +0.5720          +0.0134
+  LP_last     mean±std     +0.1197±0.007    +0.1448±0.008    +0.0205±0.002    +0.7496±0.026    +0.0422±0.013    +0.5817±0.027    +0.0142±0.003
+  LP_last     ensemble           +0.1636          +0.1992          +0.0306          +0.8189          +0.0681          +0.6066          +0.0157
+  Full        mean±std     +0.3342±0.002    +0.3649±0.007    +0.1319±0.005    +0.8440±0.008    +0.1562±0.010    +0.4005±0.009    +0.0096±0.000
+  Full        ensemble           +0.3383          +0.3703          +0.1355          +0.8482          +0.1616          +0.4000          +0.0096
+
+Filter: sldb_filtered  (N = 18,729 test pairs)
+  Mode        Agg               Spearman          Pearson               R²      AUROC@top1%       AUPR@top1%      AUROC@bot1%       AUPR@bot1%
+  --------------------------------------------------------------------------------------------------------------------------------------------
+  Zero-shot   mean±std     +0.0576±0.020    +0.0432±0.017    -0.0091±0.002    +0.6370±0.031    +0.0177±0.002    +0.5568±0.018    +0.0135±0.001
+  Zero-shot   ensemble           +0.0740          +0.0578          -0.0058          +0.6658          +0.0191          +0.5767          +0.0150
+  LP_last     mean±std     +0.0873±0.008    +0.0862±0.010    -0.0077±0.003    +0.6452±0.025    +0.0210±0.007    +0.5883±0.031    +0.0155±0.004
+  LP_last     ensemble           +0.1225          +0.1199          +0.0045          +0.6901          +0.0274          +0.6150          +0.0175
+  Full        mean±std     +0.3034±0.002    +0.2934±0.005    +0.0798±0.006    +0.7605±0.003    +0.0683±0.004    +0.4123±0.008    +0.0121±0.001
+  Full        ensemble           +0.3072          +0.2977          +0.0838          +0.7647          +0.0723          +0.4121          +0.0122
+
+  Note: @top1% metrics are the SL-aligned headline (higher = better ranking of SL-like pairs).
+        @bot1% metrics are diagnostic — well-calibrated models typically score < 0.5 there.
+
+==============================================================================
+Done. Outputs under: results/best_cat_geneformer_go2vec_kg_complex_ppi_raw_prot_t5_text_embed_cv3/eval_finetuning_cv1
+==============================================================================
+  config_used.json
+  gene_coverage.csv
+  zero_shot_metrics.csv  /  zero_shot_summary.csv
+  finetuned_metrics.csv  /  finetuned_summary.csv
+  {dataset}_predictions.csv  /  {dataset}_finetuned_predictions_{mode}.csv
+
+Completed all CV types at: Fri Sep 11 11:40:00 EDT 2026

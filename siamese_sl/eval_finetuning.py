@@ -74,7 +74,6 @@ import cell_line_vocab
 from predict import load_model  # handles checkpoint loading + arch inference
 from siamese_esm import SiameseSL, SiameseSLMultiCell, set_seed
 
-
 # =============================================================================
 # FinetunedSL container
 # =============================================================================
@@ -164,9 +163,9 @@ def set_frozen_to_eval(model: FinetunedSL, mode: str) -> None:
         enc = model.base.encoder
         # Handle both encoder variants. Each has exactly one of these.
         if hasattr(enc, "hidden_blocks"):
-            enc.hidden_blocks.eval()          # residual encoder
+            enc.hidden_blocks.eval()  # residual encoder
         elif hasattr(enc, "hidden"):
-            enc.hidden.eval()                 # mlp / standard encoder
+            enc.hidden.eval()  # mlp / standard encoder
         # input_bias isn't a Module (just a Parameter), no need to eval()
     elif mode == "Full":
         pass
@@ -196,30 +195,33 @@ def load_multicell_model(ckpt_path: str,
     ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
     sd = ckpt["model_state_dict"]
     if "cell_emb.weight" not in sd:
-        raise ValueError(
-            f"{ckpt_path} is not a SiameseSLMultiCell checkpoint "
-            f"(no cell_emb.weight). Run without --per_head.")
+        raise ValueError(f"{ckpt_path} is not a SiameseSLMultiCell checkpoint "
+                         f"(no cell_emb.weight). Run without --per_head.")
 
     num_heads = int(sd["cell_emb.weight"].shape[0])
     cell_line_dim = int(sd["cell_emb.weight"].shape[1])
 
-    if any("hidden_blocks" in k for k in sd):            # residual encoder
+    if any("hidden_blocks" in k for k in sd):  # residual encoder
         block_keys = sorted(
-            [k for k in sd if k.startswith("encoder.hidden_blocks.")
-             and k.endswith(".0.weight") and sd[k].dim() == 2],
+            [
+                k for k in sd if k.startswith("encoder.hidden_blocks.")
+                and k.endswith(".0.weight") and sd[k].dim() == 2
+            ],
             key=lambda k: int(
                 k.split("encoder.hidden_blocks.")[1].split(".")[0]))
         enc_type = "residual"
-    else:                                                # mlp encoder
+    else:  # mlp encoder
         block_keys = sorted(
-            [k for k in sd if k.startswith("encoder.hidden.")
-             and k.endswith(".weight") and sd[k].dim() == 2],
+            [
+                k for k in sd if k.startswith("encoder.hidden.")
+                and k.endswith(".weight") and sd[k].dim() == 2
+            ],
             key=lambda k: int(k.split("encoder.hidden.")[1].split(".")[0]))
         enc_type = "mlp"
     proj_key = "encoder.projection.weight"
 
-    enc_in = int(sd[block_keys[0]].shape[1] if block_keys
-                 else sd[proj_key].shape[1])             # = input_dim + cell_line_dim
+    enc_in = int(sd[block_keys[0]].shape[1] if block_keys else
+                 sd[proj_key].shape[1])  # = input_dim + cell_line_dim
     input_dim = enc_in - cell_line_dim
     encoder_dims = [int(sd[k].shape[0]) for k in block_keys]
     encoder_dims.append(int(sd[proj_key].shape[0]))
@@ -266,7 +268,7 @@ class _HeadSelect(nn.Module):
         return self.model.encoder
 
     def forward(self, x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-        logits = self.model(x1, x2)                       # (batch, num_heads)
+        logits = self.model(x1, x2)  # (batch, num_heads)
         return logits[:, self.head_idx:self.head_idx + 1]  # (batch, 1)
 
 
@@ -295,9 +297,12 @@ def _load_adamson(path: str, column: str) -> pd.DataFrame:
     df = pd.read_csv(path, sep="\t")
     keep = ["FirstGene", "SecondGene", column]
     df = df[keep].dropna()
-    df = df.rename(columns={"FirstGene": "gene1_symbol",
-                             "SecondGene": "gene2_symbol",
-                             column: "outcome_raw"})
+    df = df.rename(
+        columns={
+            "FirstGene": "gene1_symbol",
+            "SecondGene": "gene2_symbol",
+            column: "outcome_raw"
+        })
     df["gene1_symbol"] = df["gene1_symbol"].astype(str).str.upper()
     df["gene2_symbol"] = df["gene2_symbol"].astype(str).str.upper()
     # Drop self-pairs (same gene with itself) — present in raw Adamson.
@@ -313,10 +318,10 @@ def _load_corn(path: str, column: str) -> pd.DataFrame:
     if splits.shape[1] < 2:
         raise ValueError(f"Corn gene_combination failed to split on ';': "
                          f"got {splits.shape[1]} columns in {path}")
-    df["gene1_symbol"] = (splits[0].str.replace("_mis", "", regex=False)
-                          .str.upper())
-    df["gene2_symbol"] = (splits[1].str.replace("_mis", "", regex=False)
-                          .str.upper())
+    df["gene1_symbol"] = (splits[0].str.replace("_mis", "",
+                                                regex=False).str.upper())
+    df["gene2_symbol"] = (splits[1].str.replace("_mis", "",
+                                                regex=False).str.upper())
     df = df.rename(columns={column: "outcome_raw"})
     df = df[["gene1_symbol", "gene2_symbol", "outcome_raw"]].dropna()
     df = df[df["gene1_symbol"] != df["gene2_symbol"]].copy()
@@ -364,18 +369,20 @@ def _load_gilbert(path: str, column: str) -> pd.DataFrame:
             target_col = col
             break
     if target_col is None:
-        raise ValueError(
-            f"Gilbert column {target} not found in {path}. "
-            f"Available (first 10): {list(gdf.columns)[:10]}")
+        raise ValueError(f"Gilbert column {target} not found in {path}. "
+                         f"Available (first 10): {list(gdf.columns)[:10]}")
 
     # First two columns are gene names (unnamed in the header rows).
     # Drop NaN rows BEFORE stringifying so "nan" doesn't leak in as a fake
     # gene symbol (astype(str) would otherwise convert NaN to the literal
     # string "nan", inflating `pairs_raw` in the coverage report).
     out = pd.DataFrame({
-        "gene1_symbol": gdf.iloc[:, 0],
-        "gene2_symbol": gdf.iloc[:, 1],
-        "outcome_raw": pd.to_numeric(gdf[target_col], errors="coerce"),
+        "gene1_symbol":
+        gdf.iloc[:, 0],
+        "gene2_symbol":
+        gdf.iloc[:, 1],
+        "outcome_raw":
+        pd.to_numeric(gdf[target_col], errors="coerce"),
     }).dropna()
     out["gene1_symbol"] = out["gene1_symbol"].astype(str).str.upper()
     out["gene2_symbol"] = out["gene2_symbol"].astype(str).str.upper()
@@ -388,7 +395,6 @@ DATASET_LOADERS: Dict[str, Callable[[str, str], pd.DataFrame]] = {
     "Corn": _load_corn,
     "Gilbert": _load_gilbert,
 }
-
 
 # =============================================================================
 # Pair preparation (symbol → Entrez, dedupe, SynLethDB overlap)
@@ -459,9 +465,9 @@ def prepare_dataset(
         lambda r: frozenset([r["gene1_entrez"], r["gene2_entrez"]]),
         axis=1,
     )
-    agg = (df.groupby("pair_key", sort=False)
-           .agg(outcome_raw=("outcome_raw", "mean"))
-           .reset_index())
+    agg = (df.groupby("pair_key",
+                      sort=False).agg(outcome_raw=("outcome_raw",
+                                                   "mean")).reset_index())
     # Restore two Entrez IDs as sorted tuple for determinism
     agg["gene1_entrez"] = agg["pair_key"].apply(lambda s: sorted(list(s))[0])
     agg["gene2_entrez"] = agg["pair_key"].apply(lambda s: sorted(list(s))[1])
@@ -499,8 +505,8 @@ def compute_logits(
         b2 = torch.as_tensor(idx2[start:end], dtype=torch.long)
         x1 = embeddings[b1].to(device)
         x2 = embeddings[b2].to(device)
-        out[start:end] = (model.raw_logit(x1, x2)
-                          .detach().cpu().numpy().astype(np.float32))
+        out[start:end] = (model.raw_logit(
+            x1, x2).detach().cpu().numpy().astype(np.float32))
     return out
 
 
@@ -542,14 +548,16 @@ def compute_metrics(pred: np.ndarray, target: np.ndarray) -> Dict[str, float]:
 
     if top_lab.sum() > 0 and top_lab.sum() < len(top_lab):
         m["auroc_top1pct"] = _safe_metric(roc_auc_score, top_lab, pred)
-        m["aupr_top1pct"] = _safe_metric(average_precision_score, top_lab, pred)
+        m["aupr_top1pct"] = _safe_metric(average_precision_score, top_lab,
+                                         pred)
     else:
         m["auroc_top1pct"] = float("nan")
         m["aupr_top1pct"] = float("nan")
 
     if bot_lab.sum() > 0 and bot_lab.sum() < len(bot_lab):
         m["auroc_bot1pct"] = _safe_metric(roc_auc_score, bot_lab, pred)
-        m["aupr_bot1pct"] = _safe_metric(average_precision_score, bot_lab, pred)
+        m["aupr_bot1pct"] = _safe_metric(average_precision_score, bot_lab,
+                                         pred)
     else:
         m["auroc_bot1pct"] = float("nan")
         m["aupr_bot1pct"] = float("nan")
@@ -573,7 +581,7 @@ def fit_ols_affine(logit_train: np.ndarray,
     y = target_train.astype(np.float64)
     lm = l.mean()
     ym = y.mean()
-    denom = ((l - lm) ** 2).sum()
+    denom = ((l - lm)**2).sum()
     if denom < 1e-12:
         return 1.0, float(ym - lm)
     a = float(((l - lm) * (y - ym)).sum() / denom)
@@ -628,14 +636,20 @@ def finetune_one(
 
     ds = TensorDataset(train_i1, train_i2, train_t)
     g = torch.Generator().manual_seed(seed)
-    loader = DataLoader(ds, batch_size=batch_size, shuffle=True,
-                        generator=g, drop_last=False)
+    loader = DataLoader(ds,
+                        batch_size=batch_size,
+                        shuffle=True,
+                        generator=g,
+                        drop_last=False)
 
     trainable = [p for p in model.parameters() if p.requires_grad]
     opt = torch.optim.AdamW(trainable, lr=lr, weight_decay=weight_decay)
     loss_fn = nn.MSELoss()
 
-    best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+    best_state = {
+        k: v.detach().cpu().clone()
+        for k, v in model.state_dict().items()
+    }
     best_val_r2 = -float("inf")
     best_epoch = 0
     bad = 0
@@ -666,8 +680,10 @@ def finetune_one(
         if val_r2 > best_val_r2:
             best_val_r2 = val_r2
             best_epoch = epoch
-            best_state = {k: v.detach().cpu().clone()
-                          for k, v in model.state_dict().items()}
+            best_state = {
+                k: v.detach().cpu().clone()
+                for k, v in model.state_dict().items()
+            }
             bad = 0
         else:
             bad += 1
@@ -722,15 +738,21 @@ def split_pairs(n: int, train_frac: float, val_frac: float,
     val_idx = order[n_train:n_train + n_val]
     test_idx = order[n_trval:]
 
-    train_mask = np.zeros(n, dtype=bool); train_mask[train_idx] = True
-    val_mask = np.zeros(n, dtype=bool); val_mask[val_idx] = True
-    test_mask = np.zeros(n, dtype=bool); test_mask[test_idx] = True
+    train_mask = np.zeros(n, dtype=bool)
+    train_mask[train_idx] = True
+    val_mask = np.zeros(n, dtype=bool)
+    val_mask[val_idx] = True
+    test_mask = np.zeros(n, dtype=bool)
+    test_mask[test_idx] = True
     return train_mask, val_mask, test_mask
 
 
 def split_pairs_cv2(
-    idx1: np.ndarray, idx2: np.ndarray,
-    train_frac: float, val_frac: float, seed: int,
+    idx1: np.ndarray,
+    idx2: np.ndarray,
+    train_frac: float,
+    val_frac: float,
+    seed: int,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """CV2 (gene-based): test pairs have >= 1 unseen gene.
 
@@ -762,8 +784,11 @@ def split_pairs_cv2(
 
 
 def split_pairs_cv3(
-    idx1: np.ndarray, idx2: np.ndarray,
-    train_frac: float, val_frac: float, seed: int,
+    idx1: np.ndarray,
+    idx2: np.ndarray,
+    train_frac: float,
+    val_frac: float,
+    seed: int,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """CV3 (pair-based): both genes in each test pair are unseen.
 
@@ -839,17 +864,20 @@ def _load_fold_transform_and_embeddings(
     --pca_variance / --post_pca_variance (legacy, leaky) if the checkpoint
     pre-dates the fix, emitting a loud warning.
     """
-    ckpt_raw = torch.load(str(ckpt_path), map_location="cpu",
+    ckpt_raw = torch.load(str(ckpt_path),
+                          map_location="cpu",
                           weights_only=False)
     transform = ckpt_raw.get("preprocessing_transform")
     if transform is not None:
         return apply_multimodal_transform(raw_per_modality, transform)
 
-    print(f"  WARNING: checkpoint {ckpt_path.name} has no "
-          f"`preprocessing_transform` — falling back to all-gene PCA fit "
-          f"using --pca_variance/--post_pca_variance. This REINTRODUCES "
-          f"the CV2/CV3 leakage the new pipeline fixes; retrain to remove "
-          f"the warning.", file=sys.stderr)
+    print(
+        f"  WARNING: checkpoint {ckpt_path.name} has no "
+        f"`preprocessing_transform` — falling back to all-gene PCA fit "
+        f"using --pca_variance/--post_pca_variance. This REINTRODUCES "
+        f"the CV2/CV3 leakage the new pipeline fixes; retrain to remove "
+        f"the warning.",
+        file=sys.stderr)
     if fallback_pca_variance is None:
         raise ValueError(
             f"Checkpoint {ckpt_path} lacks preprocessing_transform and no "
@@ -858,8 +886,11 @@ def _load_fold_transform_and_embeddings(
     fit_mask = torch.ones(n_genes, dtype=torch.bool)
     pca_dims = [fallback_pca_variance] * len(raw_per_modality)
     legacy_transform = fit_multimodal_transform(
-        raw_per_modality, fit_mask, pca_dims=pca_dims,
-        post_pca=fallback_post_pca_variance, labels=modality_labels)
+        raw_per_modality,
+        fit_mask,
+        pca_dims=pca_dims,
+        post_pca=fallback_post_pca_variance,
+        labels=modality_labels)
     return apply_multimodal_transform(raw_per_modality, legacy_transform)
 
 
@@ -903,7 +934,9 @@ def run_for_dataset(
                 f"dataset '{name}': head '{head_name}' is not a model head. "
                 f"Valid heads: {cell_line_vocab.HEADS}")
         head_idx = cell_line_vocab.HEADS.index(head_name)
-        print(f"  head    : {head_name} (idx {head_idx}) [per-head cell-line eval]")
+        print(
+            f"  head    : {head_name} (idx {head_idx}) [per-head cell-line eval]"
+        )
 
     if not path.exists():
         print(f"  SKIP: file not found. Set the dataset file under "
@@ -918,11 +951,13 @@ def run_for_dataset(
     df_raw = loader(str(path), col)
     df, cov = prepare_dataset(df_raw, gene_to_idx, sldb_pairs, sign)
     cov["name"] = name
-    print(f"  coverage: raw={cov['pairs_raw']:,}  both_mapped="
-          f"{cov['pairs_both_mapped']:,}  both_in_model="
-          f"{cov['pairs_both_in_model']:,}  kept={cov['pairs_kept']:,}  "
-          f"sldb_overlap={cov['sldb_overlap_count']:,} "
-          f"({100.0 * cov['sldb_overlap_count'] / max(1, cov['pairs_kept']):.2f}%)")
+    print(
+        f"  coverage: raw={cov['pairs_raw']:,}  both_mapped="
+        f"{cov['pairs_both_mapped']:,}  both_in_model="
+        f"{cov['pairs_both_in_model']:,}  kept={cov['pairs_kept']:,}  "
+        f"sldb_overlap={cov['sldb_overlap_count']:,} "
+        f"({100.0 * cov['sldb_overlap_count'] / max(1, cov['pairs_kept']):.2f}%)"
+    )
 
     if len(df) < 100:
         print(f"  SKIP: fewer than 100 evaluable pairs.")
@@ -944,14 +979,16 @@ def run_for_dataset(
         train_mask, val_mask, test_mask = split_pairs_cv3(
             idx1, idx2, args.train_frac, args.val_frac, args.split_seed)
     else:
-        train_mask, val_mask, test_mask = split_pairs(
-            len(df), args.train_frac, args.val_frac, args.split_seed)
+        train_mask, val_mask, test_mask = split_pairs(len(df), args.train_frac,
+                                                      args.val_frac,
+                                                      args.split_seed)
 
     n_used = int(train_mask.sum() + val_mask.sum() + test_mask.sum())
     n_discarded = len(df) - n_used
-    print(f"  split({cv}): train={train_mask.sum():,}  val={val_mask.sum():,}  "
-          f"test={test_mask.sum():,}"
-          + (f"  discarded(mixed)={n_discarded:,}" if n_discarded else ""))
+    print(
+        f"  split({cv}): train={train_mask.sum():,}  val={val_mask.sum():,}  "
+        f"test={test_mask.sum():,}" +
+        (f"  discarded(mixed)={n_discarded:,}" if n_discarded else ""))
 
     n_folds = len(checkpoint_paths)
 
@@ -983,7 +1020,8 @@ def run_for_dataset(
         # (preprocessing was fit on that fold's training-pair genes), so we
         # cannot share a single `embeddings` tensor across folds anymore.
         fold_embeddings = _load_fold_transform_and_embeddings(
-            ckpt, raw_per_modality,
+            ckpt,
+            raw_per_modality,
             fallback_pca_variance=args.pca_variance,
             fallback_post_pca_variance=args.post_pca_variance,
             modality_labels=modality_labels,
@@ -993,8 +1031,8 @@ def run_for_dataset(
         # model input_width = biological_dim + cell_line_dim, so subtract
         # cell_line_dim before comparing to the fold's biological embedding dim.
         input_width = int(base.encoder.input_bias.shape[0])
-        expected_dim = (input_width - base.cell_line_dim
-                        if getattr(args, "per_head", False) else input_width)
+        expected_dim = (input_width - base.cell_line_dim if getattr(
+            args, "per_head", False) else input_width)
         if expected_dim != fold_embeddings.shape[1]:
             raise ValueError(
                 f"fold {k}: embedding dim {fold_embeddings.shape[1]} does "
@@ -1017,9 +1055,12 @@ def run_for_dataset(
             tgts = target[flt_mask]
             m = compute_metrics(preds, tgts)
             zero_shot_rows.append({
-                "dataset": name, "fold": k, "filter": flt_name,
+                "dataset": name,
+                "fold": k,
+                "filter": flt_name,
                 "n_test": int(flt_mask.sum()),
-                "a_ols": float(a), "c_ols": float(c),
+                "a_ols": float(a),
+                "c_ols": float(c),
                 **m,
             })
 
@@ -1031,10 +1072,17 @@ def run_for_dataset(
             base_ft = _load_eval_base(ckpt, args, head_idx, device)
             model_ft = FinetunedSL(base_ft).to(device)
             model_ft, best_epoch = finetune_one(
-                model_ft, fold_embeddings, idx1, idx2, target,
-                train_mask=train_mask, val_mask=val_mask,
-                mode=mode, epochs=args.ft_epochs,
-                patience=args.ft_patience, lr=args.ft_lr,
+                model_ft,
+                fold_embeddings,
+                idx1,
+                idx2,
+                target,
+                train_mask=train_mask,
+                val_mask=val_mask,
+                mode=mode,
+                epochs=args.ft_epochs,
+                patience=args.ft_patience,
+                lr=args.ft_lr,
                 batch_size=args.ft_batch_size,
                 weight_decay=args.ft_weight_decay,
                 device=device,
@@ -1046,8 +1094,8 @@ def run_for_dataset(
                 # ensemble diversity. The split itself still uses split_seed.
                 seed=args.split_seed + k,
             )
-            preds_all = predict_finetuned(
-                model_ft, fold_embeddings, idx1, idx2, device)
+            preds_all = predict_finetuned(model_ft, fold_embeddings, idx1,
+                                          idx2, device)
             ft_preds_folds[mode][k] = preds_all
             best_epoch_tracker[(k, mode)] = int(best_epoch)
 
@@ -1058,8 +1106,11 @@ def run_for_dataset(
                 tgts = target[flt_mask]
                 m = compute_metrics(preds, tgts)
                 finetuned_rows.append({
-                    "dataset": name, "mode": mode, "fold": k,
-                    "filter": flt_name, "n_test": int(flt_mask.sum()),
+                    "dataset": name,
+                    "mode": mode,
+                    "fold": k,
+                    "filter": flt_name,
+                    "n_test": int(flt_mask.sum()),
                     "best_epoch": int(best_epoch),
                     **m,
                 })
@@ -1072,9 +1123,12 @@ def run_for_dataset(
             continue
         m = compute_metrics(zshot_ensemble_pred[flt_mask], target[flt_mask])
         zero_shot_rows.append({
-            "dataset": name, "fold": "ensemble", "filter": flt_name,
+            "dataset": name,
+            "fold": "ensemble",
+            "filter": flt_name,
             "n_test": int(flt_mask.sum()),
-            "a_ols": float("nan"), "c_ols": float("nan"),
+            "a_ols": float("nan"),
+            "c_ols": float("nan"),
             **m,
         })
 
@@ -1086,40 +1140,57 @@ def run_for_dataset(
                 continue
             m = compute_metrics(ensemble_pred[flt_mask], target[flt_mask])
             finetuned_rows.append({
-                "dataset": name, "mode": mode, "fold": "ensemble",
-                "filter": flt_name, "n_test": int(flt_mask.sum()),
+                "dataset": name,
+                "mode": mode,
+                "fold": "ensemble",
+                "filter": flt_name,
+                "n_test": int(flt_mask.sum()),
                 "best_epoch": -1,  # not meaningful for the ensemble row
                 **m,
             })
 
     # ---- Save per-dataset zero-shot predictions (all pairs) ----
-    pred_cols = {f"logit_fold{k}": raw_logits_folds[k]
-                 for k in range(n_folds)}
+    pred_cols = {f"logit_fold{k}": raw_logits_folds[k] for k in range(n_folds)}
     pred_cols["logit_mean"] = raw_logits_folds.mean(axis=0)
     zshot_df = pd.DataFrame({
-        "gene1_entrez": df["gene1_entrez"],
-        "gene2_entrez": df["gene2_entrez"],
-        "outcome_raw": outcome_raw,
-        "target": target,
-        "sldb_overlap": overlap_mask,
-        "split": np.where(train_mask, "train",
-                          np.where(val_mask, "val",
-                                   np.where(test_mask, "test", "discarded"))),
+        "gene1_entrez":
+        df["gene1_entrez"],
+        "gene2_entrez":
+        df["gene2_entrez"],
+        "outcome_raw":
+        outcome_raw,
+        "target":
+        target,
+        "sldb_overlap":
+        overlap_mask,
+        "split":
+        np.where(
+            train_mask, "train",
+            np.where(val_mask, "val", np.where(test_mask, "test",
+                                               "discarded"))),
         **pred_cols,
     })
     zshot_df.to_csv(out_dir / f"{name}_predictions.csv", index=False)
 
     # ---- Save per-dataset fine-tuned predictions (20% test only, one CSV per mode) ----
     for mode in args.ft_modes:
-        ft_pred_cols = {f"pred_fold{k}": ft_preds_folds[mode][k][test_mask]
-                        for k in range(n_folds)}
-        ft_pred_cols["pred_mean"] = ft_preds_folds[mode].mean(axis=0)[test_mask]
+        ft_pred_cols = {
+            f"pred_fold{k}": ft_preds_folds[mode][k][test_mask]
+            for k in range(n_folds)
+        }
+        ft_pred_cols["pred_mean"] = ft_preds_folds[mode].mean(
+            axis=0)[test_mask]
         ft_df = pd.DataFrame({
-            "gene1_entrez": df["gene1_entrez"].to_numpy()[test_mask],
-            "gene2_entrez": df["gene2_entrez"].to_numpy()[test_mask],
-            "outcome_raw": outcome_raw[test_mask],
-            "target": target[test_mask],
-            "sldb_overlap": overlap_mask[test_mask],
+            "gene1_entrez":
+            df["gene1_entrez"].to_numpy()[test_mask],
+            "gene2_entrez":
+            df["gene2_entrez"].to_numpy()[test_mask],
+            "outcome_raw":
+            outcome_raw[test_mask],
+            "target":
+            target[test_mask],
+            "sldb_overlap":
+            overlap_mask[test_mask],
             **ft_pred_cols,
         })
         ft_df.to_csv(out_dir / f"{name}_finetuned_predictions_{mode}.csv",
@@ -1142,16 +1213,15 @@ def run_for_dataset(
 # Summary helpers
 # =============================================================================
 
-
 # Metric label table used by both the CSV output and the stdout tables.
 _METRIC_LABELS = {
-    "spearman":      "Spearman",
-    "pearson":       "Pearson",
-    "r2":            "R²",
+    "spearman": "Spearman",
+    "pearson": "Pearson",
+    "r2": "R²",
     "auroc_top1pct": "AUROC@top1%",
-    "aupr_top1pct":  "AUPR@top1%",
+    "aupr_top1pct": "AUPR@top1%",
     "auroc_bot1pct": "AUROC@bot1%",
-    "aupr_bot1pct":  "AUPR@bot1%",
+    "aupr_bot1pct": "AUPR@bot1%",
 }
 
 
@@ -1182,9 +1252,13 @@ def _print_dataset_results(
 
     for flt in filters:
         zs = [r for r in zero_shot_rows if r["filter"] == flt]
-        ft_by_mode = {m: [r for r in finetuned_rows
-                          if r["filter"] == flt and r["mode"] == m]
-                      for m in ft_modes}
+        ft_by_mode = {
+            m: [
+                r for r in finetuned_rows
+                if r["filter"] == flt and r["mode"] == m
+            ]
+            for m in ft_modes
+        }
 
         if not zs and not any(ft_by_mode.values()):
             continue  # nothing to show (e.g., too few pairs after filter)
@@ -1198,8 +1272,8 @@ def _print_dataset_results(
 
         # Header
         label_hdr = f"  {'Mode':<11} {'Agg':<9}  "
-        metric_hdr = "  ".join(
-            f"{_METRIC_LABELS.get(m, m):>{col_w}s}" for m in metric_cols)
+        metric_hdr = "  ".join(f"{_METRIC_LABELS.get(m, m):>{col_w}s}"
+                               for m in metric_cols)
         print(label_hdr + metric_hdr)
         print("  " + "-" * (len(label_hdr) - 2 + len(metric_hdr)))
 
@@ -1214,20 +1288,22 @@ def _print_dataset_results(
             ensemble = [r for r in rows if r["fold"] == "ensemble"]
 
             if perfold:
-                means = [float(np.nanmean([r[m] for r in perfold]))
-                         for m in metric_cols]
+                means = [
+                    float(np.nanmean([r[m] for r in perfold]))
+                    for m in metric_cols
+                ]
                 # ddof=1 (sample std) matches pandas groupby().agg("std")
                 # default, so stdout numbers match the summary CSV exactly.
-                stds = [float(np.nanstd([r[m] for r in perfold], ddof=1))
-                        for m in metric_cols]
-                cells = "  ".join(
-                    f"{mn:+.4f}±{sd:.3f}".rjust(col_w)
-                    for mn, sd in zip(means, stds))
+                stds = [
+                    float(np.nanstd([r[m] for r in perfold], ddof=1))
+                    for m in metric_cols
+                ]
+                cells = "  ".join(f"{mn:+.4f}±{sd:.3f}".rjust(col_w)
+                                  for mn, sd in zip(means, stds))
                 print(f"  {block_name:<11} {'mean±std':<9}  {cells}")
             if ensemble:
-                cells = "  ".join(
-                    f"{ensemble[0][m]:+.4f}".rjust(col_w)
-                    for m in metric_cols)
+                cells = "  ".join(f"{ensemble[0][m]:+.4f}".rjust(col_w)
+                                  for m in metric_cols)
                 print(f"  {block_name:<11} {'ensemble':<9}  {cells}")
 
     # Footnote: explain the @bot1% convention. Target = sign * raw_score with
@@ -1260,14 +1336,12 @@ def summarize_metrics(
 
     out_parts = []
     if not perfold.empty:
-        agg = (perfold.groupby(key_cols)[metric_cols]
-               .agg(["mean", "std"])
-               .reset_index())
+        agg = (perfold.groupby(key_cols)[metric_cols].agg(["mean", "std"
+                                                           ]).reset_index())
         # Flatten MultiIndex columns
-        agg.columns = (list(agg.columns[:len(key_cols)].get_level_values(0))
-                       + [f"{m}_{s}"
-                          for m in metric_cols
-                          for s in ("mean", "std")])
+        agg.columns = (
+            list(agg.columns[:len(key_cols)].get_level_values(0)) +
+            [f"{m}_{s}" for m in metric_cols for s in ("mean", "std")])
         agg["aggregation"] = "per_fold"
         out_parts.append(agg)
     if not ensemble.empty:
@@ -1287,69 +1361,89 @@ def summarize_metrics(
 # Main
 # =============================================================================
 
-
 METRIC_COLS = [
-    "spearman", "pearson", "r2",
-    "auroc_top1pct", "aupr_top1pct",
-    "auroc_bot1pct", "aupr_bot1pct",
+    "spearman",
+    "pearson",
+    "r2",
+    "auroc_top1pct",
+    "aupr_top1pct",
+    "auroc_bot1pct",
+    "aupr_bot1pct",
 ]
 
 
 def main() -> int:
     p = argparse.ArgumentParser(
         description="Evaluate / fine-tune a pretrained siamese SL model on "
-                    "external CRISPR screens (Adamson / Corn / Gilbert).")
-    p.add_argument("--model_dir", required=True,
+        "external CRISPR screens (Adamson / Corn / Gilbert).")
+    p.add_argument("--model_dir",
+                   required=True,
                    help="Pretrained combo results dir (must contain "
-                        "config.json and checkpoints/fold_*_best.pt).")
-    p.add_argument("--embeddings_paths", nargs="+", required=True,
+                   "config.json and checkpoints/fold_*_best.pt).")
+    p.add_argument("--embeddings_paths",
+                   nargs="+",
+                   required=True,
                    help="Embedding .pt files matching the pretrained combo.")
-    p.add_argument("--pca_variance", type=float, default=None,
+    p.add_argument("--pca_variance",
+                   type=float,
+                   default=None,
                    help="Legacy fallback only: per-modality ROBPCA variance. "
-                        "Used ONLY when a checkpoint predates per-fold "
-                        "`preprocessing_transform` storage. New checkpoints "
-                        "carry their own transform and ignore this flag.")
-    p.add_argument("--post_pca_variance", type=float, default=None,
+                   "Used ONLY when a checkpoint predates per-fold "
+                   "`preprocessing_transform` storage. New checkpoints "
+                   "carry their own transform and ignore this flag.")
+    p.add_argument("--post_pca_variance",
+                   type=float,
+                   default=None,
                    help="Legacy fallback only: post-concat ROBPCA variance. "
-                        "See --pca_variance note.")
-    p.add_argument("--datasets", nargs="+", required=True,
+                   "See --pca_variance note.")
+    p.add_argument("--datasets",
+                   nargs="+",
+                   required=True,
                    help="Spec rows 'name:file:column:sign:format[:head]' "
-                        "(the optional :head is the cell-line head used by "
-                        "--per_head).")
-    p.add_argument("--sl_path", required=True,
+                   "(the optional :head is the cell-line head used by "
+                   "--per_head).")
+    p.add_argument("--sl_path",
+                   required=True,
                    help="SynLethDB .txt for overlap detection.")
-    p.add_argument("--base_dir", required=True,
+    p.add_argument("--base_dir",
+                   required=True,
                    help="Project base dir; dataset 'file' entries are "
-                        "resolved relative to this.")
-    p.add_argument("--out_dir", default=None,
+                   "resolved relative to this.")
+    p.add_argument("--out_dir",
+                   default=None,
                    help="Output dir (default: <model_dir>/eval_finetuning).")
-    p.add_argument("--ft_modes", nargs="+", default=["LP_last", "Full"],
+    p.add_argument("--ft_modes",
+                   nargs="+",
+                   default=["LP_last", "Full"],
                    choices=["LP", "LP_last", "Full"])
     p.add_argument("--ft_epochs", type=int, default=100)
     p.add_argument("--ft_patience", type=int, default=10)
     p.add_argument("--ft_lr", type=float, default=1e-4)
     p.add_argument("--ft_batch_size", type=int, default=256)
     p.add_argument("--ft_weight_decay", type=float, default=0.0)
-    p.add_argument("--cv_type", default="cv1",
+    p.add_argument("--cv_type",
+                   default="cv1",
                    choices=["cv1", "cv2", "cv3"],
                    help="CV split strategy for external data: "
-                        "cv1=edge-based (random), "
-                        "cv2=gene-based (>=1 unseen gene), "
-                        "cv3=pair-based (both genes unseen).")
+                   "cv1=edge-based (random), "
+                   "cv2=gene-based (>=1 unseen gene), "
+                   "cv3=pair-based (both genes unseen).")
     p.add_argument("--train_frac", type=float, default=0.8)
     p.add_argument("--val_frac", type=float, default=0.1)
     p.add_argument("--split_seed", type=int, default=42)
-    p.add_argument("--report_sldb_filtered", action="store_true",
+    p.add_argument("--report_sldb_filtered",
+                   action="store_true",
                    help="Also report metrics with SynLethDB-overlap pairs "
-                        "removed from the test split.")
-    p.add_argument("--per_head", action="store_true",
+                   "removed from the test split.")
+    p.add_argument("--per_head",
+                   action="store_true",
                    help="Evaluate a cell-line-conditioned SiameseSLMultiCell "
-                        "checkpoint: score each dataset against the model head "
-                        "named in its 6th DATASETS field "
-                        "(name:file:column:sign:format:HEAD, e.g. K562). "
-                        "Without it, cell checkpoints are refused as before.")
-    p.add_argument("--device", default="cuda" if torch.cuda.is_available()
-                                                else "cpu")
+                   "checkpoint: score each dataset against the model head "
+                   "named in its 6th DATASETS field "
+                   "(name:file:column:sign:format:HEAD, e.g. K562). "
+                   "Without it, cell checkpoints are refused as before.")
+    p.add_argument("--device",
+                   default="cuda" if torch.cuda.is_available() else "cpu")
     args = p.parse_args()
 
     set_seed(args.split_seed)
@@ -1366,17 +1460,17 @@ def main() -> int:
         train_cfg = json.load(f)
 
     ckpt_dir = model_dir / "checkpoints"
-    checkpoint_paths = sorted(
-        [p for p in ckpt_dir.glob("fold_*_best.pt")],
-        key=lambda p: int(p.stem.split("_")[1]))
+    checkpoint_paths = sorted([p for p in ckpt_dir.glob("fold_*_best.pt")],
+                              key=lambda p: int(p.stem.split("_")[1]))
     if not checkpoint_paths:
         print(f"ERROR: no fold checkpoints found under {ckpt_dir}",
               file=sys.stderr)
         return 1
     print(f"Loaded {len(checkpoint_paths)} fold checkpoints from {ckpt_dir}")
 
-    out_dir = Path(args.out_dir) if args.out_dir else (
-        model_dir / f"eval_finetuning_{args.cv_type}")
+    out_dir = Path(
+        args.out_dir) if args.out_dir else (model_dir /
+                                            f"eval_finetuning_{args.cv_type}")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # --- Load RAW embeddings once; each fold applies its own transform ---
@@ -1385,8 +1479,9 @@ def main() -> int:
           f"preprocessing transforms will be pulled from each checkpoint).")
     raw_per_modality, gene_to_idx, idx_to_gene = load_raw_multimodal(
         args.embeddings_paths)
-    modality_labels = [Path(p).stem.replace("all_genes_", "")
-                       for p in args.embeddings_paths]
+    modality_labels = [
+        Path(p).stem.replace("all_genes_", "") for p in args.embeddings_paths
+    ]
     print(f"  raw shapes: "
           f"{[tuple(t.shape) for t in raw_per_modality]}  "
           f"genes: {len(gene_to_idx):,}")
@@ -1416,8 +1511,10 @@ def main() -> int:
         "split_seed": args.split_seed,
         "report_sldb_filtered": bool(args.report_sldb_filtered),
         "per_head": bool(args.per_head),
-        "dataset_heads": {s["name"]: s.get("head")
-                          for s in parse_datasets_spec(args.datasets)},
+        "dataset_heads": {
+            s["name"]: s.get("head")
+            for s in parse_datasets_spec(args.datasets)
+        },
         "device": args.device,
         "n_genes_in_model": len(gene_to_idx),
         "preprocessing": "per-fold (leakage-free) from checkpoint transforms",
@@ -1448,19 +1545,20 @@ def main() -> int:
         coverage_rows.append(cov)
 
     # --- Persist ---
-    pd.DataFrame(coverage_rows).to_csv(out_dir / "gene_coverage.csv", index=False)
+    pd.DataFrame(coverage_rows).to_csv(out_dir / "gene_coverage.csv",
+                                       index=False)
 
-    pd.DataFrame(zero_shot_rows).to_csv(
-        out_dir / "zero_shot_metrics.csv", index=False)
-    pd.DataFrame(finetuned_rows).to_csv(
-        out_dir / "finetuned_metrics.csv", index=False)
+    pd.DataFrame(zero_shot_rows).to_csv(out_dir / "zero_shot_metrics.csv",
+                                        index=False)
+    pd.DataFrame(finetuned_rows).to_csv(out_dir / "finetuned_metrics.csv",
+                                        index=False)
 
-    zs_summary = summarize_metrics(
-        zero_shot_rows, key_cols=["dataset", "filter"],
-        metric_cols=METRIC_COLS)
-    ft_summary = summarize_metrics(
-        finetuned_rows, key_cols=["dataset", "mode", "filter"],
-        metric_cols=METRIC_COLS)
+    zs_summary = summarize_metrics(zero_shot_rows,
+                                   key_cols=["dataset", "filter"],
+                                   metric_cols=METRIC_COLS)
+    ft_summary = summarize_metrics(finetuned_rows,
+                                   key_cols=["dataset", "mode", "filter"],
+                                   metric_cols=METRIC_COLS)
     zs_summary.to_csv(out_dir / "zero_shot_summary.csv", index=False)
     ft_summary.to_csv(out_dir / "finetuned_summary.csv", index=False)
 
@@ -1469,7 +1567,9 @@ def main() -> int:
     print("  gene_coverage.csv")
     print("  zero_shot_metrics.csv  /  zero_shot_summary.csv")
     print("  finetuned_metrics.csv  /  finetuned_summary.csv")
-    print("  {dataset}_predictions.csv  /  {dataset}_finetuned_predictions_{mode}.csv")
+    print(
+        "  {dataset}_predictions.csv  /  {dataset}_finetuned_predictions_{mode}.csv"
+    )
     return 0
 
 

@@ -2,7 +2,11 @@
 #SBATCH --job-name=siamese_gen_emb
 #SBATCH --partition=gpu_Prosmn
 #SBATCH --nodes=1
-#SBATCH --nodelist=gpu3,gpu4
+# Pinned to gpu3 (2026-08-10, by request). gpu3 threw a transient "CUDA
+# unknown error" at torch init in 2026-07 and the whole tree was moved to
+# gpu2 for that; if it recurs, the symptom is a torch.cuda init failure in
+# the very first seconds of the job, not a training-time error.
+#SBATCH --nodelist=gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=12
@@ -141,6 +145,65 @@ fi
 echo ""
 
 # ============================================================================
+# STEP 0b: Canonical gene universe (positives UNION negatives)
+# ============================================================================
+# Every embedding is aligned to this list. Seeding it from SL_PATH alone gave
+# gene_order = the 5,257 genes in >=1 POSITIVE pair, leaving the 3,587
+# negative-only genes with no embedding — see config.conf GENE_UNIVERSE.
+echo "--- STEP 0b: Gene universe ---"
+$PYTHON_PATH - "$SL_PATH" "$NEG_PATH_FILE" "$GENE_UNIVERSE" "$DATA_DIR" <<'PY'
+import sys
+from pathlib import Path
+pos_p, neg_p, out_p, data_dir = sys.argv[1:5]
+
+# (a) Benchmark genes — every gene in a given SL or non-SL pair. This set is
+# MANDATORY and must be fully contained in the universe: sl_comparison/folds
+# indexes into it, so a missing gene silently drops pairs.
+bench = set()
+for p in (pos_p, neg_p):
+    if not Path(p).exists():
+        sys.exit(f"FATAL: {p} missing — cannot build the gene universe")
+    for line in Path(p).read_text().splitlines():
+        for tok in line.split():
+            if tok.isdigit():
+                bench.add(tok)
+if not bench:
+    sys.exit("FATAL: no genes found in the pair files")
+
+# (b) All protein-coding genes, so any gene pair is scoreable at inference and
+# "has an embedding" carries no information about the label.
+hgnc = next((c for c in (Path(data_dir) / "cache" / "hgnc_complete_set.txt",
+                         Path(data_dir) / "embeddings_cache" /
+                         "hgnc_complete_set.txt") if c.exists()), None)
+if hgnc is None:
+    sys.exit("FATAL: hgnc_complete_set.txt not found under "
+             f"{data_dir}/cache or {data_dir}/embeddings_cache. Refusing to "
+             "silently fall back to the benchmark-only universe — that is the "
+             "confound this step exists to remove.")
+coding, hdr = set(), None
+for i, line in enumerate(Path(hgnc).read_text().splitlines()):
+    f = line.split("\t")
+    if i == 0:
+        hdr = {n: j for j, n in enumerate(f)}
+        continue
+    ei = f[hdr["entrez_id"]].strip() if len(f) > hdr["entrez_id"] else ""
+    lg = f[hdr["locus_group"]].strip() if len(f) > hdr["locus_group"] else ""
+    if ei.isdigit() and lg == "protein-coding gene":
+        coding.add(ei)
+if len(coding) < 15000:
+    sys.exit(f"FATAL: only {len(coding)} protein-coding genes parsed from "
+             f"{hgnc} (expected ~19k) — the file looks wrong or truncated.")
+
+genes = coding | bench
+Path(out_p).write_text("\n".join(sorted(genes, key=int)) + "\n")
+print(f"  protein-coding: {len(coding):,} | benchmark: {len(bench):,} "
+      f"(non-coding kept: {len(bench - coding):,})")
+print(f"  gene universe: {len(genes):,} genes -> {out_p}")
+PY
+[ -s "$GENE_UNIVERSE" ] || { echo "FAILED to build $GENE_UNIVERSE"; exit 1; }
+echo ""
+
+# ============================================================================
 # STEP 1: Generate ESM Embeddings
 # ============================================================================
 echo "--- STEP 1: ESM Embeddings ---"
@@ -149,7 +212,7 @@ sleep 10
 echo "Generating ESM embeddings with Pool PaRTI..."
 $PYTHON_PATH generate_all_genes_esm.py \
     --output "$ESM_PATH" \
-    --sl_path "$SL_PATH" \
+    --gene_list "$GENE_UNIVERSE" \
     --cache_dir "$CACHE_DIR" \
     --pooling pool_parti \
     --batch_size 8 \

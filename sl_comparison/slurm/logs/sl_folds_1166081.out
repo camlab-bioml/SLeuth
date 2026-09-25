@@ -1,0 +1,38 @@
+==================================================
+Shared folds + degree-prior control
+Start: Thu Aug 27 09:46:16 EDT 2026 | Job: 1166081 | Node: gpu3
+==================================================
+--- reusing existing shared folds (meta.json matches on seed, 
+    num_folds, val_frac and conflict_policy) ---
+
+--- DegreePrior / cv1 ---
+  fold 0: AUROC 0.8764 AP 0.6462 AUPRG 0.9123 NDCG@10 0.3810
+  fold 1: AUROC 0.8789 AP 0.6383 AUPRG 0.9053 NDCG@10 0.3995
+  fold 2: AUROC 0.8861 AP 0.6552 AUPRG 0.9148 NDCG@10 0.3834
+  fold 3: AUROC 0.8755 AP 0.6409 AUPRG 0.9085 NDCG@10 0.3854
+  fold 4: AUROC 0.8885 AP 0.6689 AUPRG 0.9201 NDCG@10 0.3910
+
+DegreePrior(0)/cv1: AUROC 0.8811 | AP 0.6499 | AUPRG 0.9122 | R@50 0.6713  -> sl_comparison/results/DegreePrior_cv1.json
+
+--- DegreePrior / cv2 ---
+  fold 0: AUROC 0.7646 AP 0.5773 AUPRG 0.9226 NDCG@10 0.2861
+  fold 1: AUROC 0.5166 AP 0.3502 AUPRG 0.2434 NDCG@10 0.0611
+  fold 2: AUROC 0.5206 AP 0.3422 AUPRG 0.3518 NDCG@10 0.1413
+  fold 3: AUROC 0.6762 AP 0.4910 AUPRG 0.7835 NDCG@10 0.2634
+  fold 4: AUROC 0.6935 AP 0.4661 AUPRG 0.8341 NDCG@10 0.2320
+
+DegreePrior(0)/cv2: AUROC 0.6343 | AP 0.4453 | AUPRG 0.6271 | R@50 0.2517  -> sl_comparison/results/DegreePrior_cv2.json
+
+--- DegreePrior / cv3 ---
+  fold 0: AUROC 0.5000 AP 0.0843 AUPRG 0.0000 NDCG@10 0.0000
+  fold 1: AUROC 0.5000 AP 0.2640 AUPRG 0.0000 NDCG@10 0.0000
+  fold 2: AUROC 0.5000 AP 0.2128 AUPRG 0.0000 NDCG@10 0.0000
+  fold 3: AUROC 0.5000 AP 0.1730 AUPRG 0.0000 NDCG@10 0.0000
+  fold 4: AUROC 0.5000 AP 0.1077 AUPRG 0.0000 NDCG@10 0.0000
+
+DegreePrior(0)/cv3: AUROC 0.5000 | AP 0.1684 | AUPRG 0.0000 | R@50 0.0000  -> sl_comparison/results/DegreePrior_cv3.json
+
+==================================================
+Folds ready and degree prior scored for: cv1 cv2 cv3
+Completed at: Thu Aug 27 10:03:27 EDT 2026
+==================================================

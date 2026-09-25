@@ -2,7 +2,11 @@
 #SBATCH --job-name=bestcat_emb
 #SBATCH --partition=gpu_Prosmn
 #SBATCH --nodes=1
-#SBATCH --nodelist=gpu3,gpu4
+# Pinned to gpu3 (2026-08-10, by request). gpu3 threw a transient "CUDA
+# unknown error" at torch init in 2026-07 and the whole tree was moved to
+# gpu2 for that; if it recurs, the symptom is a torch.cuda init failure in
+# the very first seconds of the job, not a training-time error.
+#SBATCH --nodelist=gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=12
@@ -78,6 +82,27 @@ echo "  Embedding: $EMB_PATH"
 echo ""
 
 # ============================================================================
+# Clean previous results for this (embedding, CV, PCA) combination
+# ============================================================================
+# BEFORE the missing-embedding skip below, not after.
+#
+# run_generate_embeddings.sh deletes every all_genes_*.pt at job start and
+# tolerates per-modality failure, so an embedding CAN vanish between runs. If
+# the skip came first, this task would exit 0 with the PREVIOUS run's
+# results.json still on disk — and collect_siamese.py rglobs all of
+# siamese_sl/results and takes the argmax over val_auprg_mean, so a stale entry
+# is a live candidate to become the published siamese row. Its checkpoint was
+# trained on a different fold set, so pairs it trained on are now test
+# positives. Clearing first makes a missing embedding produce NO row instead of
+# an old one.
+OUTPUT_DIR="results/pcavar${PCA_VARIANCE}_${ETYPE}_${CV}"
+
+if [ -d "$OUTPUT_DIR" ]; then
+    echo "Cleaning previous results: $OUTPUT_DIR"
+    rm -rf "$OUTPUT_DIR"
+fi
+
+# ============================================================================
 # Skip if embedding file doesn't exist
 # ============================================================================
 # Some embeddings may fail to generate. Exit cleanly so the combo job runs.
@@ -85,16 +110,6 @@ echo ""
 if [ ! -f "$EMB_PATH" ]; then
     echo "SKIP: $EFILE not found in $DATA_DIR"
     exit 0
-fi
-
-# ============================================================================
-# Clean previous results for this (embedding, CV, PCA) combination
-# ============================================================================
-OUTPUT_DIR="results/pcavar${PCA_VARIANCE}_${ETYPE}_${CV}"
-
-if [ -d "$OUTPUT_DIR" ]; then
-    echo "Cleaning previous results: $OUTPUT_DIR"
-    rm -rf "$OUTPUT_DIR"
 fi
 
 # ============================================================================
@@ -138,7 +153,7 @@ $PYTHON_PATH train.py \
     --pos_neg_ratio $POS_NEG_RATIO \
     --seed $SEED \
     --preprocessing_fit_scope "${PREPROCESSING_FIT_SCOPE:-train}" \
-    --pca_method "${PCA_METHOD:-svd}" \
+    --pca_method "${PCA_METHOD:-plain}" \
     --siamese_encoder_type "${SIAMESE_ENCODER_TYPE:-residual}" \
     --no_post_pca
 TRAIN_EXIT=$?

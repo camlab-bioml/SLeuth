@@ -2,7 +2,11 @@
 #SBATCH --job-name=bench_summary
 #SBATCH --partition=gpu_Prosmn
 #SBATCH --nodes=1
-#SBATCH --nodelist=gpu3,gpu4
+# Pinned to gpu3 (2026-08-10, by request). gpu3 threw a transient "CUDA
+# unknown error" at torch init in 2026-07 and the whole tree was moved to
+# gpu2 for that; if it recurs, the symptom is a torch.cuda init failure in
+# the very first seconds of the job, not a training-time error.
+#SBATCH --nodelist=gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=8G
 #SBATCH --cpus-per-task=2
@@ -42,6 +46,14 @@ $PYTHON_PATH -c "from pathlib import Path; Path('results').mkdir(exist_ok=True)"
 
 # Build Python list literal from bash CV_TYPES array: ["cv1", "cv2", "cv3"]
 CV_TYPES_PY="[$(printf '"%s", ' "${CV_TYPES[@]}" | sed 's/, $//')]"
+# Allow-list of embedding types, injected the same way CV_TYPES is. The
+# discovery below used to DENY-list known non-embedding directory prefixes
+# ("pca", "best_cat_"), which went stale the moment a new results/<x>_<cv>
+# family appeared: the leave-one-category-out ablation writes
+# results/ablate_no_<category>_<cv>, which matched the pattern and would have
+# been tabulated as if "ablate_no_expression" were an embedding. An allow-list
+# built from the catalog cannot go stale that way.
+EMB_TYPES_PY="[$(printf '"%s", ' "${ALL_EMBEDDINGS[@]%%:*}" | sed 's/, $//')]"
 
 $PYTHON_PATH << PYTHON_SUMMARY
 import json
@@ -54,15 +66,19 @@ from datetime import datetime
 results_dir = Path("results")
 cv_types = $CV_TYPES_PY  # Injected from CV_TYPES in run_embedding_benchmark.conf
 
-# Find all embedding types that have at least one result
+# Find all embedding types that have at least one result.
+# ALLOW-list, not deny-list: only names present in ALL_EMBEDDINGS count. This
+# is what keeps the best-per-category (pcavar*), combo (best_cat_*) and
+# leave-one-category-out (ablate_no_*) directories out of the single-embedding
+# table — they all match "<something>_<cv>" and a deny-list has to be extended
+# every time a stage is added.
+KNOWN_EMB = set($EMB_TYPES_PY)
 emb_types = sorted({
     d.name.rsplit("_cv", 1)[0]
     for d in results_dir.iterdir()
     if d.is_dir()
     and "_cv" in d.name
-    # Exclude PCA and best-cat directories
-    and not d.name.startswith("pca")
-    and not d.name.startswith("best_cat_")
+    and d.name.rsplit("_cv", 1)[0] in KNOWN_EMB
 })
 
 if not emb_types:

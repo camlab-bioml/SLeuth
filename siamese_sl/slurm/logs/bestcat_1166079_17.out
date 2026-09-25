@@ -1,0 +1,14 @@
+============================================================================
+Job: bestcat_emb | ID: 1177125 | Node: gpu3
+Array task: 17 (of job 1166079)
+Start: Thu Aug 27 17:52:53 EDT 2026
+NVIDIA L40, 46068 MiB, 619 MiB
+NVIDIA L40, 46068 MiB, 0 MiB
+NVIDIA L40, 46068 MiB, 619 MiB
+NVIDIA L40, 46068 MiB, 619 MiB
+============================================================================
+
+Task 17: esmc (protein_seq) / cv3  [PCA=0.8]
+  Embedding: /ddn_exa/campbell/kaiyang/SLMGAE-pytorch/data/all_genes_esmc.pt
+
+SKIP: all_genes_esmc.pt not found in /ddn_exa/campbell/kaiyang/SLMGAE-pytorch/data

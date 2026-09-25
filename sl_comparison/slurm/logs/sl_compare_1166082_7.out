@@ -1,0 +1,114 @@
+==================================================
+SL comparison — task 7 of 9
+  Model: NSF4SL
+  CV:    cv3
+Start: Fri Aug 28 10:07:09 EDT 2026 | Job: 1177334 | Node: gpu3
+==================================================
+--- training NSF4SL / cv3 ---
+Device: cuda
+Shared folds from ../sl_comparison/folds/cv3: 5 folds, 8844 genes
+Genes: 8844 | features: 512d | matched 8844/8844
+
+============================================================
+Fold 1/5
+============================================================
+Train positives: 13369 | Val: 153 pos, 544 neg | Test: 422 pos, 4584 neg | select on val:ndcg@50
+  Trainable parameters: 527,104 (total 988,416) [Net]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 15e1a39cf91a5615
+  epoch  10 | loss 0.1689 | val ndcg@50 0.0000 AUPR 0.1726
+  epoch  20 | loss 0.1577 | val ndcg@50 0.0000 AUPR 0.1988
+  epoch  30 | loss 0.1661 | val ndcg@50 0.0000 AUPR 0.1952
+  epoch  40 | loss 0.1701 | val ndcg@50 0.0000 AUPR 0.1943
+  epoch  50 | loss 0.1699 | val ndcg@50 0.0000 AUPR 0.1957
+  Early stopping at epoch 50
+  Best fold 1: AUPR=0.0645, AUROC=0.3903, F1=0.1555
+
+============================================================
+Fold 2/5
+============================================================
+Train positives: 9745 | Val: 87 pos, 925 neg | Test: 1502 pos, 4187 neg | select on val:ndcg@50
+  Trainable parameters: 527,104 (total 988,416) [Net]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 15e1a39cf91a5615
+  epoch  10 | loss 0.1954 | val ndcg@50 0.0000 AUPR 0.0773
+  epoch  20 | loss 0.1380 | val ndcg@50 0.0000 AUPR 0.0810
+  epoch  30 | loss 0.1449 | val ndcg@50 0.0000 AUPR 0.0805
+  epoch  40 | loss 0.1510 | val ndcg@50 0.0000 AUPR 0.0802
+  epoch  50 | loss 0.1528 | val ndcg@50 0.0000 AUPR 0.0812
+  Early stopping at epoch 50
+  Best fold 2: AUPR=0.2125, AUROC=0.4131, F1=0.4223
+
+============================================================
+Fold 3/5
+============================================================
+Train positives: 9031 | Val: 245 pos, 533 neg | Test: 1307 pos, 4835 neg | select on val:ndcg@50
+  Trainable parameters: 527,104 (total 988,416) [Net]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 15e1a39cf91a5615
+  epoch  10 | loss 0.2087 | val ndcg@50 0.0000 AUPR 0.2541
+  epoch  20 | loss 0.1392 | val ndcg@50 0.0000 AUPR 0.2495
+  epoch  30 | loss 0.1492 | val ndcg@50 0.0000 AUPR 0.2604
+  epoch  40 | loss 0.1624 | val ndcg@50 0.0000 AUPR 0.2488
+  epoch  50 | loss 0.1681 | val ndcg@50 0.0000 AUPR 0.2613
+  Early stopping at epoch 50
+  Best fold 3: AUPR=0.1996, AUROC=0.4917, F1=0.3517
+
+============================================================
+Fold 4/5
+============================================================
+Train positives: 11416 | Val: 208 pos, 849 neg | Test: 711 pos, 3400 neg | select on val:ndcg@50
+  Trainable parameters: 527,104 (total 988,416) [Net]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 15e1a39cf91a5615
+  epoch  10 | loss 0.1992 | val ndcg@50 0.0000 AUPR 0.1755
+  epoch  20 | loss 0.1699 | val ndcg@50 0.0000 AUPR 0.1980
+  epoch  30 | loss 0.1809 | val ndcg@50 0.0000 AUPR 0.2021
+  epoch  40 | loss 0.1871 | val ndcg@50 0.0000 AUPR 0.2089
+  epoch  50 | loss 0.1881 | val ndcg@50 0.0000 AUPR 0.1920
+  Early stopping at epoch 50
+  Best fold 4: AUPR=0.1786, AUROC=0.5300, F1=0.3043
+
+============================================================
+Fold 5/5
+============================================================
+Train positives: 11309 | Val: 350 pos, 540 neg | Test: 518 pos, 4291 neg | select on val:ndcg@50
+  Trainable parameters: 527,104 (total 988,416) [Net]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 15e1a39cf91a5615
+  epoch  10 | loss 0.1839 | val ndcg@50 0.0000 AUPR 0.4268
+  epoch  20 | loss 0.1426 | val ndcg@50 0.0000 AUPR 0.3953
+  epoch  30 | loss 0.1508 | val ndcg@50 0.0000 AUPR 0.3856
+  epoch  40 | loss 0.1574 | val ndcg@50 0.0000 AUPR 0.3828
+  epoch  50 | loss 0.1597 | val ndcg@50 0.0000 AUPR 0.3838
+  Early stopping at epoch 50
+  Best fold 5: AUPR=0.0933, AUROC=0.4486, F1=0.1947
+
+============================================================
+Cross-validation results:
+============================================================
+  auroc         : 0.4547 +/- 0.0509
+  f1            : 0.2857 +/- 0.0986
+  aupr          : 0.1497 +/- 0.0595
+  ndcg@10       : 0.0000 +/- 0.0000
+  ndcg@20       : 0.0000 +/- 0.0000
+  ndcg@50       : 0.0003 +/- 0.0004
+  recall@10     : 0.0000 +/- 0.0000
+  recall@20     : 0.0000 +/- 0.0000
+  recall@50     : 0.0001 +/- 0.0001
+  precision@10  : 0.0000 +/- 0.0000
+  precision@20  : 0.0000 +/- 0.0000
+  precision@50  : 0.0001 +/- 0.0001
+  map@10        : 0.0000 +/- 0.0000
+  map@20        : 0.0000 +/- 0.0000
+  map@50        : 0.0000 +/- 0.0000
+
+Results saved to results/nsf4sl_cv3/results.json
+--- scoring NSF4SL / cv3 ---
+  fold 0: AUROC 0.3903 AP 0.0648 AUPRG -0.6426 NDCG@10 0.0000 (corrected 0.0000)
+  fold 1: AUROC 0.4131 AP 0.2128 AUPRG -0.3163 NDCG@10 0.0000 (corrected 0.0000)
+  fold 2: AUROC 0.4917 AP 0.1999 AUPRG -0.0796 NDCG@10 0.0000 (corrected 0.0000)
+  fold 3: AUROC 0.5300 AP 0.1793 AUPRG 0.0535 NDCG@10 0.0000 (corrected 0.0000)
+  fold 4: AUROC 0.4486 AP 0.0937 AUPRG -0.3248 NDCG@10 0.0000 (corrected 0.0000)
+
+NSF4SL(527,104)/cv3: AUROC 0.4547 | AP 0.1501 | AUPRG -0.2620 | R@50 0.0006  -> sl_comparison/results/NSF4SL_cv3.json
+
+==================================================
+SUCCESS: NSF4SL / cv3
+Completed at: Fri Aug 28 10:10:05 EDT 2026
+==================================================

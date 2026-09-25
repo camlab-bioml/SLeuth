@@ -1,4 +1,0 @@
-# Override root gitignore rule that excludes logs/
-!logs/
-logs/*
-!logs/.gitkeep

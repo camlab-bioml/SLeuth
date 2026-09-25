@@ -2,7 +2,11 @@
 #SBATCH --job-name=reset_env
 #SBATCH --partition=gpu_Prosmn
 #SBATCH --nodes=1
-#SBATCH --nodelist=gpu3,gpu4
+# Pinned to gpu3 (2026-08-10, by request). gpu3 threw a transient "CUDA
+# unknown error" at torch init in 2026-07 and the whole tree was moved to
+# gpu2 for that; if it recurs, the symptom is a torch.cuda init failure in
+# the very first seconds of the job, not a training-time error.
+#SBATCH --nodelist=gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=16G
 #SBATCH --cpus-per-task=4
@@ -14,7 +18,7 @@
 # Recreate the Python venv from scratch on a GPU node.
 #
 # Uses pip (not uv) to avoid NFS caching/hardlink issues.
-# Must run on a GPU node (gpu2/gpu3) — devhouse has a different Python version.
+# Must run on a GPU node (gpu3) — devhouse has a different Python version.
 #
 # Usage:
 #   cd ~/SLMGAE-pytorch/siamese_sl
@@ -60,6 +64,23 @@ echo "--- Upgrading pip ---"
 "$VENV_DIR/bin/pip" install --upgrade pip
 echo ""
 
+# Step 4b: Install torch FIRST — it is the one driver-coupled dependency.
+# torch ships ("built-in") its own bundled CUDA runtime; by default we take the
+# latest PyPI build. If a floating build ever outruns the gpu3 NVIDIA
+# driver, the CUDA smoke test in Step 6 fails loudly HERE instead of deep inside
+# every downstream GPU job. Pin a driver-matched build WITHOUT editing this file:
+#   TORCH_SPEC="torch==2.5.1" \
+#   TORCH_INDEX_URL="https://download.pytorch.org/whl/cu124" sbatch slurm/reset_env.sh
+# (cuXXX must match `nvidia-smi` driver on gpu3). Installing torch separately
+# also keeps the CPU-only PyPI deps below off any custom --index-url.
+echo "--- Installing torch (${TORCH_SPEC:-torch}${TORCH_INDEX_URL:+ from $TORCH_INDEX_URL}) ---"
+if [ -n "${TORCH_INDEX_URL:-}" ]; then
+    "$VENV_DIR/bin/pip" install "${TORCH_SPEC:-torch}" --index-url "$TORCH_INDEX_URL"
+else
+    "$VENV_DIR/bin/pip" install "${TORCH_SPEC:-torch}"
+fi
+echo ""
+
 # Step 5: Install all packages (using pip, not uv — more reliable on NFS)
 # NOTE: setuptools is pinned <81 because setuptools 81 removed the bundled
 # `pkg_resources` module, and node2vec 0.4.3 (the version the resolver picks to
@@ -68,9 +89,9 @@ echo ""
 # to import ("No module named 'pkg_resources'"), which the verification below
 # treats as fatal (exit 1) and blocks the whole afterok pipeline.
 echo "--- Installing packages ---"
+# torch is installed separately above (Step 4b) so it is intentionally NOT here.
 "$VENV_DIR/bin/pip" install \
     numpy \
-    torch \
     scipy \
     scikit-learn \
     pandas \
@@ -138,6 +159,40 @@ assert hasattr(esm, 'pretrained'), (
     'Need fair-esm, not esm (EvolutionaryScale).'
 )
 print(f'  esm.pretrained check:    OK (fair-esm)')
+
+# CUDA smoke test — this job holds a GPU (--gres=gpu:1), so exercise torch's
+# built-in CUDA here to catch a torch-CUDA/driver mismatch (or a bad node) at
+# env-reset time instead of deep inside every downstream training job. Retry the
+# transient 'CUDA unknown error' a few times before failing loudly.
+print()
+print('CUDA smoke test...')
+import torch
+import time as _t
+_cuda_ok = False
+_last = None
+for _i in range(1, 4):
+    try:
+        torch.cuda.init()
+        assert torch.cuda.is_available(), 'torch.cuda.is_available() is False'
+        _x = torch.zeros(1, device='cuda'); _ = (_x + 1).item()
+        _cuda_ok = True
+        break
+    except Exception as _e:
+        _last = _e
+        print(f'  cuda check attempt {_i}/3 failed: {_e}')
+        try:
+            torch.cuda.empty_cache()
+        except Exception:
+            pass
+        _t.sleep(10 * _i)
+if not _cuda_ok:
+    print(f'  CUDA CHECK FAILED after 3 attempts: {_last}')
+    print(f'  torch={torch.__version__}  cuda={torch.version.cuda}')
+    print('  -> If a driver/build mismatch: pin torch via TORCH_SPEC /')
+    print('     TORCH_INDEX_URL (see Step 4b note). If node-local: resubmit.')
+    exit(1)
+print(f'  cuda check: OK  torch={torch.__version__}  '
+      f'cuda={torch.version.cuda}  device={torch.cuda.get_device_name(0)}')
 
 # Pre-cache HGNC gene name database
 print()

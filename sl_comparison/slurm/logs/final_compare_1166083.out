@@ -1,0 +1,273 @@
+--- collecting siamese_sl results ---
+[selection] cv1: reported AUPRG 0.9551 over 17 configs; nested leave-one-fold-out 0.9551 (+0.0000)
+[discover] cv1 <- siamese_sl/results/best_cat_geneformer_go2vec_kg_complex_ppi_raw_prot_t5_text_embed_cv1/results.json  [selected on val, score=0.9928]
+siamese_sl/cv1: collected ['auroc', 'aupr', 'auprg', 'aupr_norm', 'baseline', 'f1', 'ndcg@10', 'ndcg@20', 'ndcg@50', 'recall@10', 'recall@20', 'recall@50', 'precision@10', 'precision@20', 'precision@50', 'map@10', 'map@20', 'map@50'] -> sl_comparison/results/siamese_sl_cv1.json  [AUPRG(any)=0.9551]
+[selection] cv2: reported AUPRG 0.8867 over 17 configs; nested leave-one-fold-out 0.8834 (-0.0033)
+[discover] cv2 <- siamese_sl/results/pcavar0.8_text_embed_cv2/results.json  [selected on val, score=0.9591]
+siamese_sl/cv2: collected ['auroc', 'aupr', 'auprg', 'aupr_norm', 'baseline', 'f1', 'ndcg@10', 'ndcg@20', 'ndcg@50', 'recall@10', 'recall@20', 'recall@50', 'precision@10', 'precision@20', 'precision@50', 'map@10', 'map@20', 'map@50'] -> sl_comparison/results/siamese_sl_cv2.json  [AUPRG(any)=0.8867]
+[selection] cv3: reported AUPRG 0.8146 over 17 configs; nested leave-one-fold-out 0.8146 (+0.0000)
+[discover] cv3 <- siamese_sl/results/pcavar0.8_node2vec_ppi_cv3/results.json  [selected on val, score=0.8919]
+siamese_sl/cv3: collected ['auroc', 'aupr', 'auprg', 'aupr_norm', 'baseline', 'f1', 'ndcg@10', 'ndcg@20', 'ndcg@50', 'recall@10', 'recall@20', 'recall@50', 'precision@10', 'precision@20', 'precision@50', 'map@10', 'map@20', 'map@50'] -> sl_comparison/results/siamese_sl_cv3.json  [AUPRG(any)=0.8146]
+
+--- siamese_sl / cv1 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.9126 AP 0.7748 AUPRG 0.9587 NDCG@10 0.1582 (corrected 0.1504)
+  fold 1: AUROC 0.8983 AP 0.7640 AUPRG 0.9566 NDCG@10 0.2059 (corrected 0.1901)
+  fold 2: AUROC 0.8912 AP 0.7557 AUPRG 0.9539 NDCG@10 0.1748 (corrected 0.1604)
+  fold 3: AUROC 0.9016 AP 0.7739 AUPRG 0.9579 NDCG@10 0.2500 (corrected 0.2333)
+  fold 4: AUROC 0.8942 AP 0.7456 AUPRG 0.9485 NDCG@10 0.1600 (corrected 0.1466)
+
+siamese_sl(29,248)/cv1: AUROC 0.8996 | AP 0.7628 | AUPRG 0.9551 | R@50 0.4933  -> sl_comparison/results/siamese_sl_cv1.json
+
+--- siamese_sl / cv2 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.8251 AP 0.6012 AUPRG 0.9337 NDCG@10 0.1947 (corrected 0.1814)
+  fold 1: AUROC 0.8129 AP 0.6344 AUPRG 0.8597 NDCG@10 0.0278 (corrected 0.0215)
+  fold 2: AUROC 0.7342 AP 0.5340 AUPRG 0.8100 NDCG@10 0.0652 (corrected 0.0467)
+  fold 3: AUROC 0.8062 AP 0.6412 AUPRG 0.9073 NDCG@10 0.1488 (corrected 0.1315)
+  fold 4: AUROC 0.8157 AP 0.5993 AUPRG 0.9228 NDCG@10 0.1308 (corrected 0.0971)
+
+siamese_sl(19,745)/cv2: AUROC 0.7988 | AP 0.6020 | AUPRG 0.8867 | R@50 0.2076  -> sl_comparison/results/siamese_sl_cv2.json
+
+--- siamese_sl / cv3 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.6949 AP 0.2556 AUPRG 0.8242 NDCG@10 0.0297 (corrected 0.0275)
+  fold 1: AUROC 0.7018 AP 0.5601 AUPRG 0.7060 NDCG@10 0.0053 (corrected 0.0026)
+  fold 2: AUROC 0.7854 AP 0.5937 AUPRG 0.8412 NDCG@10 0.0016 (corrected 0.0005)
+  fold 3: AUROC 0.7734 AP 0.4738 AUPRG 0.8184 NDCG@10 0.0038 (corrected 0.0032)
+  fold 4: AUROC 0.6766 AP 0.4367 AUPRG 0.8829 NDCG@10 0.0716 (corrected 0.0313)
+
+siamese_sl(4,513)/cv3: AUROC 0.7264 | AP 0.4640 | AUPRG 0.8146 | R@50 0.0656  -> sl_comparison/results/siamese_sl_cv3.json
+--- four-model comparison table ---
+
+=================================================================================================================================================
+                                                          CV1 (edge) - model comparison                                                          
+=================================================================================================================================================
+Model               | AUPRG           | AP_norm         | AUROC           | AP              | AUPR[1]         | baseline        | maxF1[2]       
+-------------------------------------------------------------------------------------------------------------------------------------------------
+siamese_sl(29,248)  | 0.9551±0.0037   | 0.7136±0.0134   | 0.8996±0.0074   | 0.7628±0.0111   | 0.7628±0.0111   | 0.1720±0.0000   | 0.7165±0.0067  
+SLMGAE(253,547,952) | 0.9776±0.0009   | 0.8255±0.0054   | 0.9213±0.0020   | 0.8555±0.0045   | 0.8561±0.0045   | 0.1720±0.0000   | 0.7915±0.0081  
+SLGNN(924,928)      | 0.6477±0.0118   | 0.1985±0.0090   | 0.6642±0.0052   | 0.3364±0.0075   | 0.3362±0.0074   | 0.1720±0.0000   | 0.3858±0.0056  
+NSF4SL(527,104)     | -0.2275±0.1688  | 0.0016±0.0148   | 0.4951±0.0396   | 0.1733±0.0122   | 0.1731±0.0122   | 0.1720±0.0000   | 0.3324±0.0028  
+DegreePrior(0)      | 0.9122±0.0051   | 0.5772±0.0134   | 0.8811±0.0053   | 0.6499±0.0111   | 0.6480±0.0112   | 0.1720±0.0000   | 0.6521±0.0084  
+-------------------------------------------------------------------------------------------------------------------------------------------------
+AUPRG / AP_norm are baseline-anchored skill scores (random -> 0 at any
+prevalence), NOT prevalence-invariant; AUROC is the only invariant column.
+[1] AUPR is the vendored benchmark's trapezoidal auc(recall, precision)
+    (the auc(recall, precision) call in cal_metrics), kept for comparability with
+    published SLMGAE/SLGNN/NSF4SL tables. It linearly interpolates between
+    PR points, which no classifier achieves, and rewards ties: a CONSTANT
+    score matrix scores exactly (1+baseline)/2 — i.e. the `baseline`
+    column of this very table determines it, and on every CV here that
+    lands near 0.585, above most real models. NOT hard-coded: an earlier
+    footnote quoted 0.5786, which was the value under the pre-2026-08-10
+    fold set and silently went stale when the label rule changed.
+    Report AP (average precision), which gives a constant predictor exactly
+    `baseline`.
+[2] maxF1 is the MAXIMUM F1 over the PR curve, i.e. an oracle threshold
+    chosen against the test labels (the max-F1 expression in cal_metrics).
+    It is applied identically to every model, but it is not an operating
+    point any deployed model could pick.
+=================================================================================================================================================
+
+=========================================================================================================================================================================================================================
+                                                                                   CV1 (edge) - retrieval (see normalisation footnote)                                                                                   
+=========================================================================================================================================================================================================================
+Model               | R@10            | R@50            | NDCG@10         | NDCG@10c        | NDCG@50         | NDCG@50c        | MAP@10          | MAP@10c         | P@10            | P@10t           | degen-rows     
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+siamese_sl(29,248)  | 0.2551±0.0509   | 0.4933±0.0669   | 0.1898±0.0346   | 0.1761±0.0324   | 0.2598±0.0343   | 0.2363±0.0329   | 0.1767±0.0286   | 0.1322±0.0270   | 0.2558±0.0508   | 0.0449±0.0068   | 0.0000±0.0000  
+SLMGAE(253,547,952) | 0.4112±0.0189   | 0.6025±0.0063   | 0.2210±0.0046   | 0.2115±0.0056   | 0.2912±0.0063   | 0.2716±0.0063   | 0.1594±0.0076   | 0.1381±0.0096   | 0.4125±0.0189   | 0.0590±0.0033   | 0.0954±0.0060  
+SLGNN(924,928)      | 0.0059±0.0011   | 0.0126±0.0019   | 0.0069±0.0010   | 0.0049±0.0006   | 0.0141±0.0014   | 0.0071±0.0008   | 0.0063±0.0009   | 0.0035±0.0004   | 0.0064±0.0012   | 0.0017±0.0004   | 0.0000±0.0000  
+NSF4SL(527,104)     | 0.6107±0.0185   | 0.7371±0.0057   | 0.4590±0.0262   | 0.4494±0.0255   | 0.5104±0.0203   | 0.4893±0.0198   | 0.4130±0.0306   | 0.3699±0.0297   | 0.6176±0.0199   | 0.1127±0.0112   | 0.0000±0.0000  
+DegreePrior(0)      | 0.5431±0.0030   | 0.6713±0.0048   | 0.3881±0.0066   | 0.3761±0.0065   | 0.4399±0.0062   | 0.4196±0.0061   | 0.3383±0.0090   | 0.3049±0.0097   | 0.5444±0.0031   | 0.0772±0.0011   | 0.0000±0.0000  
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+All models rank against the SAME shared gene universe
+(sl_comparison/folds/genes.txt) on the SAME folds, siamese_sl included
+(every siamese config.json carries folds_dir=../sl_comparison/folds).
+The columns differ only in how they are NORMALISED:
+  R@k       hits@k / #relevant. Correct as published - prefer these.
+  NDCG@k    vendored: IDCG taken over the model's OWN top-100, so IDCG =
+            min(k, hits-in-top-100) instead of min(k, #relevant)
+            (cal_metrics' ndcg_score call, handed y_bool over the model's
+            own top-100). Inflated.
+  NDCG@kc   same ranking, IDCG from the true #relevant. Corrected.
+  MAP@k     vendored: AP divided by hits-in-top-k rather than
+            min(k, #relevant) (calculate_AP_at_k). Inflated more
+            than NDCG.
+  MAP@kc    same ranking, divided by min(k, #relevant). Corrected.
+  P@10      vendored: hits/min(k, #relevant) - a second copy of R@k
+            whenever #relevant <= k (cal_metrics' precision_k block),
+            not precision.
+  P@10t     true hits/k.
+The corrections shrink every score and shrink the WEAKEST retriever most;
+on the 2026-08-06 run they reordered no cell. See retrieval_metrics.py.
+degen-rows = fraction of scored test genes whose score row is CONSTANT.
+  Those genes' @k values are an arbitrary tie-break, not model output, and
+  do not reproduce across numpy versions. Any row with a non-trivial
+  degen-rows figure has a retrieval column that should not be published.
+=========================================================================================================================================================================================================================
+
+=================================================================================================================================================
+                                                          CV2 (gene) - model comparison                                                          
+=================================================================================================================================================
+Model               | AUPRG           | AP_norm         | AUROC           | AP              | AUPR[1]         | baseline        | maxF1[2]       
+-------------------------------------------------------------------------------------------------------------------------------------------------
+siamese_sl(19,745)  | 0.8867±0.0459   | 0.5194±0.0497   | 0.7988±0.0329   | 0.6020±0.0380   | 0.6020±0.0380   | 0.1709±0.0302   | 0.5718±0.0331  
+SLMGAE(253,547,952) | 0.8637±0.0559   | 0.4839±0.0454   | 0.7654±0.0130   | 0.5732±0.0262   | 0.5822±0.0261   | 0.1709±0.0302   | 0.5432±0.0297  
+SLGNN(924,928)      | 0.1739±0.0591   | 0.0209±0.0076   | 0.5117±0.0106   | 0.1882±0.0308   | 0.1881±0.0308   | 0.1709±0.0302   | 0.2908±0.0440  
+NSF4SL(527,104)     | 0.1310±0.2931   | 0.0360±0.0733   | 0.5173±0.0646   | 0.2025±0.0445   | 0.2024±0.0444   | 0.1709±0.0302   | 0.3090±0.0333  
+DegreePrior(0)      | 0.6271±0.2748   | 0.3267±0.1296   | 0.6343±0.0990   | 0.4453±0.0890   | 0.4460±0.0924   | 0.1709±0.0302   | 0.4207±0.0780  
+-------------------------------------------------------------------------------------------------------------------------------------------------
+AUPRG / AP_norm are baseline-anchored skill scores (random -> 0 at any
+prevalence), NOT prevalence-invariant; AUROC is the only invariant column.
+[1] AUPR is the vendored benchmark's trapezoidal auc(recall, precision)
+    (the auc(recall, precision) call in cal_metrics), kept for comparability with
+    published SLMGAE/SLGNN/NSF4SL tables. It linearly interpolates between
+    PR points, which no classifier achieves, and rewards ties: a CONSTANT
+    score matrix scores exactly (1+baseline)/2 — i.e. the `baseline`
+    column of this very table determines it, and on every CV here that
+    lands near 0.585, above most real models. NOT hard-coded: an earlier
+    footnote quoted 0.5786, which was the value under the pre-2026-08-10
+    fold set and silently went stale when the label rule changed.
+    Report AP (average precision), which gives a constant predictor exactly
+    `baseline`.
+[2] maxF1 is the MAXIMUM F1 over the PR curve, i.e. an oracle threshold
+    chosen against the test labels (the max-F1 expression in cal_metrics).
+    It is applied identically to every model, but it is not an operating
+    point any deployed model could pick.
+=================================================================================================================================================
+
+=========================================================================================================================================================================================================================
+                                                                                   CV2 (gene) - retrieval (see normalisation footnote)                                                                                   
+=========================================================================================================================================================================================================================
+Model               | R@10            | R@50            | NDCG@10         | NDCG@10c        | NDCG@50         | NDCG@50c        | MAP@10          | MAP@10c         | P@10            | P@10t           | degen-rows     
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+siamese_sl(19,745)  | 0.1116±0.0572   | 0.2076±0.1089   | 0.1135±0.0597   | 0.0956±0.0575   | 0.1492±0.0753   | 0.1197±0.0702   | 0.1141±0.0682   | 0.0732±0.0524   | 0.1170±0.0594   | 0.0304±0.0126   | 0.0000±0.0000  
+SLMGAE(253,547,952) | 0.1134±0.0817   | 0.1786±0.0952   | 0.0691±0.0480   | 0.0586±0.0421   | 0.0959±0.0511   | 0.0780±0.0448   | 0.0480±0.0340   | 0.0318±0.0248   | 0.1158±0.0829   | 0.0255±0.0165   | 0.1767±0.0294  
+SLGNN(924,928)      | 0.0018±0.0008   | 0.0057±0.0018   | 0.0024±0.0012   | 0.0012±0.0006   | 0.0064±0.0019   | 0.0024±0.0006   | 0.0019±0.0010   | 0.0007±0.0004   | 0.0019±0.0008   | 0.0005±0.0002   | 0.0000±0.0000  
+NSF4SL(527,104)     | 0.1879±0.1139   | 0.2339±0.1253   | 0.1603±0.0780   | 0.1433±0.0762   | 0.1834±0.0826   | 0.1552±0.0793   | 0.1444±0.0657   | 0.1121±0.0591   | 0.1932±0.1147   | 0.0407±0.0212   | 0.0000±0.0000  
+DegreePrior(0)      | 0.2181±0.1202   | 0.2517±0.1304   | 0.1968±0.0838   | 0.1761±0.0807   | 0.2154±0.0901   | 0.1859±0.0845   | 0.1828±0.0701   | 0.1405±0.0616   | 0.2255±0.1218   | 0.0503±0.0247   | 0.0000±0.0000  
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+All models rank against the SAME shared gene universe
+(sl_comparison/folds/genes.txt) on the SAME folds, siamese_sl included
+(every siamese config.json carries folds_dir=../sl_comparison/folds).
+The columns differ only in how they are NORMALISED:
+  R@k       hits@k / #relevant. Correct as published - prefer these.
+  NDCG@k    vendored: IDCG taken over the model's OWN top-100, so IDCG =
+            min(k, hits-in-top-100) instead of min(k, #relevant)
+            (cal_metrics' ndcg_score call, handed y_bool over the model's
+            own top-100). Inflated.
+  NDCG@kc   same ranking, IDCG from the true #relevant. Corrected.
+  MAP@k     vendored: AP divided by hits-in-top-k rather than
+            min(k, #relevant) (calculate_AP_at_k). Inflated more
+            than NDCG.
+  MAP@kc    same ranking, divided by min(k, #relevant). Corrected.
+  P@10      vendored: hits/min(k, #relevant) - a second copy of R@k
+            whenever #relevant <= k (cal_metrics' precision_k block),
+            not precision.
+  P@10t     true hits/k.
+The corrections shrink every score and shrink the WEAKEST retriever most;
+on the 2026-08-06 run they reordered no cell. See retrieval_metrics.py.
+degen-rows = fraction of scored test genes whose score row is CONSTANT.
+  Those genes' @k values are an arbitrary tie-break, not model output, and
+  do not reproduce across numpy versions. Any row with a non-trivial
+  degen-rows figure has a retrieval column that should not be published.
+=========================================================================================================================================================================================================================
+
+=================================================================================================================================================
+                                                     CV3 (pair/cold-start) - model comparison                                                    
+=================================================================================================================================================
+Model               | AUPRG           | AP_norm         | AUROC           | AP              | AUPR[1]         | baseline        | maxF1[2]       
+-------------------------------------------------------------------------------------------------------------------------------------------------
+siamese_sl(4,513)   | 0.8146±0.0588   | 0.3611±0.0971   | 0.7264±0.0442   | 0.4640±0.1186   | 0.4631±0.1187   | 0.1684±0.0662   | 0.4990±0.0995  
+SLMGAE(253,547,952) | 0.7129±0.0798   | 0.2497±0.0783   | 0.7054±0.0378   | 0.3713±0.1134   | 0.3874±0.1178   | 0.1684±0.0662   | 0.4288±0.0978  
+SLGNN(924,928)      | -0.0042±0.0755  | -0.0014±0.0059  | 0.4986±0.0141   | 0.1674±0.0642   | 0.1668±0.0643   | 0.1684±0.0662   | 0.2835±0.0967  
+NSF4SL(527,104)     | -0.2620±0.2386  | -0.0231±0.0253  | 0.4547±0.0509   | 0.1501±0.0595   | 0.1497±0.0595   | 0.1684±0.0662   | 0.2857±0.0986  
+DegreePrior(0)      | 0.0000±0.0000   | 0.0000±0.0000   | 0.5000±0.0000   | 0.1684±0.0662   | 0.5842±0.0331   | 0.1684±0.0662   | 0.2827±0.0970  
+-------------------------------------------------------------------------------------------------------------------------------------------------
+AUPRG / AP_norm are baseline-anchored skill scores (random -> 0 at any
+prevalence), NOT prevalence-invariant; AUROC is the only invariant column.
+[1] AUPR is the vendored benchmark's trapezoidal auc(recall, precision)
+    (the auc(recall, precision) call in cal_metrics), kept for comparability with
+    published SLMGAE/SLGNN/NSF4SL tables. It linearly interpolates between
+    PR points, which no classifier achieves, and rewards ties: a CONSTANT
+    score matrix scores exactly (1+baseline)/2 — i.e. the `baseline`
+    column of this very table determines it, and on every CV here that
+    lands near 0.585, above most real models. NOT hard-coded: an earlier
+    footnote quoted 0.5786, which was the value under the pre-2026-08-10
+    fold set and silently went stale when the label rule changed.
+    Report AP (average precision), which gives a constant predictor exactly
+    `baseline`.
+[2] maxF1 is the MAXIMUM F1 over the PR curve, i.e. an oracle threshold
+    chosen against the test labels (the max-F1 expression in cal_metrics).
+    It is applied identically to every model, but it is not an operating
+    point any deployed model could pick.
+=================================================================================================================================================
+
+=========================================================================================================================================================================================================================
+                                                                              CV3 (pair/cold-start) - retrieval (see normalisation footnote)                                                                             
+=========================================================================================================================================================================================================================
+Model               | R@10            | R@50            | NDCG@10         | NDCG@10c        | NDCG@50         | NDCG@50c        | MAP@10          | MAP@10c         | P@10            | P@10t           | degen-rows     
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+siamese_sl(4,513)   | 0.0290±0.0322   | 0.0656±0.0606   | 0.0224±0.0266   | 0.0130±0.0135   | 0.0419±0.0331   | 0.0247±0.0218   | 0.0132±0.0137   | 0.0042±0.0045   | 0.0293±0.0320   | 0.0083±0.0079   | 0.0000±0.0000  
+SLMGAE(253,547,952) | 0.0000±0.0000   | 0.0046±0.0083   | 0.0003±0.0002   | 0.0001±0.0001   | 0.0019±0.0023   | 0.0012±0.0018   | 0.0002±0.0004   | 0.0000±0.0000   | 0.0001±0.0002   | 0.0001±0.0002   | 0.2694±0.0597  
+SLGNN(924,928)      | 0.0015±0.0011   | 0.0088±0.0059   | 0.0025±0.0015   | 0.0011±0.0009   | 0.0068±0.0018   | 0.0028±0.0013   | 0.0017±0.0013   | 0.0006±0.0008   | 0.0017±0.0012   | 0.0007±0.0003   | 0.0000±0.0000  
+NSF4SL(527,104)     | 0.0000±0.0000   | 0.0006±0.0012   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0005±0.0007   | 0.0002±0.0003   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000  
+DegreePrior(0)      | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000  
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+All models rank against the SAME shared gene universe
+(sl_comparison/folds/genes.txt) on the SAME folds, siamese_sl included
+(every siamese config.json carries folds_dir=../sl_comparison/folds).
+The columns differ only in how they are NORMALISED:
+  R@k       hits@k / #relevant. Correct as published - prefer these.
+  NDCG@k    vendored: IDCG taken over the model's OWN top-100, so IDCG =
+            min(k, hits-in-top-100) instead of min(k, #relevant)
+            (cal_metrics' ndcg_score call, handed y_bool over the model's
+            own top-100). Inflated.
+  NDCG@kc   same ranking, IDCG from the true #relevant. Corrected.
+  MAP@k     vendored: AP divided by hits-in-top-k rather than
+            min(k, #relevant) (calculate_AP_at_k). Inflated more
+            than NDCG.
+  MAP@kc    same ranking, divided by min(k, #relevant). Corrected.
+  P@10      vendored: hits/min(k, #relevant) - a second copy of R@k
+            whenever #relevant <= k (cal_metrics' precision_k block),
+            not precision.
+  P@10t     true hits/k.
+The corrections shrink every score and shrink the WEAKEST retriever most;
+on the 2026-08-06 run they reordered no cell. See retrieval_metrics.py.
+degen-rows = fraction of scored test genes whose score row is CONSTANT.
+  Those genes' @k values are an arbitrary tie-break, not model output, and
+  do not reproduce across numpy versions. Any row with a non-trivial
+  degen-rows figure has a retrieval column that should not be published.
+=========================================================================================================================================================================================================================
+
+PARAMETER COUNTS (the number in each model's label)
+  Counted identically for all rows by model_params.count_parameters: every
+  torch parameter with requires_grad=True at model-construction time. Two
+  caveats a reader will otherwise draw the wrong conclusion from:
+   - SLMGAE's count is dominated by a (3, n_genes, n_genes) attention block
+     (234,649,008 of 253,547,952 = 92.6%). Gradient reaches it only at
+     training-edge positions, so ~96% of the total never updates; its
+     effective trained size is ~10.7M, not 253.5M.
+   - siamese_sl's count EXCLUDES its frozen pretrained gene-embedding table
+     (19,397 x 128 = 2,482,816 values), which is an input, not a parameter.
+  DegreePrior(0) is exact: it has no parameters at all.
+
+MODEL SELECTION REGIME
+  n/a (no training, no selection): DegreePrior/cv1, DegreePrior/cv2, DegreePrior/cv3
+  val: NSF4SL/cv1, NSF4SL/cv2, NSF4SL/cv3, SLGNN/cv1, SLGNN/cv2, SLGNN/cv3, SLMGAE/cv1, SLMGAE/cv2, SLMGAE/cv3, siamese_sl/cv1, siamese_sl/cv2, siamese_sl/cv3
+
+LABEL SEMANTICS (rows do NOT share a definition of 'positive')
+  siamese_sl: OR-collapse: a pair is POSITIVE if it is SL in ANY of the 8 cell-line heads. Since 2026-08-10 the shared folds use the SAME rule (conflict_policy=or_collapse: positive if any screen called it SL in any line, negative only if every screen called it non-SL), so this row and the SLGNN / NSF4SL / SLMGAE / DegreePrior rows are graded on an identical positive set — including the 5,542 pairs screened both ways, which every row now counts as positive. What still differs is the SCORE: siamese emits 8 per-head logits collapsed by max, the others emit one score for the unlabelled relation.
+
+SELECTION BUDGET (asymmetric across rows — disclose in methods)
+  siamese_sl/cv1: best of 17 configs picked on validation. Selection optimism measured on the sweep's own scoring: +0.0000 (0.9551 -> 0.9551). Applied to this table's AUPRG 0.9551 that is 0.9551 — publish that.
+      held-out selection reproduced 'best_cat_geneformer_go2vec_kg_complex_ppi_raw_prot_t5_text_embed_cv1' on all 5 folds, so this delta is exactly 0 by construction — an identity, NOT a measurement that selection was free.
+  siamese_sl/cv2: best of 17 configs picked on validation. Selection optimism measured on the sweep's own scoring: -0.0033 (0.8867 -> 0.8834). Applied to this table's AUPRG 0.8867 that is 0.8834 — publish that.
+      driven by 1 of 5 folds swapping away from 'pcavar0.8_text_embed_cv2' — a 1-fold effect, not a uniform offset; report it with that caveat.
+  siamese_sl/cv3: best of 17 configs picked on validation. Selection optimism measured on the sweep's own scoring: +0.0000 (0.8146 -> 0.8146). Applied to this table's AUPRG 0.8146 that is 0.8146 — publish that.
+      held-out selection reproduced 'pcavar0.8_node2vec_ppi_cv3' on all 5 folds, so this delta is exactly 0 by construction — an identity, NOT a measurement that selection was free.
+  Every other row is a single fixed configuration (no sweep).
+
+PROVENANCE: all rows scored on one fold set (genes.txt 42ff034debb48f84, all_pos.npy 20be58a407d6aa9a, meta.json 15e1a39cf91a5615).
+
+Tidy CSV -> sl_comparison/results/comparison.csv
+Caveats   -> sl_comparison/results/comparison_notes.txt
+Done: Fri Aug 28 17:06:34 EDT 2026
