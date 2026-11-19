@@ -9,4 +9,4 @@ find . -name '*.part-aa' -print0 | while IFS= read -r -d '' first; do
   echo "joined $f"
 done
 find . -name '*_predictions.csv.gz' -exec gunzip -f {} +
-shasum -a 256 -c DATA_SHA256SUMS --quiet && echo "data: all files match DATA_SHA256SUMS"
+shasum -a 256 -c DATA_SHA256SUMS --ignore-missing --quiet && echo "data: every file present matches DATA_SHA256SUMS"

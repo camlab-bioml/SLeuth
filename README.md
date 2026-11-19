@@ -10,7 +10,7 @@ Code, results and cluster logs for "Simple Siamese Networks on Foundation Model 
 | `sl_comparison/` | Shared folds, evaluator, baselines' grading, comparison, bootstrap CIs, paper tables |
 | `SLMGAE-in-pytorch/`, `SLGNN/`, `NSF4SL/`, `ELISL/` | Baselines, run with the authors' code and inputs |
 | `analysis/` | Scripts behind the significance tests, appendix tables and figures, with their outputs |
-| `data/`, `external data/` | Inputs: SynLethDB pairs, embeddings, baseline inputs, external screens (`DATA.md`) |
+| `data/` | Inputs included in the repository (see [Data](#data)) |
 | `run_benchmarking_siamese_vs_others.sh` | Runs the whole pipeline on Slurm |
 | `*/slurm/logs/` | Slurm output of every job in the reported run |
 
@@ -19,7 +19,7 @@ Tiers I, II and III are `cv1`, `cv2` and `cv3` in file names. Model names: SLeut
 ## Quick start (no training)
 
 ```bash
-bash restore.sh        # rejoin files split for GitHub, unzip screen predictions, check data hashes
+bash restore.sh        # rejoin split files, unzip screen predictions, check data present against DATA_SHA256SUMS
 python3 sl_comparison/compare.py --results_dir sl_comparison/results         # model comparison (Table 1 numbers)
 python3 sl_comparison/paper_tables.py --pca_arm none --out_dir /tmp/tables   # rebuild the paper-table CSVs
 python3 analysis/make_tex.py                                                 # rebuild the LaTeX tables
@@ -61,6 +61,33 @@ Per-model metrics: `sl_comparison/results/<model>_cv<k>.json` (`siamese_sl_pd_po
 - The reported model's checkpoints are included (`siamese_sl/results/**/checkpoints/`). `EXCLUDED_FILES.tsv` lists what is left out for size (PCA-arm checkpoints, per-pair probability files), with SHA-256. Files over 100 MB are split into `.part-*` and the screen predictions gzipped; `restore.sh` undoes both.
 - For anonymity, cluster and local paths in logs, configs and results were replaced by `<repo>`, `<home>` and `<project>`. Hashes over files that contain paths (for example a combo's `config.json`) therefore differ from those recorded in the run. The same paths stored inside 330 checkpoints were rewritten the same way, weights unchanged; `ANONYMIZED_CHECKPOINTS.tsv` maps each checkpoint's original SHA-256 (the one the run recorded) to its new one.
 
+## Data
+
+`DATA_SHA256SUMS` lists the SHA-256 of every input file of the reported run, including those not in the repository; `restore.sh` checks the ones present.
+
+### External screens (not included; download from the source)
+
+These files belong to their authors and are not redistributed here. Download each one, save it under `external data/` (with the space) using the name in the last column, and check it with `shasum -a 256 -c DATA_SHA256SUMS --ignore-missing`.
+
+| Screen | Source | File to download | Save as |
+|---|---|---|---|
+| Adamson γ | Simpson, Ling, Jing & Adamson (2023), *Mapping the Genetic Interaction Network of PARP inhibitor Response*, bioRxiv, [doi:10.1101/2023.08.19.553986](https://doi.org/10.1101/2023.08.19.553986) | sgRNA-pair phenotype table (columns `FirstGene`, `SecondGene`, `Gamma`, `Tau`, `Rho`) | `pair_sgRNA_phenotypes.txt` |
+| Adamson GI | same preprint | Supplementary Table S3, [`media-3.xlsx`](https://www.biorxiv.org/content/biorxiv/early/2023/08/20/2023.08.19.553986/DC3/embed/media-3.xlsx?download=true) | `Simpson2023_TableS3_GI_scores.xlsx` |
+| Corn | Fielden et al. (2025), *Comprehensive interrogation of synthetic lethality in the DNA damage response*, Nature 640:1093–1102, [doi:10.1038/s41586-025-08815-4](https://doi.org/10.1038/s41586-025-08815-4) | Supplementary file `41586_2025_8815_MOESM5_ESM.csv` | `41586_2025_8815_MOESM5_ESM.csv` |
+| Gilbert | Horlbeck et al. (2018), *Mapping the Genetic Landscape of Human Cells*, Cell 174:953–967, [doi:10.1016/j.cell.2018.06.010](https://doi.org/10.1016/j.cell.2018.06.010) | Supplementary table `mmc5.xlsx` | `mmc5.xlsx` |
+
+Columns used are in Appendix Table 8 of the paper and `siamese_sl/slurm/eval_finetuning.conf` (`DATASETS`).
+
+### Other inputs
+
+| Input | How to obtain |
+|---|---|
+| SynLethDB pairs | `cd siamese_sl && python download_synlethdb.py --output ../data/SL_SynLethDB_experimental.txt` and `--relation NONSL --output ../data/SL_SynLethDB_experimental_negatives.txt` (from [SynLethDB](https://www.synlethdb.com/download)); the `.sources.tsv` sidecars are included |
+| Gene embeddings | `siamese_sl/slurm/run_generate_embeddings.sh` (sources and models in Appendix A of the paper); intermediate caches are in `data/embeddings_cache/` |
+| SLMGAE GO similarity | `data/Human_GOsim.txt`, `data/Human_GOsim_CC.txt` from the original SLMGAE release (Hao et al., 2021) |
+| SLGNN, NSF4SL, ELISL inputs | `SLGNN/build_synlethkg.py`, `NSF4SL/build_transe_features.py`, `ELISL/build_elisl_inputs.py` |
+| Shared folds | Included: `sl_comparison/folds/` |
+
 ## Running
 
-Python 3.12 (the cluster environment: `siamese_sl/slurm/config.conf`). See `DATA.md` for the inputs, then `bash run_benchmarking_siamese_vs_others.sh` on a Slurm cluster with GPUs. `siamese_sl/slurm/README.md` and `sl_comparison/README.md` describe each stage.
+Python 3.12 (the cluster environment: `siamese_sl/slurm/config.conf`). Obtain the inputs above, then `bash run_benchmarking_siamese_vs_others.sh` on a Slurm cluster with GPUs. `siamese_sl/slurm/README.md` and `sl_comparison/README.md` describe each stage.
