@@ -1,0 +1,295 @@
+{
+  "format": "siamese_sl.pair_predictions.v1",
+  "created": "2026-11-17T10:41:27",
+  "model_dir": "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3",
+  "model_class": "SiameseSLMultiCell",
+  "cv_type": "cv3",
+  "kernel": "pd",
+  "cell_lines": "pooled",
+  "num_folds": 5,
+  "fold_ids": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "checkpoint_sha256": {
+    "fold_0_best.pt": "05b8912f274630bcb7c6d1ccbfaef822d9df6ffdf0e93fc28dbacdb655f0d841",
+    "fold_1_best.pt": "8b35b24f5584dfd70496fb30707d1784d8a139c1f00870e8f8d4fd9ba77e9382",
+    "fold_2_best.pt": "5e83edd256f4e27e73ae0591ab7e24dca63189f831dc009b25f0b962f6659991",
+    "fold_3_best.pt": "5b02c7e2498b4f9e9079c511d9e9840c084bf917beb9d4c119fb6f440b648363",
+    "fold_4_best.pt": "7ed785f6268a6ad76be39b9a72bc4e3c29daac06f377842d3d92ac030779231b"
+  },
+  "embeddings_paths": [
+    "<repo>/data/all_genes_geneformer.pt",
+    "<repo>/data/all_genes_scgpt.pt",
+    "<repo>/data/all_genes_go.pt",
+    "<repo>/data/all_genes_go2vec.pt",
+    "<repo>/data/all_genes_kg_complex.pt",
+    "<repo>/data/all_genes_ppi_svd.pt",
+    "<repo>/data/all_genes_ppi_raw.pt",
+    "<repo>/data/all_genes_mashup.pt",
+    "<repo>/data/all_genes_esm1b.pt",
+    "<repo>/data/all_genes_prot_t5.pt",
+    "<repo>/data/all_genes_text_embed.pt"
+  ],
+  "universe": "all",
+  "n_genes": 19397,
+  "genes": "genes.txt",
+  "shape": [
+    19397,
+    19397
+  ],
+  "dtype": "float32",
+  "symmetric": true,
+  "diagonal": "nan",
+  "aggregation": "mean over the fold models' values (probabilities / predicted values, not logits)",
+  "heads": [
+    "ANY"
+  ],
+  "sl_probability": {
+    "value": "sigmoid(logit) of the head. ANY is this model's one head, trained on the any-line (OR) label; it has no cell-line input.",
+    "files": {
+      "ANY": "sl_prob_ANY.npy"
+    },
+    "stats": {
+      "ANY": {
+        "min": 0.00011572167568374425,
+        "max": 0.9998102188110352,
+        "mean": 0.10863652146333994,
+        "n_exactly_0": 0,
+        "n_exactly_1": 0
+      }
+    }
+  },
+  "finetuned": [
+    {
+      "name": "finetuned_Adamson_Full_cv1",
+      "file": "finetuned_Adamson_Full_cv1.npy",
+      "dataset": "Adamson",
+      "column": "Gamma",
+      "sign": -1.0,
+      "mode": "Full",
+      "eval_cv": "cv1",
+      "head": "ANY (pooled)",
+      "head_idx": 0,
+      "value": "predicted Adamson Gamma in the screen's own sign and units, (a * logit[head] + c) / sign; the model was fitted to sign * Gamma, the mean of the screen's rows for a gene pair",
+      "note": "Gamma is the growth phenotype of the double knockdown, not a genetic-interaction score: about 90% of its variance over the screen's pairs is the two genes' own (additive) growth effects",
+      "screen_split": {
+        "cv_type": "cv1",
+        "split_seed": 42,
+        "train_frac": 0.8,
+        "val_frac": 0.1,
+        "n_pairs": 146583,
+        "n_genes": 542,
+        "n_train": 105539,
+        "n_val": 11727,
+        "n_test": 29317
+      },
+      "screen_pairs": "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/eval_finetuning_cv1/Adamson_finetuned_allpairs_Full.csv",
+      "held_out": "only the pairs with split == test in screen_pairs (or in Adamson_predictions.csv beside it); its train and val pairs are in-sample in this matrix, and a pair the screen did not measure is an extrapolation that no metric of the run grades",
+      "folds": [
+        {
+          "fold": 0,
+          "a": -0.01306832768023014,
+          "c": 0.1158732995390892,
+          "best_epoch": 28
+        },
+        {
+          "fold": 1,
+          "a": -0.013032983988523483,
+          "c": 0.13765493035316467,
+          "best_epoch": 64
+        },
+        {
+          "fold": 2,
+          "a": -0.013891153037548065,
+          "c": 0.11099684238433838,
+          "best_epoch": 27
+        },
+        {
+          "fold": 3,
+          "a": -0.012604333460330963,
+          "c": 0.12265221774578094,
+          "best_epoch": 38
+        },
+        {
+          "fold": 4,
+          "a": -0.02091287076473236,
+          "c": 0.10770653188228607,
+          "best_epoch": 14
+        }
+      ],
+      "source": "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/eval_finetuning_cv1/finetuned_models",
+      "eval_dir": "eval_finetuning_cv1",
+      "model_sha256": {
+        "Adamson_Full_fold0.pt": "efc47592bc302b5bcb6e1b6a058745a6da1897194af1eefa86731c7a3d48d27a",
+        "Adamson_Full_fold1.pt": "aa2015dfeae81b33c297c6b9e3f945dff8f2efef5225f255bef595986854e1e4",
+        "Adamson_Full_fold2.pt": "5172ce81d5e443e0a69b07ee52c24477b572a730c647bed1cfe26f31229a8acf",
+        "Adamson_Full_fold3.pt": "51d0402e4cf876d4ef8d9ca6fd1f56ec0ea75ccf10aecc78dae710ddfee221d3",
+        "Adamson_Full_fold4.pt": "868d137e4980ab8e2517a8dd3329953f69d5906a0ca1899ae5336fdd922e842d"
+      },
+      "stats": {
+        "min": -0.49787458777427673,
+        "max": 0.13338437676429749,
+        "mean": -0.1356587690136306,
+        "n_exactly_0": 0,
+        "n_exactly_1": 0
+      }
+    },
+    {
+      "name": "finetuned_Adamson_LP_last_cv1",
+      "file": "finetuned_Adamson_LP_last_cv1.npy",
+      "dataset": "Adamson",
+      "column": "Gamma",
+      "sign": -1.0,
+      "mode": "LP_last",
+      "eval_cv": "cv1",
+      "head": "ANY (pooled)",
+      "head_idx": 0,
+      "value": "predicted Adamson Gamma in the screen's own sign and units, (a * logit[head] + c) / sign; the model was fitted to sign * Gamma, the mean of the screen's rows for a gene pair",
+      "note": "Gamma is the growth phenotype of the double knockdown, not a genetic-interaction score: about 90% of its variance over the screen's pairs is the two genes' own (additive) growth effects",
+      "screen_split": {
+        "cv_type": "cv1",
+        "split_seed": 42,
+        "train_frac": 0.8,
+        "val_frac": 0.1,
+        "n_pairs": 146583,
+        "n_genes": 542,
+        "n_train": 105539,
+        "n_val": 11727,
+        "n_test": 29317
+      },
+      "screen_pairs": "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/eval_finetuning_cv1/Adamson_finetuned_allpairs_LP_last.csv",
+      "held_out": "only the pairs with split == test in screen_pairs (or in Adamson_predictions.csv beside it); its train and val pairs are in-sample in this matrix, and a pair the screen did not measure is an extrapolation that no metric of the run grades",
+      "folds": [
+        {
+          "fold": 0,
+          "a": -0.2067074477672577,
+          "c": -0.0471743680536747,
+          "best_epoch": 100
+        },
+        {
+          "fold": 1,
+          "a": -0.137626051902771,
+          "c": 0.038694899529218674,
+          "best_epoch": 99
+        },
+        {
+          "fold": 2,
+          "a": -0.14219297468662262,
+          "c": 0.0802832543849945,
+          "best_epoch": 100
+        },
+        {
+          "fold": 3,
+          "a": -0.12589290738105774,
+          "c": 0.10250764340162277,
+          "best_epoch": 100
+        },
+        {
+          "fold": 4,
+          "a": -0.23994871973991394,
+          "c": -0.03838319331407547,
+          "best_epoch": 100
+        }
+      ],
+      "source": "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/eval_finetuning_cv1/finetuned_models",
+      "eval_dir": "eval_finetuning_cv1",
+      "model_sha256": {
+        "Adamson_LP_last_fold0.pt": "52002a1bc7d5dd1e33d3fd9b8e7ac2f9776ede679fd5dfdf3fd28213173153b2",
+        "Adamson_LP_last_fold1.pt": "2d6d27a2e919525990bd3e0beb7335fb78c65968d85e0ad50fc62bdd6cd17bf7",
+        "Adamson_LP_last_fold2.pt": "7416c566f2dbb6748dcabc538abbf819e09675629c5bdd8b44aca5be4eb1c083",
+        "Adamson_LP_last_fold3.pt": "5c1bab6915ab257ad99501cfa0a62341c80917d23fb569dbdec227c7b411b548",
+        "Adamson_LP_last_fold4.pt": "85c17032e4281e1bce2e78ae01013c2c5271fcd3cf324fc99fd1a12930e6d182"
+      },
+      "stats": {
+        "min": -0.8532114028930664,
+        "max": 0.10630027204751968,
+        "mean": -0.13272684395459391,
+        "n_exactly_0": 0,
+        "n_exactly_1": 0
+      }
+    },
+    {
+      "name": "finetuned_Adamson_Scratch_cv1",
+      "file": "finetuned_Adamson_Scratch_cv1.npy",
+      "dataset": "Adamson",
+      "column": "Gamma",
+      "sign": -1.0,
+      "mode": "Scratch",
+      "eval_cv": "cv1",
+      "head": "ANY (pooled)",
+      "head_idx": 0,
+      "value": "predicted Adamson Gamma in the screen's own sign and units, (a * logit[head] + c) / sign; the model was fitted to sign * Gamma, the mean of the screen's rows for a gene pair",
+      "note": "Gamma is the growth phenotype of the double knockdown, not a genetic-interaction score: about 90% of its variance over the screen's pairs is the two genes' own (additive) growth effects",
+      "screen_split": {
+        "cv_type": "cv1",
+        "split_seed": 42,
+        "train_frac": 0.8,
+        "val_frac": 0.1,
+        "n_pairs": 146583,
+        "n_genes": 542,
+        "n_train": 105539,
+        "n_val": 11727,
+        "n_test": 29317
+      },
+      "screen_pairs": "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/eval_finetuning_cv1/Adamson_finetuned_allpairs_Scratch.csv",
+      "held_out": "only the pairs with split == test in screen_pairs (or in Adamson_predictions.csv beside it); its train and val pairs are in-sample in this matrix, and a pair the screen did not measure is an extrapolation that no metric of the run grades",
+      "folds": [
+        {
+          "fold": 0,
+          "a": -0.04024035483598709,
+          "c": 0.21881185472011566,
+          "best_epoch": 61
+        },
+        {
+          "fold": 1,
+          "a": -0.025980165228247643,
+          "c": 0.23331642150878906,
+          "best_epoch": 58
+        },
+        {
+          "fold": 2,
+          "a": -0.036684975028038025,
+          "c": 0.2337430715560913,
+          "best_epoch": 50
+        },
+        {
+          "fold": 3,
+          "a": -0.027561483904719353,
+          "c": 0.21570730209350586,
+          "best_epoch": 33
+        },
+        {
+          "fold": 4,
+          "a": -0.04021178558468819,
+          "c": 0.22789894044399261,
+          "best_epoch": 35
+        }
+      ],
+      "source": "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/eval_finetuning_cv1/finetuned_models",
+      "eval_dir": "eval_finetuning_cv1",
+      "model_sha256": {
+        "Adamson_Scratch_fold0.pt": "b7fd5e19e4d5a46380ab051abffbaa5811704d1a4786afaa7953968a8a453412",
+        "Adamson_Scratch_fold1.pt": "e650640bee3e25cd3730338db8c1d42f4ac8800ed760f3e71c79e8c0f08060e7",
+        "Adamson_Scratch_fold2.pt": "2d138cb42559625e10a40a7a436de5d4dae7b6df3ac1c56fba580486d3ebe58a",
+        "Adamson_Scratch_fold3.pt": "48d6bf48373615b607063e617d99d514b600894963b4a03298867ebfb7e17246",
+        "Adamson_Scratch_fold4.pt": "3df55d64069fe98da635a173d6d8d9fd0518ad61434e380f7cf6972604b92a8c"
+      },
+      "stats": {
+        "min": -0.5236266851425171,
+        "max": 0.07517372071743011,
+        "mean": -0.13563450423733356,
+        "n_exactly_0": 0,
+        "n_exactly_1": 0
+      }
+    }
+  ],
+  "finetuned_not_exported": [],
+  "forward_check": {
+    "pairs_per_fold": 2048,
+    "max_abs_logit_err": 1.1444091796875e-05
+  }
+}

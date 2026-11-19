@@ -1,0 +1,841 @@
+{
+  "cv1": {
+    "expression": {
+      "type": "scgpt",
+      "file": "all_genes_scgpt.pt",
+      "aupr": 0.9866,
+      "types": [
+        "geneformer",
+        "scgpt"
+      ],
+      "files": [
+        "all_genes_geneformer.pt",
+        "all_genes_scgpt.pt"
+      ],
+      "n_folds_picked": {
+        "geneformer": 2,
+        "scgpt": 3
+      },
+      "per_fold": {
+        "0": {
+          "type": "geneformer",
+          "file": "all_genes_geneformer.pt",
+          "score": 0.986297
+        },
+        "1": {
+          "type": "scgpt",
+          "file": "all_genes_scgpt.pt",
+          "score": 0.986385
+        },
+        "2": {
+          "type": "scgpt",
+          "file": "all_genes_scgpt.pt",
+          "score": 0.987283
+        },
+        "3": {
+          "type": "geneformer",
+          "file": "all_genes_geneformer.pt",
+          "score": 0.986501
+        },
+        "4": {
+          "type": "scgpt",
+          "file": "all_genes_scgpt.pt",
+          "score": 0.986512
+        }
+      }
+    },
+    "go": {
+      "type": "go2vec",
+      "file": "all_genes_go2vec.pt",
+      "aupr": 0.9839,
+      "types": [
+        "go",
+        "go2vec"
+      ],
+      "files": [
+        "all_genes_go.pt",
+        "all_genes_go2vec.pt"
+      ],
+      "n_folds_picked": {
+        "go": 1,
+        "go2vec": 4
+      },
+      "per_fold": {
+        "0": {
+          "type": "go2vec",
+          "file": "all_genes_go2vec.pt",
+          "score": 0.983602
+        },
+        "1": {
+          "type": "go2vec",
+          "file": "all_genes_go2vec.pt",
+          "score": 0.98482
+        },
+        "2": {
+          "type": "go",
+          "file": "all_genes_go.pt",
+          "score": 0.984129
+        },
+        "3": {
+          "type": "go2vec",
+          "file": "all_genes_go2vec.pt",
+          "score": 0.982624
+        },
+        "4": {
+          "type": "go2vec",
+          "file": "all_genes_go2vec.pt",
+          "score": 0.984264
+        }
+      }
+    },
+    "kg": {
+      "type": "kg_complex",
+      "file": "all_genes_kg_complex.pt",
+      "aupr": 0.9869,
+      "types": [
+        "kg_complex"
+      ],
+      "files": [
+        "all_genes_kg_complex.pt"
+      ],
+      "n_folds_picked": {
+        "kg_complex": 5
+      },
+      "per_fold": {
+        "0": {
+          "type": "kg_complex",
+          "file": "all_genes_kg_complex.pt",
+          "score": 0.986269
+        },
+        "1": {
+          "type": "kg_complex",
+          "file": "all_genes_kg_complex.pt",
+          "score": 0.987327
+        },
+        "2": {
+          "type": "kg_complex",
+          "file": "all_genes_kg_complex.pt",
+          "score": 0.987471
+        },
+        "3": {
+          "type": "kg_complex",
+          "file": "all_genes_kg_complex.pt",
+          "score": 0.986412
+        },
+        "4": {
+          "type": "kg_complex",
+          "file": "all_genes_kg_complex.pt",
+          "score": 0.987148
+        }
+      }
+    },
+    "ppi": {
+      "type": "ppi_raw",
+      "file": "all_genes_ppi_raw.pt",
+      "aupr": 0.9865,
+      "types": [
+        "ppi_raw"
+      ],
+      "files": [
+        "all_genes_ppi_raw.pt"
+      ],
+      "n_folds_picked": {
+        "ppi_raw": 5
+      },
+      "per_fold": {
+        "0": {
+          "type": "ppi_raw",
+          "file": "all_genes_ppi_raw.pt",
+          "score": 0.986269
+        },
+        "1": {
+          "type": "ppi_raw",
+          "file": "all_genes_ppi_raw.pt",
+          "score": 0.986173
+        },
+        "2": {
+          "type": "ppi_raw",
+          "file": "all_genes_ppi_raw.pt",
+          "score": 0.987291
+        },
+        "3": {
+          "type": "ppi_raw",
+          "file": "all_genes_ppi_raw.pt",
+          "score": 0.985822
+        },
+        "4": {
+          "type": "ppi_raw",
+          "file": "all_genes_ppi_raw.pt",
+          "score": 0.986745
+        }
+      }
+    },
+    "protein_seq": {
+      "type": "esm1b",
+      "file": "all_genes_esm1b.pt",
+      "aupr": 0.9856,
+      "types": [
+        "esm2",
+        "esm1b",
+        "prot_t5"
+      ],
+      "files": [
+        "all_genes_esm2.pt",
+        "all_genes_esm1b.pt",
+        "all_genes_prot_t5.pt"
+      ],
+      "n_folds_picked": {
+        "esm2": 1,
+        "esm1b": 2,
+        "prot_t5": 2
+      },
+      "per_fold": {
+        "0": {
+          "type": "prot_t5",
+          "file": "all_genes_prot_t5.pt",
+          "score": 0.985204
+        },
+        "1": {
+          "type": "esm1b",
+          "file": "all_genes_esm1b.pt",
+          "score": 0.985712
+        },
+        "2": {
+          "type": "esm2",
+          "file": "all_genes_esm2.pt",
+          "score": 0.986544
+        },
+        "3": {
+          "type": "prot_t5",
+          "file": "all_genes_prot_t5.pt",
+          "score": 0.985035
+        },
+        "4": {
+          "type": "esm1b",
+          "file": "all_genes_esm1b.pt",
+          "score": 0.985398
+        }
+      }
+    },
+    "text": {
+      "type": "text_embed",
+      "file": "all_genes_text_embed.pt",
+      "aupr": 0.9866,
+      "types": [
+        "text_embed"
+      ],
+      "files": [
+        "all_genes_text_embed.pt"
+      ],
+      "n_folds_picked": {
+        "text_embed": 5
+      },
+      "per_fold": {
+        "0": {
+          "type": "text_embed",
+          "file": "all_genes_text_embed.pt",
+          "score": 0.98647
+        },
+        "1": {
+          "type": "text_embed",
+          "file": "all_genes_text_embed.pt",
+          "score": 0.986794
+        },
+        "2": {
+          "type": "text_embed",
+          "file": "all_genes_text_embed.pt",
+          "score": 0.986807
+        },
+        "3": {
+          "type": "text_embed",
+          "file": "all_genes_text_embed.pt",
+          "score": 0.986527
+        },
+        "4": {
+          "type": "text_embed",
+          "file": "all_genes_text_embed.pt",
+          "score": 0.986628
+        }
+      }
+    }
+  },
+  "cv2": {
+    "expression": {
+      "type": "geneformer",
+      "file": "all_genes_geneformer.pt",
+      "aupr": 0.9863,
+      "types": [
+        "geneformer",
+        "scgpt"
+      ],
+      "files": [
+        "all_genes_geneformer.pt",
+        "all_genes_scgpt.pt"
+      ],
+      "n_folds_picked": {
+        "geneformer": 4,
+        "scgpt": 1
+      },
+      "per_fold": {
+        "0": {
+          "type": "geneformer",
+          "file": "all_genes_geneformer.pt",
+          "score": 0.98509
+        },
+        "1": {
+          "type": "scgpt",
+          "file": "all_genes_scgpt.pt",
+          "score": 0.986958
+        },
+        "2": {
+          "type": "geneformer",
+          "file": "all_genes_geneformer.pt",
+          "score": 0.985916
+        },
+        "3": {
+          "type": "geneformer",
+          "file": "all_genes_geneformer.pt",
+          "score": 0.987326
+        },
+        "4": {
+          "type": "geneformer",
+          "file": "all_genes_geneformer.pt",
+          "score": 0.98615
+        }
+      }
+    },
+    "go": {
+      "type": "go",
+      "file": "all_genes_go.pt",
+      "aupr": 0.9807,
+      "types": [
+        "go",
+        "go2vec"
+      ],
+      "files": [
+        "all_genes_go.pt",
+        "all_genes_go2vec.pt"
+      ],
+      "n_folds_picked": {
+        "go": 4,
+        "go2vec": 1
+      },
+      "per_fold": {
+        "0": {
+          "type": "go",
+          "file": "all_genes_go.pt",
+          "score": 0.981868
+        },
+        "1": {
+          "type": "go",
+          "file": "all_genes_go.pt",
+          "score": 0.982808
+        },
+        "2": {
+          "type": "go",
+          "file": "all_genes_go.pt",
+          "score": 0.977284
+        },
+        "3": {
+          "type": "go2vec",
+          "file": "all_genes_go2vec.pt",
+          "score": 0.986203
+        },
+        "4": {
+          "type": "go",
+          "file": "all_genes_go.pt",
+          "score": 0.975144
+        }
+      }
+    },
+    "kg": {
+      "type": "kg_complex",
+      "file": "all_genes_kg_complex.pt",
+      "aupr": 0.9847,
+      "types": [
+        "kg_complex"
+      ],
+      "files": [
+        "all_genes_kg_complex.pt"
+      ],
+      "n_folds_picked": {
+        "kg_complex": 5
+      },
+      "per_fold": {
+        "0": {
+          "type": "kg_complex",
+          "file": "all_genes_kg_complex.pt",
+          "score": 0.982776
+        },
+        "1": {
+          "type": "kg_complex",
+          "file": "all_genes_kg_complex.pt",
+          "score": 0.985152
+        },
+        "2": {
+          "type": "kg_complex",
+          "file": "all_genes_kg_complex.pt",
+          "score": 0.985813
+        },
+        "3": {
+          "type": "kg_complex",
+          "file": "all_genes_kg_complex.pt",
+          "score": 0.985362
+        },
+        "4": {
+          "type": "kg_complex",
+          "file": "all_genes_kg_complex.pt",
+          "score": 0.984221
+        }
+      }
+    },
+    "ppi": {
+      "type": "node2vec_ppi",
+      "file": "all_genes_node2vec_ppi.pt",
+      "aupr": 0.9846,
+      "types": [
+        "node2vec_ppi",
+        "ppi_raw",
+        "mashup"
+      ],
+      "files": [
+        "all_genes_node2vec_ppi.pt",
+        "all_genes_ppi_raw.pt",
+        "all_genes_mashup.pt"
+      ],
+      "n_folds_picked": {
+        "node2vec_ppi": 2,
+        "ppi_raw": 2,
+        "mashup": 1
+      },
+      "per_fold": {
+        "0": {
+          "type": "mashup",
+          "file": "all_genes_mashup.pt",
+          "score": 0.981986
+        },
+        "1": {
+          "type": "node2vec_ppi",
+          "file": "all_genes_node2vec_ppi.pt",
+          "score": 0.985127
+        },
+        "2": {
+          "type": "ppi_raw",
+          "file": "all_genes_ppi_raw.pt",
+          "score": 0.984876
+        },
+        "3": {
+          "type": "node2vec_ppi",
+          "file": "all_genes_node2vec_ppi.pt",
+          "score": 0.986091
+        },
+        "4": {
+          "type": "ppi_raw",
+          "file": "all_genes_ppi_raw.pt",
+          "score": 0.985121
+        }
+      }
+    },
+    "protein_seq": {
+      "type": "esm1b",
+      "file": "all_genes_esm1b.pt",
+      "aupr": 0.9849,
+      "types": [
+        "esm1b",
+        "prot_t5"
+      ],
+      "files": [
+        "all_genes_esm1b.pt",
+        "all_genes_prot_t5.pt"
+      ],
+      "n_folds_picked": {
+        "esm1b": 3,
+        "prot_t5": 2
+      },
+      "per_fold": {
+        "0": {
+          "type": "esm1b",
+          "file": "all_genes_esm1b.pt",
+          "score": 0.982092
+        },
+        "1": {
+          "type": "esm1b",
+          "file": "all_genes_esm1b.pt",
+          "score": 0.986477
+        },
+        "2": {
+          "type": "prot_t5",
+          "file": "all_genes_prot_t5.pt",
+          "score": 0.985625
+        },
+        "3": {
+          "type": "prot_t5",
+          "file": "all_genes_prot_t5.pt",
+          "score": 0.986689
+        },
+        "4": {
+          "type": "esm1b",
+          "file": "all_genes_esm1b.pt",
+          "score": 0.983791
+        }
+      }
+    },
+    "text": {
+      "type": "text_embed",
+      "file": "all_genes_text_embed.pt",
+      "aupr": 0.986,
+      "types": [
+        "text_embed"
+      ],
+      "files": [
+        "all_genes_text_embed.pt"
+      ],
+      "n_folds_picked": {
+        "text_embed": 5
+      },
+      "per_fold": {
+        "0": {
+          "type": "text_embed",
+          "file": "all_genes_text_embed.pt",
+          "score": 0.986522
+        },
+        "1": {
+          "type": "text_embed",
+          "file": "all_genes_text_embed.pt",
+          "score": 0.985889
+        },
+        "2": {
+          "type": "text_embed",
+          "file": "all_genes_text_embed.pt",
+          "score": 0.984288
+        },
+        "3": {
+          "type": "text_embed",
+          "file": "all_genes_text_embed.pt",
+          "score": 0.988645
+        },
+        "4": {
+          "type": "text_embed",
+          "file": "all_genes_text_embed.pt",
+          "score": 0.984678
+        }
+      }
+    }
+  },
+  "cv3": {
+    "expression": {
+      "type": "geneformer",
+      "file": "all_genes_geneformer.pt",
+      "aupr": 0.9858,
+      "types": [
+        "geneformer",
+        "scgpt"
+      ],
+      "files": [
+        "all_genes_geneformer.pt",
+        "all_genes_scgpt.pt"
+      ],
+      "n_folds_picked": {
+        "geneformer": 4,
+        "scgpt": 1
+      },
+      "per_fold": {
+        "0": {
+          "type": "scgpt",
+          "file": "all_genes_scgpt.pt",
+          "score": 0.984535
+        },
+        "1": {
+          "type": "geneformer",
+          "file": "all_genes_geneformer.pt",
+          "score": 0.987364
+        },
+        "2": {
+          "type": "geneformer",
+          "file": "all_genes_geneformer.pt",
+          "score": 0.985853
+        },
+        "3": {
+          "type": "geneformer",
+          "file": "all_genes_geneformer.pt",
+          "score": 0.985125
+        },
+        "4": {
+          "type": "geneformer",
+          "file": "all_genes_geneformer.pt",
+          "score": 0.986111
+        }
+      }
+    },
+    "go": {
+      "type": "go2vec",
+      "file": "all_genes_go2vec.pt",
+      "aupr": 0.9823,
+      "types": [
+        "go",
+        "go2vec"
+      ],
+      "files": [
+        "all_genes_go.pt",
+        "all_genes_go2vec.pt"
+      ],
+      "n_folds_picked": {
+        "go": 2,
+        "go2vec": 3
+      },
+      "per_fold": {
+        "0": {
+          "type": "go2vec",
+          "file": "all_genes_go2vec.pt",
+          "score": 0.984086
+        },
+        "1": {
+          "type": "go",
+          "file": "all_genes_go.pt",
+          "score": 0.983878
+        },
+        "2": {
+          "type": "go",
+          "file": "all_genes_go.pt",
+          "score": 0.981866
+        },
+        "3": {
+          "type": "go2vec",
+          "file": "all_genes_go2vec.pt",
+          "score": 0.9816
+        },
+        "4": {
+          "type": "go2vec",
+          "file": "all_genes_go2vec.pt",
+          "score": 0.98015
+        }
+      }
+    },
+    "kg": {
+      "type": "kg_complex",
+      "file": "all_genes_kg_complex.pt",
+      "aupr": 0.9862,
+      "types": [
+        "kg_complex"
+      ],
+      "files": [
+        "all_genes_kg_complex.pt"
+      ],
+      "n_folds_picked": {
+        "kg_complex": 5
+      },
+      "per_fold": {
+        "0": {
+          "type": "kg_complex",
+          "file": "all_genes_kg_complex.pt",
+          "score": 0.984984
+        },
+        "1": {
+          "type": "kg_complex",
+          "file": "all_genes_kg_complex.pt",
+          "score": 0.985948
+        },
+        "2": {
+          "type": "kg_complex",
+          "file": "all_genes_kg_complex.pt",
+          "score": 0.985235
+        },
+        "3": {
+          "type": "kg_complex",
+          "file": "all_genes_kg_complex.pt",
+          "score": 0.985188
+        },
+        "4": {
+          "type": "kg_complex",
+          "file": "all_genes_kg_complex.pt",
+          "score": 0.98976
+        }
+      }
+    },
+    "ppi": {
+      "type": "ppi_raw",
+      "file": "all_genes_ppi_raw.pt",
+      "aupr": 0.9852,
+      "types": [
+        "ppi_svd",
+        "ppi_raw",
+        "mashup"
+      ],
+      "files": [
+        "all_genes_ppi_svd.pt",
+        "all_genes_ppi_raw.pt",
+        "all_genes_mashup.pt"
+      ],
+      "n_folds_picked": {
+        "ppi_svd": 1,
+        "ppi_raw": 2,
+        "mashup": 2
+      },
+      "per_fold": {
+        "0": {
+          "type": "mashup",
+          "file": "all_genes_mashup.pt",
+          "score": 0.982332
+        },
+        "1": {
+          "type": "ppi_raw",
+          "file": "all_genes_ppi_raw.pt",
+          "score": 0.987501
+        },
+        "2": {
+          "type": "mashup",
+          "file": "all_genes_mashup.pt",
+          "score": 0.985876
+        },
+        "3": {
+          "type": "ppi_raw",
+          "file": "all_genes_ppi_raw.pt",
+          "score": 0.984
+        },
+        "4": {
+          "type": "ppi_svd",
+          "file": "all_genes_ppi_svd.pt",
+          "score": 0.98643
+        }
+      }
+    },
+    "protein_seq": {
+      "type": "esm1b",
+      "file": "all_genes_esm1b.pt",
+      "aupr": 0.9857,
+      "types": [
+        "esm1b",
+        "prot_t5"
+      ],
+      "files": [
+        "all_genes_esm1b.pt",
+        "all_genes_prot_t5.pt"
+      ],
+      "n_folds_picked": {
+        "esm1b": 3,
+        "prot_t5": 2
+      },
+      "per_fold": {
+        "0": {
+          "type": "prot_t5",
+          "file": "all_genes_prot_t5.pt",
+          "score": 0.985374
+        },
+        "1": {
+          "type": "prot_t5",
+          "file": "all_genes_prot_t5.pt",
+          "score": 0.988834
+        },
+        "2": {
+          "type": "esm1b",
+          "file": "all_genes_esm1b.pt",
+          "score": 0.983195
+        },
+        "3": {
+          "type": "esm1b",
+          "file": "all_genes_esm1b.pt",
+          "score": 0.984697
+        },
+        "4": {
+          "type": "esm1b",
+          "file": "all_genes_esm1b.pt",
+          "score": 0.98634
+        }
+      }
+    },
+    "text": {
+      "type": "text_embed",
+      "file": "all_genes_text_embed.pt",
+      "aupr": 0.9855,
+      "types": [
+        "text_embed"
+      ],
+      "files": [
+        "all_genes_text_embed.pt"
+      ],
+      "n_folds_picked": {
+        "text_embed": 5
+      },
+      "per_fold": {
+        "0": {
+          "type": "text_embed",
+          "file": "all_genes_text_embed.pt",
+          "score": 0.984538
+        },
+        "1": {
+          "type": "text_embed",
+          "file": "all_genes_text_embed.pt",
+          "score": 0.988682
+        },
+        "2": {
+          "type": "text_embed",
+          "file": "all_genes_text_embed.pt",
+          "score": 0.983949
+        },
+        "3": {
+          "type": "text_embed",
+          "file": "all_genes_text_embed.pt",
+          "score": 0.983174
+        },
+        "4": {
+          "type": "text_embed",
+          "file": "all_genes_text_embed.pt",
+          "score": 0.987265
+        }
+      }
+    }
+  },
+  "_selection_meta": {
+    "selection_cv": "cv1",
+    "selection_variant": "pd:pooled",
+    "selection_metric": "sel_auprg_any",
+    "selection_label": "AUPRG_any",
+    "selection_basis": "selection_split",
+    "n_scored_on_val": 48,
+    "n_scored_on_test": 0,
+    "unranked_not_generated": [
+      "esmc",
+      "scprint",
+      "seqvec"
+    ],
+    "unranked_required_missing": [],
+    "unranked_failed": [],
+    "unranked_foreign_token": [],
+    "run_token": "20261113T113339-1225758",
+    "pca_arm": "joint",
+    "pca": "PCA on the concatenation of all modalities (variance 0.8)",
+    "pca_args": "--post_pca_variance 0.8",
+    "step1_root": "results",
+    "step1_pca": "single-embedding runs at native dimension (no PCA), shared by arms none and joint",
+    "step1_pca_args": "--no_post_pca",
+    "missing_categories": [],
+    "rationale": "per (CV, fold): each category's argmax of fold_metrics[k][sel_<select_metric>] on fold k's own selection split (a random SELECTION_FRAC of its training pairs, never trained on); each CV's combo trains on the union of its folds' winners, fold k on its own (--fold_modalities). selection_cv is not used.",
+    "selection_mode": "per_fold",
+    "selection_frac": 0.1,
+    "selection_seed": 42,
+    "num_folds": 5,
+    "sel_digests": {
+      "cv1": {
+        "0": "d3ec97a6f6df83d3b5d7448fb52dab98186c305fd7c037f150576eadfb6322f0",
+        "1": "f1e49c2f6293ce6abeec947e93cd8dbe96add161ba4d24ff6f33316a6b7ea288",
+        "2": "4ade903da816fe6b47619d7965dc57abfbd7f7806593658e0b063f475fc7f35e",
+        "3": "e9ebae54473c8f3d33d128a773b342ae5c9759b91acb537b49e3bbd012b2e25d",
+        "4": "f6cfc7ccfd38e2a7dab1b0ce645ec12eb6ff7968468862a4bfe34d939efa0feb"
+      },
+      "cv2": {
+        "0": "3dcaee7c69edc13f740a69e4c927b087a53eea50736e97090cdf004c9accc776",
+        "1": "d8c3b8702e9012ec4183cf1135231368b980bb1d46c1543882f7cdf2398dfb87",
+        "2": "eac16a45c3f63e396069658ede906bf91e2ee949380d907fc83fd98de9d5671b",
+        "3": "d6c32dae3bc069cc298410564fe49ff001535cc9a3b598ee99c1457773da34bc",
+        "4": "cac5e4dca159d80c89d278650eeaf0652d256a086dd2d5460d7f3a00638d3db4"
+      },
+      "cv3": {
+        "0": "4e4635155d10f4b80e939512bcc22cc47f2a1bef916495aa2b4a196374d8b4df",
+        "1": "7d44b3c2acbe0f28a21e9eba878ba9b4c5153e5e8f68184c16729a562dec4bc3",
+        "2": "96fd3aba8c4d65f787bc8e6735f06395fe93bd7be13862abae0df42b7ac4b667",
+        "3": "c895a0f16773b7a0bb7f386af4a90f4d5289b454faa7d7aedad6ca4a48a6c89d",
+        "4": "338228aef8bcae1bfe8b160351a82f365526a6cc7e8a9625322e5afb1633d7e6"
+      }
+    }
+  }
+}

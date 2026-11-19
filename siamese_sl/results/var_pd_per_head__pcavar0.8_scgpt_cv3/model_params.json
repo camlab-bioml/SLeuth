@@ -1,0 +1,15 @@
+{
+  "trainable_params": 26433,
+  "total_params": 26433,
+  "model_class": "SiameseSLMultiCell",
+  "fold_stamp": {
+    "folds_dir": "../sl_comparison/folds",
+    "cv_type": "cv3",
+    "genes.txt": "42ff034debb48f84",
+    "all_pos.npy": "20be58a407d6aa9a",
+    "meta.json": "1a5aa49fb909a0e1"
+  },
+  "selection_regime": "val",
+  "selection_metric": "auprg_any",
+  "seed": 42
+}

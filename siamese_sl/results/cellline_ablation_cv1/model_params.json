@@ -1,0 +1,16 @@
+{
+  "trainable_params": 157377,
+  "total_params": 157377,
+  "model_class": "SiameseSLMultiCell",
+  "fold_stamp": {
+    "folds_dir": "<repo>/sl_comparison/folds",
+    "cv_type": "cv1",
+    "genes.txt": "42ff034debb48f84",
+    "all_pos.npy": "20be58a407d6aa9a",
+    "meta.json": "1a5aa49fb909a0e1"
+  },
+  "source_combo": "results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_raw_esm2_esm1b_prot_t5_text_embed_cv1",
+  "selection_regime": "val",
+  "seed": 42,
+  "selection_metric": "auprg_any"
+}

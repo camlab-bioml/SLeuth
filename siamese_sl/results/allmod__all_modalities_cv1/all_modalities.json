@@ -1,0 +1,51 @@
+{
+  "all_modalities": true,
+  "selection": "none",
+  "pca_arm": "none",
+  "variant": "pd:per_head",
+  "modalities": [
+    "geneformer",
+    "scgpt",
+    "gene2vec",
+    "esm2",
+    "esm1b",
+    "prot_t5",
+    "text_embed",
+    "bioconceptvec",
+    "node2vec_ppi",
+    "ppi_svd",
+    "ppi_raw",
+    "mashup",
+    "go",
+    "go2vec",
+    "onto2vec",
+    "kg_complex"
+  ],
+  "files": [
+    "all_genes_geneformer.pt",
+    "all_genes_scgpt.pt",
+    "all_genes_gene2vec.pt",
+    "all_genes_esm2.pt",
+    "all_genes_esm1b.pt",
+    "all_genes_prot_t5.pt",
+    "all_genes_text_embed.pt",
+    "all_genes_bioconceptvec.pt",
+    "all_genes_node2vec_ppi.pt",
+    "all_genes_ppi_svd.pt",
+    "all_genes_ppi_raw.pt",
+    "all_genes_mashup.pt",
+    "all_genes_go.pt",
+    "all_genes_go2vec.pt",
+    "all_genes_onto2vec.pt",
+    "all_genes_kg_complex.pt"
+  ],
+  "n_modalities": 16,
+  "catalog_size": 19,
+  "absent_optional": [
+    "esmc",
+    "scprint",
+    "seqvec"
+  ],
+  "selection_frac": 0.1,
+  "selection_seed": 42
+}

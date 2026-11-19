@@ -1,0 +1,102 @@
+{
+  "model_dir": "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3",
+  "checkpoints": [
+    "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/checkpoints/fold_0_best.pt",
+    "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/checkpoints/fold_1_best.pt",
+    "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/checkpoints/fold_2_best.pt",
+    "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/checkpoints/fold_3_best.pt",
+    "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/checkpoints/fold_4_best.pt"
+  ],
+  "num_folds": 5,
+  "fold_ids": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "checkpoint_sha256": {
+    "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/checkpoints/fold_0_best.pt": "05b8912f274630bcb7c6d1ccbfaef822d9df6ffdf0e93fc28dbacdb655f0d841",
+    "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/checkpoints/fold_1_best.pt": "8b35b24f5584dfd70496fb30707d1784d8a139c1f00870e8f8d4fd9ba77e9382",
+    "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/checkpoints/fold_2_best.pt": "5e83edd256f4e27e73ae0591ab7e24dca63189f831dc009b25f0b962f6659991",
+    "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/checkpoints/fold_3_best.pt": "5b02c7e2498b4f9e9079c511d9e9840c084bf917beb9d4c119fb6f440b648363",
+    "results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/checkpoints/fold_4_best.pt": "7ed785f6268a6ad76be39b9a72bc4e3c29daac06f377842d3d92ac030779231b"
+  },
+  "embeddings_paths": [
+    "<repo>/data/all_genes_geneformer.pt",
+    "<repo>/data/all_genes_scgpt.pt",
+    "<repo>/data/all_genes_go.pt",
+    "<repo>/data/all_genes_go2vec.pt",
+    "<repo>/data/all_genes_kg_complex.pt",
+    "<repo>/data/all_genes_ppi_svd.pt",
+    "<repo>/data/all_genes_ppi_raw.pt",
+    "<repo>/data/all_genes_mashup.pt",
+    "<repo>/data/all_genes_esm1b.pt",
+    "<repo>/data/all_genes_prot_t5.pt",
+    "<repo>/data/all_genes_text_embed.pt"
+  ],
+  "cv_type": "cv3",
+  "pca_variance_fallback": 0.8,
+  "post_pca_variance_fallback": 0.8,
+  "input_dim_per_fold": [
+    1103,
+    1542,
+    1260,
+    1564,
+    1142
+  ],
+  "datasets_spec": [
+    "Adamson:external data/pair_sgRNA_phenotypes.txt:Gamma:-1:tsv:K562",
+    "AdamsonGI:external data/Simpson2023_TableS3_GI_scores.xlsx:Gamma.GI:-1:xlsx:K562",
+    "Corn:external data/41586_2025_8815_MOESM5_ESM.csv:sens.score:-1:csv:OTHER",
+    "Gilbert:external data/mmc5.xlsx:K562_avg:-1:xlsx:K562"
+  ],
+  "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+  ],
+  "scratch_init_seeds": [
+    7961,
+    7962,
+    7963,
+    7964,
+    7965
+  ],
+  "scratch_warm_start": "ols_on_fresh_model_logits",
+  "ft_epochs": 100,
+  "ft_patience": 10,
+  "ft_lr": 0.0001,
+  "ft_batch_size": 256,
+  "ft_weight_decay": 0.0,
+  "train_frac": 0.8,
+  "val_frac": 0.1,
+  "ft_val_regime": "gene_holdout",
+  "split_seed": 42,
+  "report_sldb_filtered": true,
+  "sldb_overlap_sources": [
+    "<repo>/data/SL_SynLethDB_experimental.txt",
+    "<repo>/data/SL_SynLethDB_experimental_negatives.txt"
+  ],
+  "per_head": true,
+  "dataset_heads": {
+    "Adamson": "K562",
+    "AdamsonGI": "K562",
+    "Corn": "OTHER",
+    "Gilbert": "K562"
+  },
+  "model_num_heads": 1,
+  "effective_head": {
+    "Adamson": "ANY (pooled)",
+    "AdamsonGI": "ANY (pooled)",
+    "Corn": "ANY (pooled)",
+    "Gilbert": "ANY (pooled)"
+  },
+  "sl_probability_heads": [
+    "ANY"
+  ],
+  "finetuned_models_dir": "finetuned_models",
+  "device": "cuda",
+  "n_genes_in_model": 19397,
+  "preprocessing": "per-fold (leakage-free) from checkpoint transforms"
+}
