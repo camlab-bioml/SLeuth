@@ -31,7 +31,7 @@ label 1, supervised. Two distinct situations land here and OR is right for both.
     SL in RPE1 and non-SL in DLD-1 are different lines that share a catch-all.
 
 Masking these out instead (``same_head="mask"``, the pre-August-2026 default)
-un-supervised 1,876 of the 5,542 pairs screened both ways on at least one head
+un-supervised 1,877 of the 5,542 pairs screened both ways on at least one head
 — 1,461 of them at JURKAT alone, which alone moved that head from 2,617
 positives to 1,156 — and left 316 pairs with no supervised head at all, i.e.
 dropped from the dataset. (316, not the 107 in meta.json: that is
@@ -67,6 +67,12 @@ _LINE_TO_HEAD: Dict[str, int] = {name: i for i, name in enumerate(NAMED_HEADS)}
 # --- Raw-field normalisation (free-text cell_line column) --------------------
 _MERGE: Dict[str, str] = {
     "X293T": "293T",
+    # Free-text spellings of real lines. "Human HeLa cells" used to sit in
+    # _JUNK, which dropped the SL side of BRCA2-TP53 (SL "293T;Human HeLa
+    # cells", non-SL "A549;HELA") and supervised its HELA head as non-SL.
+    "HUMAN HELA CELLS": "HELA",
+    "AND OVCAR8": "OVCAR8",
+    "HUMAN HA1E CELLS": "HA1E",
 }
 # Tokens that are NOT cell lines (cancer types, phenotypes, placeholders).
 _JUNK: Set[str] = {
@@ -79,8 +85,6 @@ _JUNK: Set[str] = {
     "LAML",
     "KIRC",
     "HR-DEFECTS",
-    "AND OVCAR8",
-    "HUMAN HELA CELLS",
     "BRCA-DEFICIENT",
     "C538231",
     "PKC_C537180",
@@ -90,7 +94,6 @@ _JUNK: Set[str] = {
     "NEUROB",
     "BREAST AND OVA",
     "HEPATOCELLULAR CA",
-    "HUMAN HA1E CELLS",
 }
 
 

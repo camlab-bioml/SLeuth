@@ -1,0 +1,13 @@
+none pd:per_head cv1 union: geneformer+scgpt+go+go2vec+kg_complex+ppi_raw+esm2+esm1b+prot_t5+text_embed | fold sets match selection
+none pd:per_head cv2 union: geneformer+scgpt+go+go2vec+kg_complex+node2vec_ppi+ppi_raw+mashup+esm1b+prot_t5+text_embed | fold sets match selection
+none pd:per_head cv3 union: geneformer+scgpt+go+go2vec+kg_complex+ppi_svd+ppi_raw+mashup+esm1b+prot_t5+text_embed | fold sets match selection
+none pd:pooled cv1 union: geneformer+scgpt+go+go2vec+kg_complex+ppi_raw+esm2+esm1b+prot_t5+text_embed | fold sets match selection
+none pd:pooled cv2 union: geneformer+scgpt+go+go2vec+kg_complex+node2vec_ppi+ppi_raw+mashup+esm1b+prot_t5+text_embed | fold sets match selection
+none pd:pooled cv3 union: geneformer+scgpt+go+go2vec+kg_complex+ppi_svd+ppi_raw+mashup+esm1b+prot_t5+text_embed | fold sets match selection
+joint pd:per_head cv1 union: geneformer+scgpt+go+go2vec+kg_complex+ppi_raw+esm2+esm1b+prot_t5+text_embed | fold sets match selection
+joint pd:per_head cv2 union: geneformer+scgpt+go+go2vec+kg_complex+node2vec_ppi+ppi_raw+mashup+esm1b+prot_t5+text_embed | fold sets match selection
+joint pd:per_head cv3 union: geneformer+scgpt+go+go2vec+kg_complex+ppi_svd+ppi_raw+mashup+esm1b+prot_t5+text_embed | fold sets match selection
+joint pd:pooled cv1 union: geneformer+scgpt+go+go2vec+kg_complex+ppi_raw+esm2+esm1b+prot_t5+text_embed | fold sets match selection
+joint pd:pooled cv2 union: geneformer+scgpt+go+go2vec+kg_complex+node2vec_ppi+ppi_raw+mashup+esm1b+prot_t5+text_embed | fold sets match selection
+joint pd:pooled cv3 union: geneformer+scgpt+go+go2vec+kg_complex+ppi_svd+ppi_raw+mashup+esm1b+prot_t5+text_embed | fold sets match selection
+ALL OK

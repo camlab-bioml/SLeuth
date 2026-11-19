@@ -1395,13 +1395,13 @@ def cal_metrics(score_mat, pos_index, neg_index, seen_index=None):
     aupr_p = auc(recall, precision)
     auroc_p = roc_auc_score(y_true, y_pred_score)
     # + 1e-10: the reference form 2PR/(P+R) divides by zero wherever a PR point
-    # has precision == recall == 0. On SLGNN cv1/fold_0 that is 2 of 25,333
-    # cells, and the result only avoids propagating because Python's builtin
-    # max() compares with `>`, which is False against NaN — so it survives only
-    # as long as no NaN lands at index 0. The epsilon removes the NaN outright
-    # and shifts the reported maximum by 4.9e-11 (0.3773584906 -> 0.3773584905),
-    # i.e. seven orders of magnitude below the four decimals ever published.
-    # NOTE: this is the ONE deviation from the vendored SL_benchmark source.
+    # has precision == recall == 0 (2 of 25,333 cells on SLGNN cv1/fold_0); it
+    # survives only because builtin max() compares with `>`, False against NaN,
+    # i.e. only while no NaN lands at index 0. The epsilon removes the NaN and
+    # shifts the maximum by 4.9e-11 (0.3773584906 -> 0.3773584905), far below
+    # the four decimals ever published. This is cal_metrics' ONE deviation from
+    # SL_benchmark; elsewhere the file stubs the module-level data loads and
+    # reads the split seeds from setup_all_seeds (default 123, as upstream).
     f1_p = max(2 * precision * recall / (precision + recall + 1e-10))
 
     score_matrix_ndcg = copy.deepcopy(score_mat)

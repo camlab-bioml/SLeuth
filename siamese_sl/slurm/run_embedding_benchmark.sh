@@ -2,10 +2,11 @@
 #SBATCH --job-name=bench_emb
 #SBATCH --partition=gpu_Prosmn
 #SBATCH --nodes=1
-# Pinned to gpu3 (2026-08-10, by request). gpu3 threw a transient "CUDA
-# unknown error" at torch init in 2026-07 and the whole tree was moved to
-# gpu2 for that; if it recurs, the symptom is a torch.cuda init failure in
-# the very first seconds of the job, not a training-time error.
+# Pinned to gpu3 (2026-10-01, by request). GPU_NODES
+# (siamese_sl/slurm/config.conf) moves a whole orchestrated submission:
+# siamese_sl/slurm/submit_pipeline.sh, the only one that submits this script,
+# passes it as --nodelist on the command line, which replaces this line
+# (GPU_EXCLUDE only adds --exclude and cannot lift it).
 #SBATCH --nodelist=gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
@@ -18,7 +19,12 @@
 # Embedding Benchmark — SLURM Array Worker
 # ============================================================================
 # Each array task trains the siamese model on ONE (embedding, CV) combination
-# at native dimensions (no PCA).
+# with its PCA arm's single-embedding PCA (config.conf pca_single_args: native
+# dimension in arms none and joint, --pca_variance PCA_MODALITY_VARIANCE in
+# per_modality and both), into the arm's Step-1 root STEP1_ROOT: the results
+# root of the first arm of its pair, (none, joint) or (per_modality, both),
+# that PCA_ARMS lists (config.conf pca_step1_arm); results/ and
+# results/pca_per_modality/ with all four arms.
 #
 # SLURM_ARRAY_TASK_ID is mapped to (embedding_index, cv_index) using:
 #   embedding_index = task_id / num_cvs
@@ -28,13 +34,20 @@
 # embeddings in ALL_EMBEDDINGS[] and CV types in CV_TYPES[].
 #
 # NOTE: --array is NOT set here. It is passed by submit_pipeline.sh:
-#   sbatch --array=0-<N-1>%<MAX_CONCURRENT> slurm/run_embedding_benchmark.sh
+#   sbatch --array=0-<N-1>[%N] slurm/run_embedding_benchmark.sh
+#   ([%N] only when MAX_CONCURRENT is set: config.conf array_throttle)
 #
 # Prerequisites:
 #   - Embedding .pt files must exist (run_generate_embeddings.sh)
-#   - Submit via submit_pipeline.sh, not directly
+#   - Submitted as an array by submit_pipeline.sh. A direct sbatch is supported
+#     too (slurm/README.md "Change SLURM partition/node", ../README.md Step 2a):
+#     `export RUN_TOKEN=...` first — config.conf otherwise mints one per array
+#     task and the summary marks every directory STALE — and the submission's
+#     PCA_ARM and PCA_ARMS (they decide STEP1_ROOT), pass --array as above,
+#     and submit slurm/run_embedding_benchmark_summary.sh yourself with
+#     --export=ALL --dependency=afterany:<array job id>
 #
-# Output: results/<embedding_type>_<cv_type>/results.json
+# Output: $STEP1_ROOT/<embedding_type>_<cv_type>/results.json (+ run_token.txt)
 # ============================================================================
 
 set -e
@@ -79,6 +92,23 @@ echo "  Embedding: $EMB_PATH"
 echo ""
 
 # ============================================================================
+# Clean previous results for this (embedding, CV) combination
+# ============================================================================
+# BEFORE the missing-embedding skip below, not after (as in
+# run_best_per_category.sh): run_generate_embeddings.sh deletes every
+# all_genes_*.pt at job start and tolerates a failed OPTIONAL_TYPES modality
+# (run_generate_embeddings.conf), so an embedding CAN vanish between runs, and
+# skipping first would leave the previous run's results.json for the summary to
+# tabulate as fresh. Clearing first makes a missing embedding produce no row (or
+# a MISSING cell) instead of an old one.
+OUTPUT_DIR="$STEP1_ROOT/${ETYPE}_${CV}"
+
+if [ -d "$OUTPUT_DIR" ]; then
+    echo "Cleaning previous results: $OUTPUT_DIR"
+    rm -rf "$OUTPUT_DIR"
+fi
+
+# ============================================================================
 # Skip if embedding file doesn't exist
 # ============================================================================
 # Some embeddings may fail to generate (e.g., missing dependencies).
@@ -90,25 +120,19 @@ if [ ! -f "$EMB_PATH" ]; then
 fi
 
 # ============================================================================
-# Clean previous results for this (embedding, CV) combination
-# ============================================================================
-OUTPUT_DIR="results/${ETYPE}_${CV}"
-
-if [ -d "$OUTPUT_DIR" ]; then
-    echo "Cleaning previous results: $OUTPUT_DIR"
-    rm -rf "$OUTPUT_DIR"
-fi
-
-# ============================================================================
 # Train
 # ============================================================================
 
 # Create output directory
 $PYTHON_PATH -c "from pathlib import Path; Path('$OUTPUT_DIR/checkpoints').mkdir(parents=True, exist_ok=True)"
 
-echo "Training: $ETYPE / $CV"
+echo "Training: $ETYPE / $CV  (PCA arm $PCA_ARM: $PCA_SINGLE_ARGS)"
 echo "  Output: $OUTPUT_DIR"
 echo "  Config: encoder=[$ENCODER_DIMS], epochs=$EPOCHS, patience=$PATIENCE"
+# Single-embedding runs train the SELECTION_VARIANT only (config.conf): modality
+# selection happens once and its winners are reused by every variant's combo.
+echo "  Variant: $SELECTION_VARIANT (SELECTION_VARIANT)  ARCH_ARGS: ${ARCH_ARGS:-(none; train.py defaults)}"
+echo "  Selection split: ${SELECTION_ARGS:-(off: SELECTION_FRAC empty)}"
 echo ""
 
 set +e
@@ -138,7 +162,10 @@ $PYTHON_PATH train.py \
     --preprocessing_fit_scope "${PREPROCESSING_FIT_SCOPE:-train}" \
     --pca_method "${PCA_METHOD:-plain}" \
     --siamese_encoder_type "${SIAMESE_ENCODER_TYPE:-residual}" \
-    --no_post_pca
+    $PCA_SINGLE_ARGS \
+    $(siamese_variant_args "$SELECTION_VARIANT") \
+    $SELECTION_ARGS \
+    $ARCH_ARGS
 TRAIN_EXIT=$?
 set -e
 
@@ -150,6 +177,9 @@ if [ $TRAIN_EXIT -ne 0 ] || [ ! -f "$OUTPUT_DIR/results.json" ]; then
     echo "FAILED: $ETYPE / $CV (exit code $TRAIN_EXIT)"
     exit 1
 fi
+# This submission's stamp: the summary tabulates only directories carrying it
+# (a task that never started never reached the rm -rf above).
+printf '%s\n' "$RUN_TOKEN" > "$OUTPUT_DIR/run_token.txt"
 
 AUROC=$($PYTHON_PATH -c "
 import json
@@ -158,7 +188,9 @@ v, s = d['auroc_mean'], d['auroc_std']
 print(f'{v:.4f} +/- {s:.4f}' if v is not None else 'N/A')
 " 2>/dev/null || echo "N/A")
 
-# AUPRG: cell-line selection metric; .get() -> 'N/A' in single-output mode.
+# AUPRG: the stratified test AUPRG (cell-line mode; the checkpoint metric only
+# under --select_metric auprg); .get() -> 'N/A' for an older results.json
+# without it.
 AUPRG=$($PYTHON_PATH -c "
 import json
 d = json.load(open('$OUTPUT_DIR/results.json'))['summary']
@@ -172,6 +204,6 @@ d = json.load(open('$OUTPUT_DIR/results.json'))['summary']
 print(f\"{d.get('nonzero_params',0):,}/{d.get('total_params',0):,} ({d.get('weight_sparsity',0):.1f}% sparse)\")
 " 2>/dev/null || echo "N/A")
 
-echo "SUCCESS: $ETYPE / $CV"
-echo "  AUROC=$AUROC  AUPRG=$AUPRG  Params=$PARAMS"
+echo "SUCCESS: $ETYPE / $CV  ($PCA_SINGLE_ARGS; PCA arm $PCA_ARM)"
+echo "  AUROC(strat)=$AUROC  AUPRG(strat)=$AUPRG  Params=$PARAMS"
 echo "  Completed at: $(date)"

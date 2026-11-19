@@ -1,0 +1,17 @@
+\begin{tabular}{ll|ccc}
+\hline
+Tier & Cell-line information & AUROC & AUPR (AP) & AUPRG \\
+\hline
+\multirow{3}{*}{I} & included (trained with) & 0.918 (0.006) & 0.827 (0.016) & 0.974 (0.004) \\
+ & zeroed at inference & 0.918 (0.006) {\scriptsize 0.000} & 0.827 (0.016) {\scriptsize 0.000} & 0.974 (0.004) {\scriptsize 0.000} \\
+ & retrained without (pooled) & 0.958 (0.002) {\scriptsize +0.040$^\dagger$} & 0.899 (0.006) {\scriptsize +0.072$^\dagger$} & 0.989 (0.001) {\scriptsize +0.015$^\dagger$} \\
+\hline
+\multirow{3}{*}{II} & included (trained with) & 0.789 (0.043) & 0.622 (0.066) & 0.882 (0.073) \\
+ & zeroed at inference & 0.793 (0.038) {\scriptsize +0.005} & 0.623 (0.065) {\scriptsize +0.001} & 0.883 (0.072) {\scriptsize +0.001} \\
+ & retrained without (pooled) & 0.856 (0.021) {\scriptsize +0.067$^\dagger$} & 0.713 (0.031) {\scriptsize +0.091$^\dagger$} & 0.937 (0.029) {\scriptsize +0.056} \\
+\hline
+\multirow{3}{*}{III} & included (trained with) & 0.665 (0.044) & 0.419 (0.053) & 0.677 (0.208) \\
+ & zeroed at inference & 0.670 (0.041) {\scriptsize +0.005} & 0.425 (0.056) {\scriptsize +0.006} & 0.695 (0.187) {\scriptsize +0.018} \\
+ & retrained without (pooled) & 0.738 (0.035) {\scriptsize +0.073} & 0.503 (0.111) {\scriptsize +0.084} & 0.818 (0.098) {\scriptsize +0.140} \\
+\hline
+\end{tabular}

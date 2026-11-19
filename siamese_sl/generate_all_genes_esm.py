@@ -3,12 +3,15 @@
 Generate ESM embeddings for ALL human protein-coding genes.
 
 This script:
-  1. Fetches canonical protein sequences from NCBI using Entrez Gene IDs
+  1. Resolves one canonical protein sequence per Entrez Gene ID
   2. Generates ESM-2 embeddings using Pool PaRTI (PageRank-based pooling)
   3. Saves embeddings with gene order for reproducibility
 
-Sequence source: NCBI gene2refseq (Gene ID → RefSeq protein → FASTA).
-Uses Entrez Gene IDs natively — no gene symbol matching needed.
+Sequence source (resolve_protein_sequences, shared with generate_embeddings.py):
+the UniProt reviewed canonical sequence, reached through HGNC entrez_id ->
+uniprot_ids (both files tracked in git under data/cache); NCBI RefSeq
+(NP_ preferred) only for the ~0.5% of genes UniProt does not cover. The chosen
+accession per gene is stored in the output as ``protein_accessions``.
 
 Pool PaRTI Reference:
   Tartici et al. "Pool PaRTI: a PageRank-based pooling method for identifying
@@ -16,21 +19,26 @@ Pool PaRTI Reference:
   Bioinformatics, 2025. https://github.com/Helix-Research-Lab/Pool_PaRTI
 
 Requirements:
-  pip install fair-esm requests tqdm networkx
+  pip install fair-esm requests tqdm networkx   (requests: NCBI fallback only)
 
-Usage:
+Usage (a gene list is required: --gene_list or --sl_path):
     # Basic usage with Pool PaRTI (default)
-    python generate_all_genes_esm.py --output ../data/all_genes_esm2.pt
+    python generate_all_genes_esm.py --gene_list ../data/gene_universe.txt \\
+        --output ../data/all_genes_esm2.pt
 
-    # Use mean pooling instead
-    python generate_all_genes_esm.py --pooling mean --output ../data/all_genes_esm2.pt
+    # Use mean pooling instead. NOT the pipeline build (see PIPELINE_ESM), so
+    # it is stamped a marked-down generator_version that embedding_versions.py
+    # reports as stale — write it beside the catalog file, never over it.
+    python generate_all_genes_esm.py --gene_list ../data/gene_universe.txt \\
+        --pooling mean --output ../data/all_genes_esm2_mean.pt
 
     # GPU with larger batch size
-    python generate_all_genes_esm.py --device cuda:0 --batch_size 16 --output out.pt
+    python generate_all_genes_esm.py --gene_list ../data/gene_universe.txt \\
+        --device cuda:0 --batch_size 16 --output out.pt
 """
 
 import argparse
-import requests
+import os
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
@@ -43,274 +51,427 @@ try:
 except ImportError:
     nx = None  # Will be checked if pool_parti is used
 
-# NCBI E-utilities base URLs
+# Canonical-protein sources. Both files are tracked in git (data/cache and
+# data/embeddings_cache), so this resolution is offline and identical in every
+# run; NCBI is asked only about the few genes they do not cover.
+UNIPROT_FASTA_NAME = "human_proteome_reviewed.fasta"  # reviewed canonical set
+HGNC_TABLE_NAME = "hgnc_complete_set.txt"  # entrez_id -> uniprot_ids
+SEQUENCE_CACHE_NAME = "protein_sequences_canonical.json"
+# Part of the kept sequence cache's key. Bump it with every change to the
+# resolver rules (resolve_protein_sequences, _pick_uniprot, _refseq_rank,
+# _ncbi_refseq_fallback): the cache survives regeneration and is otherwise
+# keyed only by its source files and gene set, so a bump of
+# EMBEDDING_GENERATOR_VERSION alone would re-embed the old sequences under the
+# new stamp. (Not keyed by that version: an unrelated bump would re-query the
+# NCBI fallback, whose answers change between NCBI releases.)
+SEQUENCE_CACHE_FORMAT = "canonical_protein_v1"
+SEQUENCE_SOURCE = (
+    "UniProt reviewed canonical sequence (HGNC entrez_id -> uniprot_ids; "
+    "GN= symbol match breaks ties / fills gaps); NCBI RefSeq fallback "
+    "(NP_ > YP_ > XP_, then longest)")
+# Stamped into every generated embedding .pt (here, generate_embeddings.py and
+# generate_go_esm_embeddings.py) so a set built by older code, e.g. on the
+# pre-2026-09-22 newest-RefSeq-isoform sequences or the residue-only Pool
+# PaRTI graph, can be told apart. Bump it whenever a generator change alters
+# its output (a resolver change also bumps SEQUENCE_CACHE_FORMAT).
+EMBEDDING_GENERATOR_VERSION = "2026-10-07-source-symbol-pins"
+# The ESM build the pipeline (slurm/run_generate_embeddings.sh STEP 1) and the
+# paper mean by data/all_genes_esm2.pt: Pool PaRTI on ESM-2 650M. --pooling and
+# --model change the vectors without changing the code, so the same
+# EMBEDDING_GENERATOR_VERSION would otherwise describe a mean-pooled (or
+# other-model) file; main() marks the stamp down instead, as generate_embeddings
+# .py does for a reused cache, and embedding_versions.py reads it as stale.
+PIPELINE_ESM = ("pool_parti", "esm2_t33_650M_UR50D")
+
+# NCBI E-utilities base URLs (fallback only)
 ELINK_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi"
 EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 ESUMMARY_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
+NCBI_ATTEMPTS = 5
 
 
-def _ncbi_batch_elink(
-    gene_ids: List[str],
-    batch_size: int = 200,
-) -> Tuple[Dict[str, str], Dict[str, str]]:
-    """Batch elink: Gene ID → RefSeq protein GI, then esummary GI → accession.
+def _find_source_file(name: str, cache_dir: str) -> Optional[Path]:
+    """First non-empty ``name`` in cache_dir or its sibling data/cache and
+    data/embeddings_cache directories (the SLURM CACHE_DIR is
+    data/embeddings_cache; the HGNC table lives in data/cache)."""
+    base = Path(cache_dir)
+    for d in (base, base.parent / "cache", base.parent / "embeddings_cache"):
+        p = d / name
+        if p.is_file() and p.stat().st_size > 0:
+            return p
+    return None
 
-    Uses NCBI elink (gene → protein, RefSeq subset) to find the canonical
-    protein for each gene, then esummary to resolve GI numbers to accessions.
 
-    Args:
-        gene_ids: List of Entrez Gene IDs (strings)
-        batch_size: IDs per request (NCBI recommends ≤200)
+def _file_md5(path: Path) -> str:
+    import hashlib
+    h = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
-    Returns:
-        Tuple of (gene_to_gi, gi_to_acc):
-          - gene_to_gi: Dict mapping gene_id -> protein GI
-          - gi_to_acc: Dict mapping protein GI -> accession (e.g. NP_009225.1)
+
+def _parse_uniprot_fasta(path: Path) -> Dict[str, Tuple[str, str]]:
+    """Parse a UniProt FASTA into {accession: (GN= symbol upper-cased, seq)}.
+
+    ``GN`` is "" for entries without a gene name.
     """
-    import time
-    import xml.etree.ElementTree as ET
-
-    gene_to_gi: Dict[str, str] = {}
-
-    print(f"Linking {len(gene_ids)} Gene IDs → RefSeq protein GIs...")
-    for i in tqdm(range(0, len(gene_ids), batch_size), desc="NCBI elink"):
-        batch = gene_ids[i:i + batch_size]
-
-        for attempt in range(3):
-            try:
-                # Use separate id params (not comma-joined) so elink
-                # returns one LinkSet per gene instead of merging them.
-                params = [("dbfrom", "gene"), ("db", "protein"),
-                          ("linkname", "gene_protein_refseq"),
-                          ("retmode", "xml")]
-                params.extend(("id", gid) for gid in batch)
-                resp = requests.post(ELINK_URL, data=params, timeout=60)
-                resp.raise_for_status()
-                break
-            except Exception as e:
-                if attempt < 2:
-                    time.sleep(2**attempt)
-                else:
-                    print(f"\n  elink batch failed: {e}")
-                    resp = None
-
-        if resp is None:
-            continue
-
-        # Parse XML: extract Gene ID → protein GI mappings
-        root = ET.fromstring(resp.text)
-        for linkset in root.findall(".//LinkSet"):
-            id_elem = linkset.find("IdList/Id")
-            if id_elem is None:
-                continue
-            gene_id = id_elem.text
-
-            link_db = linkset.find(".//LinkSetDb")
-            if link_db is None:
-                continue
-
-            protein_ids = [
-                link.find("Id").text for link in link_db.findall("Link")
-                if link.find("Id") is not None
-            ]
-
-            if protein_ids:
-                gene_to_gi[gene_id] = protein_ids[0]
-
-        time.sleep(0.35)
-
-    print(f"  Found protein links for {len(gene_to_gi)}/{len(gene_ids)} genes")
-
-    # Resolve GI numbers → accessions via esummary (FASTA headers use accessions)
-    gi_to_acc: Dict[str, str] = {}
-    all_gis = list(set(gene_to_gi.values()))
-
-    print(f"  Resolving {len(all_gis)} protein GIs → accessions...")
-    for i in tqdm(range(0, len(all_gis), batch_size), desc="NCBI esummary"):
-        batch = all_gis[i:i + batch_size]
-        for attempt in range(3):
-            try:
-                resp = requests.post(
-                    ESUMMARY_URL,
-                    data={
-                        "db": "protein",
-                        "id": ",".join(batch),
-                        "retmode": "json",
-                    },
-                    timeout=60,
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                for gi in batch:
-                    info = data.get("result", {}).get(gi, {})
-                    acc = info.get("accessionversion")
-                    if acc:
-                        gi_to_acc[gi] = acc
-                break
-            except Exception as e:
-                if attempt < 2:
-                    time.sleep(2**attempt)
-                else:
-                    print(f"\n  esummary batch failed: {e}")
-        time.sleep(0.35)
-
-    return gene_to_gi, gi_to_acc
-
-
-def fetch_protein_sequences(
-    gene_to_protein: Dict[str, str],
-    cache_dir: str,
-    batch_size: int = 200,
-    gi_to_acc: Optional[Dict[str, str]] = None,
-) -> Dict[str, str]:
-    """Batch fetch protein sequences from NCBI.
-
-    Args:
-        gene_to_protein: Dict mapping gene_id -> protein GI
-        cache_dir: Directory to cache the downloaded FASTA
-        batch_size: GIs per efetch request
-        gi_to_acc: Dict mapping protein GI -> accession (from esummary)
-
-    Returns:
-        Dict mapping gene_id -> amino acid sequence
-    """
-    import time
-
-    cache_path = Path(cache_dir) / "ncbi_protein_sequences.fasta"
-
-    # Check cache
-    if cache_path.exists():
-        print(f"Loading cached protein sequences: {cache_path}")
-        return _parse_ncbi_fasta(cache_path, gene_to_protein, gi_to_acc)
-
-    protein_ids = list(gene_to_protein.values())
-
-    print(f"Fetching {len(protein_ids)} protein sequences from NCBI...")
-    all_fasta = []
-
-    for i in tqdm(range(0, len(protein_ids), batch_size), desc="NCBI efetch"):
-        batch = protein_ids[i:i + batch_size]
-
-        for attempt in range(3):
-            try:
-                resp = requests.post(
-                    EFETCH_URL,
-                    data={
-                        "db": "protein",
-                        "id": ",".join(batch),
-                        "rettype": "fasta",
-                        "retmode": "text",
-                    },
-                    timeout=60,
-                )
-                resp.raise_for_status()
-                all_fasta.append(resp.text)
-                break
-            except Exception as e:
-                if attempt < 2:
-                    time.sleep(2**attempt)
-                else:
-                    print(f"\n  efetch batch failed: {e}")
-
-        time.sleep(0.35)
-
-    # Save cache
-    with open(cache_path, "w") as f:
-        f.write("\n".join(all_fasta))
-    print(f"  Cached to {cache_path}")
-
-    return _parse_ncbi_fasta(cache_path, gene_to_protein, gi_to_acc)
-
-
-def _parse_ncbi_fasta(
-    fasta_path: Path,
-    gene_to_protein: Dict[str, str],
-    gi_to_acc: Optional[Dict[str, str]] = None,
-) -> Dict[str, str]:
-    """Parse NCBI FASTA and map back to gene IDs via protein accession/GI.
-
-    NCBI FASTA headers use accessions (e.g. ">NP_009225.1 ...") but elink
-    returns GI numbers. We use the gi_to_acc mapping from esummary to bridge
-    both formats.
-    """
-    # Build reverse map: any identifier → gene_id
-    # Includes both GIs and accessions (with/without version) for robustness.
-    protein_to_gene: Dict[str, str] = {}
-    for gid, gi in gene_to_protein.items():
-        protein_to_gene[gi] = gid
-        if gi_to_acc:
-            acc = gi_to_acc.get(gi)
-            if acc:
-                protein_to_gene[acc] = gid
-                if "." in acc:
-                    protein_to_gene[acc.split(".")[0]] = gid
-
-    gene_seqs = {}
-    current_gene = None
-    current_seq = []
-
-    with open(fasta_path) as f:
+    records: Dict[str, Tuple[str, List[str]]] = {}
+    acc = None
+    with open(path) as f:
         for line in f:
             line = line.strip()
             if line.startswith(">"):
-                # Save previous entry
-                if current_gene and current_seq:
-                    gene_seqs[current_gene] = "".join(current_seq)
-
-                # Match header to gene ID
-                current_gene = None
-                current_seq = []
-                header_tokens = line[1:].replace("|", " ").split()
-                for token in header_tokens:
-                    token_base = token.split(".")[0]
-                    if token in protein_to_gene:
-                        current_gene = protein_to_gene[token]
-                        break
-                    if token_base in protein_to_gene:
-                        current_gene = protein_to_gene[token_base]
-                        break
-            elif line:
-                current_seq.append(line)
-
-        # Last entry
-        if current_gene and current_seq:
-            gene_seqs[current_gene] = "".join(current_seq)
-
-    print(f"  Parsed sequences for {len(gene_seqs)} genes")
-    return gene_seqs
+                parts = line[1:].split("|")
+                acc = parts[1] if len(parts) > 2 else parts[0].split()[0]
+                gn = ""
+                if " GN=" in line:
+                    gn = line.split(" GN=", 1)[1].split()[0].upper()
+                records[acc] = (gn, [])
+            elif line and acc is not None:
+                records[acc][1].append(line)
+    return {a: (gn, "".join(chunks)) for a, (gn, chunks) in records.items()}
 
 
-def fetch_sequences_for_genes(gene_ids: List[str],
-                              cache_dir: str) -> Dict[str, str]:
-    """Fetch protein sequences from NCBI for a list of Entrez Gene IDs.
+def _parse_hgnc_uniprot(path: Path) -> Dict[str, Tuple[str, List[str]]]:
+    """Parse the HGNC complete set into {entrez_id: (SYMBOL, [uniprot_ids])}."""
+    import csv
+    table: Dict[str, Tuple[str, List[str]]] = {}
+    with open(path, encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter="\t")
+        missing = ({"entrez_id", "symbol", "uniprot_ids"} -
+                   set(reader.fieldnames or []))
+        if missing:
+            raise ValueError(f"{path}: missing HGNC columns {sorted(missing)}")
+        for row in reader:
+            eid = (row.get("entrez_id") or "").strip()
+            if not eid:
+                continue
+            raw = (row.get("uniprot_ids") or "").strip().strip('"')
+            accs = [a.strip().strip('"') for a in raw.split("|")]
+            table[eid] = ((row.get("symbol") or "").strip().upper(),
+                          [a for a in accs if a])
+    return table
 
-    Pipeline: Gene ID → elink (gene_protein_refseq) → efetch protein FASTA
+
+def _pick_uniprot(accs: List[str], symbol: str,
+                  records: Dict[str, Tuple[str, str]]) -> Optional[str]:
+    """One reviewed accession out of ``accs``: the one whose GN= is the HGNC
+    symbol, else the longest (then the smallest accession, for determinism).
+    """
+    cands = sorted({a for a in accs if a in records})
+    if not cands:
+        return None
+    named = [a for a in cands if records[a][0] == symbol]
+    return min(named or cands, key=lambda a: (-len(records[a][1]), a))
+
+
+def _refseq_rank(accession: str, length: int) -> Tuple[int, int, str]:
+    """Sort key for RefSeq proteins: curated NP_ first, then YP_ (organelle
+    genome), then predicted XP_, then anything else; longest first."""
+    prefix = {"NP_": 0, "YP_": 1, "XP_": 2}.get(accession[:3], 3)
+    return (prefix, -length, accession)
+
+
+def _ncbi_request(url: str, params, what: str, parse):
+    """POST to an NCBI E-utility and ``parse`` the response; on any failure
+    (network, HTTP status, or a response ``parse`` rejects) retry with
+    backoff, then RAISE.
+
+    The old loops printed and skipped a failed batch, which silently turned
+    up to 200 coding genes into NaN rows (later imputed to one shared vector)
+    and cached that gap for every later protein model.
+    """
+    import time
+    import requests
+    params = list(params.items()) if isinstance(params, dict) else list(params)
+    api_key = os.environ.get("NCBI_API_KEY")
+    if api_key:
+        params.append(("api_key", api_key))
+    last_err: Optional[Exception] = None
+    for attempt in range(NCBI_ATTEMPTS):
+        try:
+            resp = requests.post(url, data=params, timeout=120)
+            resp.raise_for_status()
+            out = parse(resp)
+            time.sleep(0.35)  # stay under NCBI's 3 requests/s without a key
+            return out
+        except Exception as e:
+            last_err = e
+            if attempt < NCBI_ATTEMPTS - 1:
+                wait = min(60, 5 * 2**attempt)
+                print(f"\n  NCBI {what} attempt {attempt + 1}/{NCBI_ATTEMPTS} "
+                      f"failed ({type(e).__name__}: {e}); retrying in {wait}s")
+                time.sleep(wait)
+    raise RuntimeError(f"NCBI {what} failed after {NCBI_ATTEMPTS} attempts: "
+                       f"{last_err}") from last_err
+
+
+def _parse_elink(resp) -> Dict[str, List[str]]:
+    """elink XML -> {gene_id: [every linked RefSeq protein UID]}."""
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(resp.text)
+    err = root.find("ERROR")
+    if err is not None:
+        raise RuntimeError(f"elink error: {err.text}")
+    links: Dict[str, List[str]] = {}
+    for linkset in root.findall(".//LinkSet"):
+        id_elem = linkset.find("IdList/Id")
+        if id_elem is None or not id_elem.text:
+            continue
+        links[id_elem.text] = [
+            link.text for link in linkset.findall("LinkSetDb/Link/Id")
+            if link.text
+        ]
+    return links
+
+
+def _parse_esummary(resp, uids: List[str]) -> Dict[str, Tuple[str, int]]:
+    """esummary JSON -> {uid: (accession.version, length)}.
+
+    A body without ``result`` (NCBI answers some errors with HTTP 200) or
+    missing a requested UID is rejected, so the batch is retried. A UID that
+    NCBI explicitly reports as an error (suppressed record) is left out.
+    """
+    data = resp.json()
+    result = data.get("result") if isinstance(data, dict) else None
+    if not isinstance(result, dict):
+        raise RuntimeError(f"esummary returned no result: {str(data)[:200]}")
+    out: Dict[str, Tuple[str, int]] = {}
+    for uid in uids:
+        info = result.get(uid)
+        if not isinstance(info, dict):
+            raise RuntimeError(f"esummary has no record for protein {uid}")
+        acc = info.get("accessionversion")
+        if acc:
+            out[uid] = (acc, int(info.get("slen") or 0))
+        elif "error" not in info:
+            raise RuntimeError(f"esummary record for {uid} has no accession")
+    return out
+
+
+def _parse_fasta_accessions(text: str, wanted: List[str]) -> Dict[str, str]:
+    """Parse efetch FASTA into {accession: sequence} for ``wanted``; raise if
+    any wanted accession is absent or empty (a truncated response)."""
+    lookup = {}
+    for acc in wanted:
+        lookup[acc] = acc
+        lookup[acc.split(".")[0]] = acc
+    seqs: Dict[str, List[str]] = {}
+    current = None
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith(">"):
+            current = None
+            for token in line[1:].replace("|", " ").split():
+                hit = lookup.get(token) or lookup.get(token.split(".")[0])
+                if hit:
+                    current = hit
+                    seqs[current] = []
+                    break
+        elif line and current is not None:
+            seqs[current].append(line)
+    out = {acc: "".join(chunks) for acc, chunks in seqs.items() if chunks}
+    missing = [acc for acc in wanted if acc not in out]
+    if missing:
+        raise RuntimeError(f"efetch response lacks {len(missing)} of "
+                           f"{len(wanted)} sequences (e.g. {missing[:3]})")
+    return out
+
+
+def _ncbi_refseq_fallback(
+    gene_ids: List[str],
+    batch_size: int = 200,
+) -> Dict[str, Tuple[str, str]]:
+    """Resolve genes with no reviewed UniProt entry through NCBI RefSeq.
+
+    elink (gene -> EVERY linked RefSeq protein; elink lists them newest
+    first, so the old ``[0]`` pick was the most recent deposit, often a
+    predicted XP_ isoform) + esummary (accession, length) pick one protein
+    per gene with _refseq_rank, then efetch fetches its sequence. Genes with
+    no RefSeq protein (non-coding loci) are simply absent from the result.
+
+    Returns {gene_id: (accession, sequence)}. Raises RuntimeError when NCBI
+    keeps failing (see _ncbi_request).
+    """
+    gene_to_uids: Dict[str, List[str]] = {}
+    print(f"  NCBI RefSeq fallback for {len(gene_ids)} genes...")
+    for i in range(0, len(gene_ids), batch_size):
+        batch = gene_ids[i:i + batch_size]
+        # Separate id params (not comma-joined) so elink returns one LinkSet
+        # per gene instead of merging them.
+        params = [("dbfrom", "gene"), ("db", "protein"),
+                  ("linkname", "gene_protein_refseq"), ("retmode", "xml")]
+        params.extend(("id", gid) for gid in batch)
+        gene_to_uids.update(
+            _ncbi_request(ELINK_URL, params, f"elink batch {i // batch_size}",
+                          _parse_elink))
+
+    wanted_genes = set(gene_ids)
+    linked = {g: u for g, u in gene_to_uids.items() if u and g in wanted_genes}
+    all_uids = sorted({u for uids in linked.values() for u in uids}, key=int)
+    uid_info: Dict[str, Tuple[str, int]] = {}
+    for i in range(0, len(all_uids), batch_size):
+        batch = all_uids[i:i + batch_size]
+        params = {"db": "protein", "id": ",".join(batch), "retmode": "json"}
+        uid_info.update(
+            _ncbi_request(ESUMMARY_URL, params,
+                          f"esummary batch {i // batch_size}",
+                          lambda r, b=batch: _parse_esummary(r, b)))
+
+    chosen: Dict[str, Tuple[str, str]] = {}  # gene -> (accession, uid)
+    for gid, uids in linked.items():
+        cands = [(uid_info[u][0], uid_info[u][1], u) for u in uids
+                 if u in uid_info]
+        if cands:
+            acc, _, uid = min(cands, key=lambda c: _refseq_rank(c[0], c[1]))
+            chosen[gid] = (acc, uid)
+
+    uid_to_acc = {uid: acc for acc, uid in chosen.values()}
+    uid_list = sorted(uid_to_acc, key=int)
+    seq_by_acc: Dict[str, str] = {}
+    for i in range(0, len(uid_list), batch_size):
+        batch = uid_list[i:i + batch_size]
+        wanted = [uid_to_acc[u] for u in batch]
+        params = {"db": "protein", "id": ",".join(batch),
+                  "rettype": "fasta", "retmode": "text"}
+        seq_by_acc.update(
+            _ncbi_request(EFETCH_URL, params,
+                          f"efetch batch {i // batch_size}",
+                          lambda r, w=wanted: _parse_fasta_accessions(r.text,
+                                                                      w)))
+
+    print(f"  RefSeq protein found for {len(chosen)}/{len(gene_ids)} "
+          f"fallback genes (the rest have no RefSeq protein link)")
+    return {g: (acc, seq_by_acc[acc]) for g, (acc, _) in chosen.items()}
+
+
+def resolve_protein_sequences(
+    gene_ids: List[str],
+    cache_dir: str,
+    ncbi_fallback: bool = True,
+) -> Tuple[Dict[str, str], Dict[str, str]]:
+    """Map Entrez Gene IDs to one canonical protein sequence each.
+
+    Shared by ESM-2 (this script) and the other protein models
+    (generate_embeddings.py), so every protein embedding sees the same
+    sequence per gene:
+      1. UniProt reviewed canonical sequence of the gene's HGNC ``uniprot_ids``
+         (several reviewed accessions: the one whose GN= is the HGNC symbol,
+         else the longest).
+      2. None of those in the reviewed set: the reviewed entry whose GN= is
+         the gene's HGNC symbol.
+      3. The rest (~0.5% of the universe, mostly non-coding RNA / pseudogene
+         loci): NCBI RefSeq, NP_ preferred over YP_/XP_, then longest.
+    ESM truncates to the first 1,022 residues, so the choice matters: the
+    previous rule (the first elink hit, i.e. the newest RefSeq record) gave
+    about half the genes a predicted XP_ isoform (BRCA1 a 712-aa isoform
+    instead of the 1,863-aa canonical protein) and changed with every NCBI
+    release.
+
+    The result is cached in ``cache_dir/protein_sequences_canonical.json``,
+    keyed by SEQUENCE_CACHE_FORMAT, the two source files' checksums and the
+    requested gene set, so ESM-2 (SLURM STEP 1) and the later protein models
+    (STEP 3) embed identical sequences even though the NCBI fallback runs only
+    once.
 
     Args:
-        gene_ids: List of Entrez Gene IDs (strings)
-        cache_dir: Directory to cache downloaded files
+        gene_ids: Entrez Gene IDs (strings).
+        cache_dir: Download/cache directory (the SLURM CACHE_DIR).
+        ncbi_fallback: Query NCBI for genes steps 1-2 miss (False: leave them
+            unresolved, which is how the offline unit test runs).
 
     Returns:
-        Dict mapping gene_id -> amino acid sequence
+        (sequences, accessions): {gene_id: amino-acid sequence} and
+        {gene_id: "UniProt:<acc>" | "RefSeq:<acc>"}, for resolved genes only.
     """
-    # Step 1: Link Gene IDs to RefSeq protein GIs + resolve to accessions
-    gene_to_protein, gi_to_acc = _ncbi_batch_elink(gene_ids)
+    import json
 
-    missing = set(gene_ids) - set(gene_to_protein.keys())
-    if missing:
-        print(f"  No RefSeq protein for {len(missing)} genes "
-              f"(non-coding or no RefSeq protein)")
+    fasta = _find_source_file(UNIPROT_FASTA_NAME, cache_dir)
+    hgnc = _find_source_file(HGNC_TABLE_NAME, cache_dir)
+    if fasta is None or hgnc is None:
+        raise FileNotFoundError(
+            f"Canonical protein sources missing: need {UNIPROT_FASTA_NAME} and "
+            f"{HGNC_TABLE_NAME} in {cache_dir} or its sibling data/cache "
+            f"(both are tracked in git). Refusing to fall back to NCBI's "
+            f"newest RefSeq isoform for every gene.")
+    requested = sorted({str(g) for g in gene_ids})
+    fingerprint = {
+        UNIPROT_FASTA_NAME: _file_md5(fasta),
+        HGNC_TABLE_NAME: _file_md5(hgnc),
+        "ncbi_fallback": bool(ncbi_fallback),
+    }
 
-    # Step 2: Batch fetch protein sequences
-    gene_seqs = fetch_protein_sequences(gene_to_protein,
-                                        cache_dir,
-                                        gi_to_acc=gi_to_acc)
+    cache_path = Path(cache_dir) / SEQUENCE_CACHE_NAME
+    if cache_path.is_file():
+        try:
+            with open(cache_path) as f:
+                cached = json.load(f)
+            if (cached.get("format") == SEQUENCE_CACHE_FORMAT
+                    and cached.get("fingerprint") == fingerprint
+                    and set(requested) <= set(cached.get("requested", []))):
+                genes = cached["genes"]
+                seqs = {g: genes[g][1] for g in requested if g in genes}
+                accs = {g: genes[g][0] for g in requested if g in genes}
+                print(f"  Loaded canonical protein sequences for "
+                      f"{len(seqs)}/{len(requested)} genes from {cache_path}")
+                return seqs, accs
+            print(f"  Ignoring stale {cache_path} (different sources, cache "
+                  f"format or gene set)")
+        except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
+            print(f"  Ignoring unreadable {cache_path}: {e}")
 
-    missing_seq = set(gene_to_protein.keys()) - set(gene_seqs.keys())
-    if missing_seq:
-        print(f"  Failed to fetch sequence for {len(missing_seq)} genes")
+    print(f"Resolving canonical protein sequences for {len(requested)} genes "
+          f"({fasta.name} + {hgnc.name})...")
+    records = _parse_uniprot_fasta(fasta)
+    table = _parse_hgnc_uniprot(hgnc)
+    by_gn: Dict[str, List[str]] = {}
+    for acc, (gn, _) in records.items():
+        if gn:
+            by_gn.setdefault(gn, []).append(acc)
 
-    return gene_seqs
+    seqs: Dict[str, str] = {}
+    accs: Dict[str, str] = {}
+    n_hgnc = n_gn = 0
+    rest: List[str] = []
+    for gid in requested:
+        symbol, uniprot_ids = table.get(gid, ("", []))
+        acc = _pick_uniprot(uniprot_ids, symbol, records)
+        if acc is not None:
+            n_hgnc += 1
+        elif symbol:
+            acc = _pick_uniprot(by_gn.get(symbol, []), symbol, records)
+            n_gn += acc is not None
+        if acc is None:
+            rest.append(gid)
+            continue
+        seqs[gid] = records[acc][1]
+        accs[gid] = f"UniProt:{acc}"
+    print(f"  UniProt reviewed: {n_hgnc} via HGNC uniprot_ids, {n_gn} via "
+          f"GN= symbol; {len(rest)} left")
+
+    if rest and ncbi_fallback:
+        for gid, (acc, seq) in _ncbi_refseq_fallback(rest).items():
+            seqs[gid] = seq
+            accs[gid] = f"RefSeq:{acc}"
+    n_missing = len(requested) - len(seqs)
+    print(f"  Protein sequence for {len(seqs)}/{len(requested)} genes "
+          f"({n_missing} without one: non-coding or no protein record)")
+
+    payload = {
+        "format": SEQUENCE_CACHE_FORMAT,
+        "fingerprint": fingerprint,
+        "requested": requested,
+        "genes": {g: [accs[g], seqs[g]] for g in seqs},
+    }
+    try:
+        tmp = cache_path.with_name(cache_path.name + ".part")
+        with open(tmp, "w") as f:
+            json.dump(payload, f)
+        os.replace(tmp, cache_path)
+    except OSError as e:
+        print(f"  WARNING: could not write {cache_path}: {e}")
+    return seqs, accs
 
 
 class StreamingAttentionAggregator:
@@ -425,34 +586,27 @@ class PoolPaRTI:
         Compute PageRank scores from attention matrix.
 
         Args:
-            attention_matrix: Aggregated attention (seq_len, seq_len)
+            attention_matrix: Aggregated attention (n_tokens, n_tokens)
 
         Returns:
-            Importance weights for each position (seq_len,)
+            PageRank score of each token (n_tokens,)
+
+        Raises, as the authors' ``_page_rank`` does, on a graph without edges
+        or a PageRank that does not converge (nx.PowerIterationFailedConvergence)
+        instead of silently mean-pooling; the caller then records the gene as
+        failed (NaN). Neither happens on softmax attention (strictly positive,
+        and >= 10 residues converge within max_iter).
         """
         # Create directed graph from attention matrix
         G = nx.from_numpy_array(attention_matrix, create_using=nx.DiGraph)
-
-        # Handle edge case of disconnected graph
         if G.number_of_edges() == 0:
-            # Fall back to uniform weights
-            n = attention_matrix.shape[0]
-            return np.ones(n) / n
-
-        # Compute PageRank
-        try:
-            pr = nx.pagerank(G,
-                             alpha=self.alpha,
-                             tol=1e-06,
-                             weight='weight',
-                             max_iter=100)
-            weights = np.array([pr[i] for i in range(len(pr))])
-        except nx.PowerIterationFailedConvergence:
-            # Fall back to uniform weights on convergence failure
-            n = attention_matrix.shape[0]
-            weights = np.ones(n) / n
-
-        return weights
+            raise ValueError("Pool PaRTI: attention graph has no edges")
+        pr = nx.pagerank(G,
+                         alpha=self.alpha,
+                         tol=1e-06,
+                         weight='weight',
+                         max_iter=100)
+        return np.array([pr[i] for i in range(len(pr))])
 
     def pool(
         self,
@@ -477,15 +631,14 @@ class PoolPaRTI:
         embeddings = token_embeddings[
             0, 1:seq_len + 1, :].cpu().numpy()  # (seq_len, embed_dim)
 
-        # Extract attention for actual sequence positions
-        attn_seq = agg_attn[1:seq_len + 1,
-                            1:seq_len + 1].numpy()  # (seq_len, seq_len)
-
-        # Compute PageRank importance weights
-        weights = self._compute_pagerank(attn_seq)
-
-        # Normalize weights to sum to 1
-        weights = weights / (weights.sum() + 1e-8)
+        # As the authors (Pool_PaRTI token_to_sequence_pooler.py): PageRank on
+        # the whole token graph, BOS (0) and EOS (seq_len + 1) included, since
+        # rank flows through those attention sinks; both are dropped only
+        # afterwards and the residue weights renormalised. Columns past EOS
+        # are batch padding (zero attention), which the authors never have.
+        attn_full = agg_attn[:seq_len + 2, :seq_len + 2].numpy()
+        weights = self._compute_pagerank(attn_full)[1:seq_len + 1]
+        weights = weights / weights.sum()
 
         # Weighted average of embeddings
         pooled = np.sum(embeddings * weights[:, np.newaxis], axis=0)
@@ -688,8 +841,9 @@ class ESMEmbeddingGenerator:
         for gene in pbar:
             seq = gene_seqs[gene]
 
-            # Skip invalid sequences — mark as NaN; filled at load time by
-            # the preprocessing pipeline (Huber in robust path, mean in plain).
+            # Skip invalid sequences — mark as NaN; imputed per fold at
+            # training time (data_loader, fit on the fold's training rows:
+            # Huber in the robust path, mean in plain).
             if not seq or len(seq) < 10:
                 failed_genes.append(gene)
                 all_embeddings[gene] = np.full(self.embed_dim,
@@ -716,7 +870,7 @@ class ESMEmbeddingGenerator:
             all_embeddings.update(batch_embs[0])
             failed_genes.extend(batch_embs[1])
 
-        # Stack into tensor (failed genes have NaN, imputed at load time)
+        # Stack into tensor (failed genes have NaN, imputed per fold later)
         if not gene_order:
             return torch.empty(0, self.embed_dim), torch.empty(
                 0, self.embed_dim), [], []
@@ -726,7 +880,7 @@ class ESMEmbeddingGenerator:
         n_ok = len(gene_order) - n_failed
         print(f"\nGenerated {len(gene_order)} embeddings")
         print(f"  - Successful: {n_ok}")
-        print(f"  - Failed (NaN, imputed at load time): {n_failed}")
+        print(f"  - Failed (NaN, imputed per fold at training): {n_failed}")
 
         embeddings = torch.from_numpy(embedding_matrix).float()
         return (
@@ -795,6 +949,13 @@ def main():
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument(
+        "--max_model_failures",
+        type=int,
+        default=0,
+        help="how many genes that HAVE a protein sequence may fail inside the "
+        "model (NaN row) before the run aborts without writing --output "
+        "(default 0)")
+    parser.add_argument(
         "--pooling",
         type=str,
         default="pool_parti",
@@ -829,8 +990,8 @@ def main():
         gene_ids = sorted(gene_id_set)
         print(f"Loaded {len(gene_ids)} unique gene IDs from {gene_src}")
 
-    # Fetch protein sequences from NCBI
-    gene_seqs = fetch_sequences_for_genes(gene_ids, str(cache_dir))
+    # Canonical protein sequence per gene (UniProt reviewed; RefSeq fallback)
+    gene_seqs, accessions = resolve_protein_sequences(gene_ids, str(cache_dir))
 
     # Build full gene list: genes with sequences + genes without (NaN for imputation)
     all_gene_ids = sorted(set(gene_ids))
@@ -859,8 +1020,42 @@ def main():
 
     print(f"  Final gene_order: {len(gene_order)} Entrez IDs")
 
+    # Two very different NaN rows hide in `failed`. A gene with no protein
+    # sequence is an expected, permanent absence (non-coding locus). A gene
+    # WITH a sequence that came back NaN means the MODEL failed on it: a CUDA
+    # fault poisons the context, so every later batch AND its per-sequence
+    # retry in _generate_batch_safe fails and thousands of coding genes go NaN.
+    # Saving that would stamp it generator_version = current and pass both the
+    # SLURM `[ -f "$ESM_PATH" ]` gate and embedding_versions.py, and
+    # data_loader would mean-impute the rows per fold — so the esm2 row and
+    # every combo using it would be published from one shared vector with
+    # nothing failing.
+    no_seq = {g for g in gene_order if len(gene_seqs.get(g) or "") < 10}
+    model_failed = [g for g in failed if g not in no_seq]
+    print(f"  No protein sequence (expected NaN): {len(no_seq)}")
+    print(f"  ESM-2 failed on a gene that has a sequence: {len(model_failed)}")
+    if len(model_failed) > args.max_model_failures:
+        raise SystemExit(
+            f"ERROR: ESM-2 failed on {len(model_failed)} genes that have a "
+            f"protein sequence (e.g. {model_failed[:5]}); not writing "
+            f"{args.output}. One CUDA fault mid-run fails every later batch "
+            f"and its per-sequence retry — rerun (SLURM steers off the bad "
+            f"node), or pass --max_model_failures N to accept N such genes.")
+
     # Save
     output_path = Path(args.output)
+
+    # A non-pipeline --pooling / --model is a different embedding, not a
+    # different version of the same one; say so in the stamp (see PIPELINE_ESM).
+    generator_version = EMBEDDING_GENERATOR_VERSION
+    if (args.pooling, args.model) != PIPELINE_ESM:
+        generator_version = (f"{EMBEDDING_GENERATOR_VERSION} (non-pipeline "
+                             f"build: pooling={args.pooling}, "
+                             f"model={args.model})")
+        print(f"WARNING: --pooling {args.pooling} --model {args.model} is not "
+              f"the pipeline's ESM build {PIPELINE_ESM}; the output is stamped "
+              f"generator_version={generator_version!r}, which "
+              f"embedding_versions.py reports as stale.")
 
     torch.save(
         {
@@ -871,9 +1066,14 @@ def main():
             "dimension": embeddings.shape[1],
             "pooling": args.pooling,
             "standardized":
-            False,  # Raw embeddings; imputed + optionally standardized at load time
+            False,  # Raw embeddings; imputed + standardized per fold at training
             "failed_genes": failed,
-            "source": "NCBI RefSeq (gene2refseq + efetch)",
+            "source": SEQUENCE_SOURCE,
+            # gene -> "UniProt:<acc>" / "RefSeq:<acc>" actually embedded
+            "protein_accessions":
+            {g: accessions[g]
+             for g in gene_order if g in accessions},
+            "generator_version": generator_version,
             "num_genes": len(gene_order),
         },
         output_path)

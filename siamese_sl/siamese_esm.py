@@ -230,7 +230,9 @@ class SiameseEncoder(nn.Module):
     re-centers activations, so without this input bias the per-feature
     DC offset is irrecoverable.
 
-    Hidden layers: Linear -> LayerNorm -> LeakyReLU -> Dropout.
+    Hidden layers: Linear -> LayerNorm -> LeakyReLU -> Dropout (nn.Identity
+    in place of the LayerNorm with use_layernorm=False, the train.py
+    --use_cell_lines default; see the comment in __init__).
     Last layer: bare Linear projection (Xavier init, no activation).
 
     The encoder is split into hidden layers and projection so that
@@ -243,6 +245,8 @@ class SiameseEncoder(nn.Module):
         encoder_dims: list,
         dropout: float = 0.2,
         last_layer_bias: bool = True,
+        use_input_bias: bool = True,
+        use_layernorm: bool = True,
     ):
         super().__init__()
 
@@ -251,16 +255,25 @@ class SiameseEncoder(nn.Module):
 
         # Learnable per-feature input bias.
         # Initialized to zero (no shift); the model learns the optimal
-        # per-feature offset during training.
-        self.input_bias = nn.Parameter(torch.zeros(input_dim))
+        # per-feature offset during training. use_input_bias=False when the
+        # caller supplies its own offset (SiameseSLMultiCell per-head bias).
+        self.input_bias = (nn.Parameter(torch.zeros(input_dim))
+                           if use_input_bias else None)
 
         # Hidden layers (all except last)
-        # bias=False because LayerNorm has its own learnable shift (beta)
+        # bias=False because LayerNorm has its own learnable shift (beta).
+        # use_layernorm=False puts nn.Identity in the LayerNorm slot, so the
+        # Linear keys (hidden.<i>.weight) keep their published indices. The
+        # Linears stay bias-free, so WITHOUT LayerNorm only the first layer's
+        # pre-activation carries a learnable shift (via the input offset and,
+        # in SiameseSLMultiCell, the concatenated cell_emb); every later hidden
+        # layer is shift-free.
         hidden_layers = []
         in_dim = input_dim
         for i, out_dim in enumerate(encoder_dims[:-1]):
             hidden_layers.append(nn.Linear(in_dim, out_dim, bias=False))
-            hidden_layers.append(nn.LayerNorm(out_dim))
+            hidden_layers.append(
+                nn.LayerNorm(out_dim) if use_layernorm else nn.Identity())
             hidden_layers.append(nn.LeakyReLU(0.2))
             hidden_layers.append(nn.Dropout(dropout))
             in_dim = out_dim
@@ -275,14 +288,17 @@ class SiameseEncoder(nn.Module):
         if self.projection.bias is not None:
             nn.init.zeros_(self.projection.bias)
 
+    def _offset(self, x: torch.Tensor) -> torch.Tensor:
+        return x if self.input_bias is None else x + self.input_bias
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Encode gene embedding to projection output z."""
-        h = self.hidden(x + self.input_bias)
+        h = self.hidden(self._offset(x))
         return self.projection(h)
 
     def forward_with_hidden(self, x: torch.Tensor):
         """Return both projection output z and hidden output h."""
-        h = self.hidden(x + self.input_bias)
+        h = self.hidden(self._offset(x))
         z = self.projection(h)
         return z, h
 
@@ -291,26 +307,32 @@ class SiameseEncoderResidual(nn.Module):
     """Residual-MLP variant of SiameseEncoder.
 
     Same interface as SiameseEncoder (input_dim, encoder_dims, dropout,
-    last_layer_bias). Each hidden block is
-        F(x) = Dropout(LeakyReLU(LayerNorm(Linear(x))))
-    wrapped with a residual connection y = x + F(x) WHEN the block's input
-    and output widths match. Blocks where widths differ (typically the first
-    "entry lift" from input_dim and any dim-change in the middle) are plain
-    F-applies with no skip.
+    last_layer_bias, use_input_bias, use_layernorm). Each hidden block is
+        F(x) = Dropout(LeakyReLU([LN](Linear(x))))
+    where [LN] is nn.LayerNorm with use_layernorm=True (the class default,
+    single-output SiameseSL and the published --layernorm recipe) and
+    nn.Identity otherwise. SiameseSLMultiCell gets it from train.py
+    --layernorm, which is off by default, so the SLURM run (ARCH_ARGS empty)
+    has NO LayerNorm in any block. F is wrapped with a residual connection
+    y = x + F(x) WHEN the block's input and output widths match. Blocks
+    where widths differ (typically the first "entry lift" from input_dim and
+    any dim-change in the middle) are plain F-applies with no skip.
 
     The projection (last entry of encoder_dims) is always a bare Linear
     with no skip — the existing `pd_epsilon · h1ᵀh2` term in SiameseSL's
     scoring already acts as a score-level residual around the projection.
 
     Example (encoder_dims=[16, 16, 16, 16, 16, 16, 16], the live SLURM default;
-    D is the post-preprocessing input width plus CELL_LINE_DIM):
-        input(Dd) + input_bias
-          -> Linear(D→16) + LN + LReLU + Drop               # entry, no skip
-          -> x + (Linear(16→16) + LN + LReLU + Drop)        # residual block 1
-          -> x + (Linear(16→16) + LN + LReLU + Drop)        # residual block 2
-          -> x + (Linear(16→16) + LN + LReLU + Drop)        # residual block 3
-          -> x + (Linear(16→16) + LN + LReLU + Drop)        # residual block 4
-          -> x + (Linear(16→16) + LN + LReLU + Drop)        # residual block 5
+    D = k + CELL_LINE_DIM for the per_head variants and D = k for pooled,
+    where k is the post-preprocessing input width; [LN] is nn.Identity under
+    the live SLURM default):
+        input(D) + input_bias
+          -> Linear(D→16) + [LN] + LReLU + Drop             # entry, no skip
+          -> x + (Linear(16→16) + [LN] + LReLU + Drop)      # residual block 1
+          -> x + (Linear(16→16) + [LN] + LReLU + Drop)      # residual block 2
+          -> x + (Linear(16→16) + [LN] + LReLU + Drop)      # residual block 3
+          -> x + (Linear(16→16) + [LN] + LReLU + Drop)      # residual block 4
+          -> x + (Linear(16→16) + [LN] + LReLU + Drop)      # residual block 5
           -> Linear(16→16)                                   # projection, bare
 
     Rationale: depth alone (Telgarsky 2016; Raghu et al. 2017) gives
@@ -318,8 +340,11 @@ class SiameseEncoderResidual(nn.Module):
     MLPs suffer rank-collapse / gradient-path pathologies (Pennington et al.
     2017; Hanin & Rolnick 2019). Residual connections preserve a
     gradient-free path from loss to input and keep the activation's rank
-    from collapsing layer-by-layer. LayerNorm inside F(x) keeps the block
-    output's magnitude comparable to the skip branch at init.
+    from collapsing layer-by-layer. With use_layernorm=True, LayerNorm inside
+    F(x) keeps the block output's magnitude comparable to the skip branch at
+    init; without it (the live cell-line default) ||h|| can grow through the
+    skips, which is why train.py's all-pairs alignment check scales its
+    tolerance with the logit magnitude.
 
     Implementation notes:
       - `residual_skips` is a Python list of bools derived from encoder_dims
@@ -339,23 +364,28 @@ class SiameseEncoderResidual(nn.Module):
         encoder_dims: list,
         dropout: float = 0.2,
         last_layer_bias: bool = True,
+        use_input_bias: bool = True,
+        use_layernorm: bool = True,
     ):
         super().__init__()
 
         if not encoder_dims:
             raise ValueError("encoder_dims must be non-empty")
 
-        self.input_bias = nn.Parameter(torch.zeros(input_dim))
+        self.input_bias = (nn.Parameter(torch.zeros(input_dim))
+                           if use_input_bias else None)
 
         hidden_widths = encoder_dims[:-1]
         blocks = []
         skips = []
         in_dim = input_dim
         for out_dim in hidden_widths:
+            # use_layernorm=False puts nn.Identity in slot 1, so the Linear
+            # keys (hidden_blocks.<k>.0.weight) keep their published indices.
             blocks.append(
                 nn.Sequential(
                     nn.Linear(in_dim, out_dim, bias=False),
-                    nn.LayerNorm(out_dim),
+                    nn.LayerNorm(out_dim) if use_layernorm else nn.Identity(),
                     nn.LeakyReLU(0.2),
                     nn.Dropout(dropout),
                 ))
@@ -375,7 +405,7 @@ class SiameseEncoderResidual(nn.Module):
             nn.init.zeros_(self.projection.bias)
 
     def _forward_hidden(self, x: torch.Tensor) -> torch.Tensor:
-        h = x + self.input_bias
+        h = x if self.input_bias is None else x + self.input_bias
         for block, skip in zip(self.hidden_blocks, self.residual_skips):
             out = block(h)
             h = out + h if skip else out
@@ -478,9 +508,24 @@ class SiameseSL(nn.Module):
         # Accounts for SL base rate (SL is rare, so optimal boundary ≠ 0).
         self.scoring_bias = nn.Parameter(torch.tensor(0.0))
 
+    # One output = one "head". num_heads / encode_head / temperature mirror
+    # SiameseSLMultiCell's interface so retrieval_metrics.build_any_score_matrix
+    # can build this model's dense all-pairs matrix (train.py --folds_dir).
+    num_heads = 1
+
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         """Encode a batch of gene embeddings."""
         return self.encoder(x)
+
+    def encode_head(self, x: torch.Tensor, head: int = 0):
+        """(z, h) for every row of x, exactly as forward does (head must be 0)."""
+        if head != 0:
+            raise IndexError(f"SiameseSL has one output; got head {head}")
+        return self.encoder.forward_with_hidden(x)
+
+    def temperature(self) -> torch.Tensor:
+        """τ = exp(log_temperature) > 0 (a scalar)."""
+        return torch.exp(self.log_temperature)
 
     def forward(
         self,
@@ -507,8 +552,7 @@ class SiameseSL(nn.Module):
         inner = (z1 * z2).sum(dim=1) + self.pd_epsilon * (h1 * h2).sum(dim=1)
 
         # Scale by learnable temperature + scoring bias
-        temperature = torch.exp(self.log_temperature)
-        logits = temperature * inner + self.scoring_bias
+        logits = self.temperature() * inner + self.scoring_bias
 
         return logits.unsqueeze(1)  # (batch, 1)
 
@@ -533,14 +577,84 @@ class SiameseSLMultiCell(nn.Module):
     label via a mask (handled in the loss), inference reads all heads.
 
     forward(x1, x2) -> (batch, num_heads):
-        for head h: in = [x ‖ cell_emb[h]] -> z_h, score_h = τ·(z1ᵀz2 +
-        ε·h1ᵀh2) + b_h. Symmetric in (x1, x2); per-head independent.
+        for head h: in = [x ‖ cell_emb[h]] + a_h -> z_h,
+        k_h = z1ᵀz2 + ε·h1ᵀh2, score_h = τ_h·norm_h(k_h) + b_h.
+        Symmetric in (x1, x2); per-head independent.
 
     A per-head scoring bias (b_h) absorbs each head's SL base rate (which range
-    from ~2% to ~43% across lines). Temperature is shared. The cell embedding
-    (cell_emb) is categorical context and is NOT L1-penalised (train.py excludes
-    names starting with "cell_"), so --l1_lambdas keeps matching the encoder's
-    weight matrices one-to-one.
+    from ~2% to ~43% across lines). The cell embedding (cell_emb) is
+    categorical context and is NOT L1-penalised (train.py excludes names
+    starting with "cell_"), so --l1_lambdas keeps matching the encoder's weight
+    matrices one-to-one.
+
+    num_heads=1, cell_line_dim=0 is the POOLED model (train.py --cell_lines
+    pooled): no cell-line embedding, one head trained on the OR-collapsed
+    "SL in any line" label, the same outcome the other benchmark models use.
+
+    use_layernorm=False drops the LayerNorm inside every encoder block
+    (nn.Identity in its slot). The published model has it (the default here).
+
+    raw_temperature=True learns τ directly (parameter `tau`), so it can be
+    negative: τ < 0 scores dissimilar pairs as SL. The default (published)
+    learns log_temperature and uses τ = exp(log_temperature) > 0. Both start
+    at τ = 1/sqrt(latent_dim).
+
+    kernel="bilinear" drops the positive-definite requirement on the z-term:
+    with a learnable A (latent_dim x latent_dim, `kernel_A`, init I) the pair
+    term is (z_iᵀ A z_j + z_jᵀ A z_i)/2 = z_iᵀ A_sym z_j, A_sym = (A + Aᵀ)/2,
+    i.e. the symmetrised score (S + Sᵀ)/2. A_sym may have negative
+    eigenvalues, so pairs can score high for being DISsimilar along some
+    directions. At init it equals kernel="pd" exactly. The ε·h_iᵀh_j term is
+    kept. Only A_sym reaches the score; A's antisymmetric part gets no
+    gradient.
+
+    input_bias=False drops the encoder's shared input offset a (the default
+    True keeps it; train.py --no_input_bias). With hidden layers the offset
+    is a learnable shift of the first pre-activation; with NO hidden layer
+    (encoder_dims of one entry) z = W (x + a) = W x + W a, so it is exactly a
+    projection bias c = W a and gives the kernel the per-gene terms
+    <W a, W x_i> + <W a, W x_j>, a gene degree prior. The bilinear probe
+    (slurm/run_probe.sh: encoder_dims [32], pd_epsilon 0, no gene / pair
+    terms, no projection biases, input_bias False, pooled) is then exactly
+    logit = tau * (W x_i)ᵀ(W x_j) + b. Not allowed with per_head_input_bias
+    (which replaces the shared offset by one per head).
+
+    Per-head options (all off by default, which is the published model):
+      per_head_input_bias  — the input offset a_h is one vector per head,
+                             shape (H, input_dim + cell_line_dim), replacing
+                             the encoder's shared input_bias.
+      per_head_temperature — one τ_h per head, shape (H,), instead of one
+                             shared τ.
+      per_head_last_layer_bias — z_h = W_{-1} h + c_h with one c_h per head,
+                             shape (H, latent_dim), replacing the encoder's
+                             shared projection bias. The kernel then gains the
+                             per-gene terms <c_h, W h_i> + <c_h, W h_j>.
+      inner_norm="batch"   — norm_h standardises head h's kernel over the pairs
+                             in the batch, (k_h − mean_B) / std_B, in training;
+                             eval uses per-head running estimates (momentum
+                             inner_norm_momentum), as BatchNorm does, so a
+                             pair's score does not depend on its batch. A
+                             training batch of ONE pair also uses the running
+                             estimates (its std is undefined), and setting
+                             `freeze_inner_stats = True` forces them in
+                             training too (no update) — eval_finetuning does
+                             this so fine-tuning never re-estimates them.
+
+    Extra score terms (both off by default; both are added to the logit AFTER
+    the temperature, next to b_h, and both are exactly 0 at initialisation, so
+    a fresh model scores like one without them):
+      gene_term      — a per-gene propensity g(h) = <gene_w, h> on the hidden
+                       h (the projection's input), added as g(h_i) + g(h_j).
+                       It gives the "how SL-prone is this gene" signal its own
+                       channel, so the kernel need not carry it.
+      pair_features  — a symmetric pair term p(z_i, z_j) = pair_fc2(LeakyReLU(
+                       pair_fc1([|z_i − z_j| ‖ z_i ⊙ z_j]))), a one-hidden-layer
+                       MLP of width latent_dim on the projected z_h (c_h
+                       included). Unlike the kernel it does not factorise over
+                       the two genes, so the dense all-pairs matrix evaluates
+                       it pair by pair (retrieval_metrics, in row blocks).
+    score_h = τ_h·norm_h(k_h) + g(h_i) + g(h_j) + p(z_i, z_j) + b_h. Neither
+    gene_w nor the pair_fc weights are L1-penalised (train.py).
     """
 
     def __init__(
@@ -553,6 +667,17 @@ class SiameseSLMultiCell(nn.Module):
         pd_epsilon: float = 0.001,
         siamese_encoder_type: str = "residual",
         cell_line_dim: int = 8,
+        per_head_input_bias: bool = False,
+        per_head_temperature: bool = False,
+        inner_norm: str = "none",
+        inner_norm_momentum: float = 0.1,
+        use_layernorm: bool = True,
+        raw_temperature: bool = False,
+        per_head_last_layer_bias: bool = False,
+        kernel: str = "pd",
+        gene_term: bool = False,
+        pair_features: bool = False,
+        input_bias: bool = True,
         **kwargs,
     ):
         super().__init__()
@@ -560,38 +685,172 @@ class SiameseSLMultiCell(nn.Module):
             import warnings
             warnings.warn(f"SiameseSLMultiCell: ignoring unknown kwargs: "
                           f"{list(kwargs.keys())}")
+        if per_head_input_bias and not input_bias:
+            raise ValueError(
+                "input_bias=False removes the input offset, which "
+                "per_head_input_bias=True would add back per head; pass one")
         if encoder_dims is None:
             encoder_dims = [256, 128, 64]
         if siamese_encoder_type not in ("mlp", "residual"):
             raise ValueError(
                 f"siamese_encoder_type must be 'mlp' or 'residual'; "
                 f"got {siamese_encoder_type!r}")
+        if inner_norm not in ("none", "batch"):
+            raise ValueError(f"inner_norm must be 'none' or 'batch'; "
+                             f"got {inner_norm!r}")
+        if kernel not in ("pd", "bilinear"):
+            raise ValueError(f"kernel must be 'pd' or 'bilinear'; "
+                             f"got {kernel!r}")
 
         self.pd_epsilon = pd_epsilon
         self.siamese_encoder_type = siamese_encoder_type
         self.num_heads = num_heads
         self.cell_line_dim = cell_line_dim
+        self.per_head_input_bias = per_head_input_bias
+        self.per_head_temperature = per_head_temperature
+        self.raw_temperature = raw_temperature
+        self.per_head_last_layer_bias = per_head_last_layer_bias
+        self.kernel = kernel
+        self.inner_norm = inner_norm
+        self.inner_norm_momentum = inner_norm_momentum
+        # inner_norm="batch" only: True forces the running estimates even in
+        # train mode (no batch stats, no update). A plain attribute, not a
+        # buffer, so it is not saved in state_dict; set it after loading.
+        self.freeze_inner_stats = False
 
         # One trainable vector per cell-line head, concatenated onto each gene.
-        self.cell_emb = nn.Embedding(num_heads, cell_line_dim)
-        nn.init.normal_(self.cell_emb.weight, std=0.1)
+        # cell_line_dim=0 (with num_heads=1) is the pooled model: no cell-line
+        # embedding at all, the encoder sees the gene features only.
+        if cell_line_dim > 0:
+            self.cell_emb = nn.Embedding(num_heads, cell_line_dim)
+            nn.init.normal_(self.cell_emb.weight, std=0.1)
+        else:
+            self.cell_emb = None
 
         # Shared encoder sees [gene_emb ‖ cell_emb], so its input is widened.
+        # With per_head_input_bias / per_head_last_layer_bias the offsets live
+        # here, one row per head, and the encoder's own shared input_bias /
+        # projection bias are dropped.
         encoder_cls = (SiameseEncoderResidual if siamese_encoder_type
                        == "residual" else SiameseEncoder)
         self.encoder = encoder_cls(
             input_dim=input_dim + cell_line_dim,
             encoder_dims=encoder_dims,
             dropout=dropout,
-            last_layer_bias=last_layer_bias,
+            last_layer_bias=last_layer_bias and not per_head_last_layer_bias,
+            use_input_bias=input_bias and not per_head_input_bias,
+            use_layernorm=use_layernorm,
         )
+        self.head_input_bias = (nn.Parameter(
+            torch.zeros(num_heads, input_dim + cell_line_dim))
+                                if per_head_input_bias else None)
 
         latent_dim = encoder_dims[-1]
-        self.log_temperature = nn.Parameter(
-            torch.tensor(-0.5 * np.log(float(latent_dim)),
-                         dtype=torch.float32))
+        self.head_proj_bias = (nn.Parameter(torch.zeros(num_heads, latent_dim))
+                               if per_head_last_layer_bias else None)
+        self.kernel_A = (nn.Parameter(torch.eye(latent_dim))
+                         if kernel == "bilinear" else None)
+        # Per-gene propensity on the hidden h (the projection's input). Zero
+        # init: the term starts at 0 and still gets a gradient (h is not 0).
+        self.gene_w = (nn.Parameter(
+            torch.zeros(self.encoder.projection.in_features))
+                       if gene_term else None)
+        # Pair-feature MLP on [|z_i − z_j| ‖ z_i ⊙ z_j]. The output layer is
+        # zero-initialised (and bias-free: b_h is the intercept), so the term
+        # starts at 0; pair_fc1 starts learning once pair_fc2 has moved.
+        if pair_features:
+            self.pair_fc1 = nn.Linear(2 * latent_dim, latent_dim)
+            self.pair_fc2 = nn.Linear(latent_dim, 1, bias=False)
+            nn.init.zeros_(self.pair_fc2.weight)
+            self.pair_act = nn.LeakyReLU()
+        else:
+            self.pair_fc1 = self.pair_fc2 = self.pair_act = None
+        log_tau0 = -0.5 * np.log(float(latent_dim))
+        init = float(np.exp(log_tau0)) if raw_temperature else log_tau0
+        param = nn.Parameter(
+            torch.full((num_heads,), init, dtype=torch.float32)
+            if per_head_temperature else torch.tensor(init,
+                                                      dtype=torch.float32))
+        if raw_temperature:
+            self.tau = param  # τ itself, unconstrained in sign
+        else:
+            self.log_temperature = param  # τ = exp(log_temperature) > 0
         # Per-head scoring bias (one intercept per cell line).
         self.scoring_bias = nn.Parameter(torch.zeros(num_heads))
+
+        if inner_norm == "batch":
+            self.register_buffer("inner_running_mean", torch.zeros(num_heads))
+            self.register_buffer("inner_running_var", torch.ones(num_heads))
+
+    def head_input(self, x: torch.Tensor, head: int) -> torch.Tensor:
+        """Encoder input for ONE head: [x ‖ cell_emb[head]] (+ a_head)."""
+        if self.cell_emb is None:
+            xin = x
+        else:
+            ce = self.cell_emb.weight[head].unsqueeze(0).expand(x.shape[0], -1)
+            xin = torch.cat([x, ce.to(x.dtype)], dim=1)
+        if self.head_input_bias is not None:
+            xin = xin + self.head_input_bias[head]
+        return xin
+
+    def encode_head(self, x: torch.Tensor, head: int):
+        """(z, h) for every row of x under ONE head, exactly as forward does."""
+        z, h = self.encoder.forward_with_hidden(self.head_input(x, head))
+        if self.head_proj_bias is not None:
+            z = z + self.head_proj_bias[head]
+        return z, h
+
+    def kernel_matrix(self):
+        """A_sym = (A + Aᵀ)/2 for kernel='bilinear', else None (identity)."""
+        if self.kernel_A is None:
+            return None
+        return 0.5 * (self.kernel_A + self.kernel_A.t())
+
+    def gene_score(self, h: torch.Tensor) -> torch.Tensor:
+        """Per-gene propensity g(h) = <gene_w, h> for hidden h (..., hid)."""
+        return h @ self.gene_w
+
+    def pair_score(self, z1: torch.Tensor, z2: torch.Tensor) -> torch.Tensor:
+        """Pair-feature term for projected z1, z2 (broadcastable, (..., L)).
+
+        Symmetric in (z1, z2): both features are. Returns the broadcast shape
+        without the last axis.
+        """
+        feats = torch.cat([(z1 - z2).abs(), z1 * z2], dim=-1)
+        return self.pair_fc2(self.pair_act(self.pair_fc1(feats))).squeeze(-1)
+
+    def temperature(self) -> torch.Tensor:
+        """τ as a scalar (shared) or (H,) (per head); any sign if raw."""
+        if self.raw_temperature:
+            return self.tau
+        return torch.exp(self.log_temperature)
+
+    def inner_stats(self):
+        """Per-head (mean, sd) applied at eval: the running estimates, (H,)."""
+        return self.inner_running_mean, self.inner_running_var.sqrt()
+
+    def standardize_inner(self, inner: torch.Tensor) -> torch.Tensor:
+        """inner (B, H): standardise each head (column).
+
+        Batch statistics (and a running-estimate update) ONLY in training mode
+        with B > 1 and freeze_inner_stats False. Otherwise the running
+        estimates are applied and left untouched: at eval; for a batch of one
+        pair, whose unbiased std is NaN (0/0) and would otherwise poison the
+        logits and the running variance; and when freeze_inner_stats is set,
+        which eval_finetuning uses to keep the pretrained normalisation fixed
+        while the encoder is fine-tuned in train mode.
+        """
+        if (self.training and not self.freeze_inner_stats
+                and inner.shape[0] > 1):
+            mu = inner.mean(dim=0)
+            sd = inner.std(dim=0)
+            with torch.no_grad():
+                m = self.inner_norm_momentum
+                self.inner_running_mean.mul_(1 - m).add_(m * mu.detach())
+                self.inner_running_var.mul_(1 - m).add_(m * sd.detach()**2)
+        else:
+            mu, sd = self.inner_stats()
+        return (inner - mu) / sd.clamp_min(1e-6)
 
     def forward(
         self,
@@ -607,22 +866,38 @@ class SiameseSLMultiCell(nn.Module):
         """
         B = x1.shape[0]
         H = self.num_heads
-        cell = self.cell_emb.weight  # (H, cell_dim)
 
         def encode_all_heads(x):
             # (B, D) -> (B, H, D+cell_dim) -> (B*H, D+cell_dim) -> encode
-            xe = x.unsqueeze(1).expand(B, H, x.shape[1])
-            ce = cell.unsqueeze(0).expand(B, H, self.cell_line_dim)
-            xin = torch.cat([xe, ce], dim=-1).reshape(B * H, -1)
-            return self.encoder.forward_with_hidden(xin)  # (B*H, latent/proj)
+            xin = x.unsqueeze(1).expand(B, H, x.shape[1])
+            if self.cell_emb is not None:
+                ce = self.cell_emb.weight.unsqueeze(0).expand(
+                    B, H, self.cell_line_dim)
+                xin = torch.cat([xin, ce], dim=-1)
+            if self.head_input_bias is not None:
+                xin = xin + self.head_input_bias  # (H, D+cell_dim) broadcast
+            z, h = self.encoder.forward_with_hidden(xin.reshape(B * H, -1))
+            if self.head_proj_bias is not None:
+                z = (z.reshape(B, H, -1) + self.head_proj_bias).reshape(B * H, -1)
+            return z, h
 
         z1, h1 = encode_all_heads(x1)
         z2, h2 = encode_all_heads(x2)
 
-        # PD-kernel score per (pair, head), same form as SiameseSL.
-        inner = (z1 * z2).sum(dim=1) + self.pd_epsilon * (h1 * h2).sum(dim=1)
-        temperature = torch.exp(self.log_temperature)
-        logits = (temperature * inner).reshape(B, H) + self.scoring_bias
+        # Pair score per (pair, head). kernel="pd": z1ᵀz2 (the PD kernel, same
+        # form as SiameseSL). kernel="bilinear": the symmetrised z1ᵀ A z2.
+        A_sym = self.kernel_matrix()
+        zz = (z1 * z2) if A_sym is None else (z1 @ A_sym) * z2
+        inner = zz.sum(dim=1) + self.pd_epsilon * (h1 * h2).sum(dim=1)
+        inner = inner.reshape(B, H)
+        if self.inner_norm == "batch":
+            inner = self.standardize_inner(inner)
+        logits = self.temperature() * inner + self.scoring_bias
+        if self.gene_w is not None:
+            logits = logits + (self.gene_score(h1)
+                               + self.gene_score(h2)).reshape(B, H)
+        if self.pair_fc1 is not None:
+            logits = logits + self.pair_score(z1, z2).reshape(B, H)
         return logits  # (batch, num_heads)
 
     def predict_proba(self, x1: torch.Tensor,

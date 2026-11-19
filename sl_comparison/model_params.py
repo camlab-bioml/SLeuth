@@ -8,10 +8,26 @@ later grades is provably the output of the run that just finished:
   * fold_stamp          — content hash of the fold set the model trained on
   * purge_stale_predictions — delete the PREVIOUS run's matrices up front
 
-They live in one module because all four trainers already import exactly one
-file from sl_comparison/ (siamese loads it by path, deliberately, to avoid
-putting sl_comparison/ on sys.path), and a second module would have to
-replicate that plumbing.
+They live in one module so each trainer picks up all three with one import.
+This is NOT the only sl_comparison/ module the trainers reach for: all four
+also import auprg.py (the shared selection + grading metric), siamese loads
+evaluation.py from here by path, and train_slmgae_shared.py adds
+shared_folds.py. The three baselines get them by putting sl_comparison/ on
+sys.path; siamese loads each such file BY PATH instead, deliberately, so
+sl_comparison/ never shadows siamese_sl/ on sys.path — which costs another
+loader block per module split out of this one.
+
+That shadowing is not hypothetical, so the enumeration above is not the whole
+import story. SLGNN and NSF4SL import their own evaluation.py BEFORE inserting
+this directory (train_slgnn.py:62 vs :65, train_nsf4sl.py:57 vs :60), but
+train_slmgae.py inserts first (:42), so its `from evaluation import
+calculate_optimal_f1` (:49) — and, through that module, its
+`preprocess_benchmarking_paper` — resolve to THIS directory's copies rather
+than SLMGAE-in-pytorch's. Today that moves no number: the four evaluation.py
+copies are byte-identical and the two preprocess copies differ only by
+cal_metrics' 1e-10 F1 epsilon (and the published tables are graded by
+evaluate_model.py, which always uses this directory's copy). Keep them in
+sync, or give SLMGAE a by-path loader too.
 
 One definition of "how big is this model" for every row of the comparison
 table, so the counts are actually comparable:
@@ -22,6 +38,12 @@ Each trainer calls write_model_params(output_dir, model) at model-construction
 time. That directory is the same --pred_dir evaluate_model.py reads, so the
 count travels with the predictions and lands in the summary JSON without any
 extra plumbing; compare.py then renders the model column as SLMGAE(1,234,567).
+
+ELISL (ELISL/train_elisl.py) is LightGBM forests, not a torch Module: it
+passes a small adapter (train_elisl.ForestSize) whose single "parameter" is
+the forests' fitted values (one threshold per split, one value per leaf, plus
+the three late-integration weights), counted after fitting since a forest has
+no size before it. That count is not comparable in kind to a weight count.
 
 Counted at construction rather than after training on purpose: L1 proximal
 soft-thresholding (siamese) drives many weights to exactly 0 without freeing
@@ -153,8 +175,18 @@ def write_model_params(output_dir,
         payload.update(extra)
         out = Path(output_dir)
         out.mkdir(parents=True, exist_ok=True)
-        with open(out / PARAMS_FILENAME, "w") as f:
-            json.dump(payload, f, indent=2)
+        # Through <name>.tmp and a rename: every fold start rewrites this
+        # file, and a rewrite that fails (a full quota; reported below as a
+        # warning only) must leave the previous fold's copy, which carries the
+        # same fold stamp, not an empty file that evaluate_model.py and the
+        # combo's Step 2 refuse as "no fold_stamp".
+        tmp = out / (PARAMS_FILENAME + ".tmp")
+        try:
+            with open(tmp, "w") as f:
+                json.dump(payload, f, indent=2)
+            tmp.replace(out / PARAMS_FILENAME)
+        finally:
+            tmp.unlink(missing_ok=True)
         print(f"  Trainable parameters: {trainable:,} "
               f"(total {total:,}) [{type(model).__name__}]")
         if folds_dir:
@@ -172,7 +204,12 @@ def write_model_params(output_dir,
 
 
 def purge_stale_predictions(output_dir, cv_type, keep=()):
-    """Delete EVERY fold's leftover score matrix + checkpoint, once, up front.
+    """Delete EVERY fold's leftover score matrix, and the checkpoint beside it,
+    once, up front. A checkpoint with NO matrix is left alone — a run that died
+    before exporting one; the trainers overwrite it at their first finite
+    validation eval, eval_finetuning refuses a partial checkpoint set outright,
+    and callers that need the directory emptied clear it themselves (see
+    siamese_sl/cell_line_ablation/zero_cell_emb.clear_previous_outputs).
 
     Each trainer also clears its own fold's artifacts at fold start, but that
     only protects folds the run actually reaches. A run that dies at fold 3
@@ -188,6 +225,10 @@ def purge_stale_predictions(output_dir, cv_type, keep=()):
     if not out.exists():
         return 0
     keep = {int(k) for k in keep}
+    if not keep:
+        # (write_model_params replaces this file fold by fold; without this a
+        # run whose every write failed would be graded on the last run's copy)
+        (out / PARAMS_FILENAME).unlink(missing_ok=True)
     removed = []
     for p in sorted(out.glob(f"fold_*_{cv_type}_predictions.npy")):
         try:

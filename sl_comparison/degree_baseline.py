@@ -12,16 +12,22 @@ corrected-retrieval companions every model row gets.
 WHY THIS ROW IS MANDATORY
 -------------------------
 SynLethDB positives are hub-enriched relative to the experimental negatives:
-on cv1/fold_0 the endpoints of test positives average 197.8 training-graph
-neighbours against 13.3 for test negatives. On the 2026-08-06 shared-fold run
-this heuristic scored cv1 AUROC 0.9059 / AUPRG 0.9511 / NDCG@10 0.4081 — a tie
-with siamese_sl (0.9078 / 0.9533 / 0.1129) on the classification metrics and a
-3.6x win on retrieval, while beating SLGNN and NSF4SL outright. Any cv1 claim
-made without this row is a claim that a model beat a control nobody ran.
+on cv1/fold_0 of the seed-42 folds the endpoints of test positives average
+190.0 training-graph neighbours against 17.4 for test negatives. On the
+2026-08-06 run (the fold set replaced on 2026-08-10, when the
+label rule made the 5,542 conflicted pairs positive, and with siamese_sl's
+defaults of that date) this heuristic scored cv1 AUROC 0.9059 / AUPRG 0.9511 /
+NDCG@10 0.4081 — a tie with siamese_sl (0.9078 / 0.9533 / 0.1129) on the
+classification metrics and a 3.6x win on retrieval, while beating SLGNN and
+NSF4SL outright. These figures have not been re-measured: read cv1 results
+against this row's own DegreePrior_cv*.json in the same table, never against
+these numbers. Any cv1 claim made without this row is a claim that a model beat
+a control nobody ran.
 
-It collapses exactly where the cold-start regime begins — cv2 AUROC 0.6402,
-cv3 exactly 0.5000 (its scores are constant when both genes are unseen) — which
-is what makes cv2 and cv3 the informative comparisons.
+It collapsed exactly where the cold-start regime begins — cv2 AUROC 0.6402 (old
+folds; will move), cv3 exactly 0.5000 (structural: its scores are constant when
+both genes are unseen) — which is what makes cv2 and cv3 the informative
+comparisons.
 
 NOTE ON THE cv3 AUPR CELL: with a constant score vector the vendored
 trapezoidal `aupr` returns exactly (1 + pi) / 2 — read pi off the run's own
@@ -81,6 +87,18 @@ def main():
 
     if not fold_metrics:
         raise SystemExit(f"No scorable folds for {args.cv_type}")
+    # The same refusal evaluate_model.main applies (--allow_partial there).
+    # Without it DegreePrior is the one row that can go partial with no
+    # operator opt-in: build_summary would record partial=true, paper_tables
+    # would drop the row, and instead of a FAIL in the run_shared_folds.sh log
+    # the control would simply vanish from tab:tiers.
+    n_expected = len(fold_dirs_for(args.folds_dir, args.cv_type))
+    if len(fold_metrics) != n_expected:
+        raise SystemExit(
+            f"REFUSING to summarise {MODEL_NAME}/{args.cv_type}: scored "
+            f"{len(fold_metrics)} of {n_expected} folds (a degenerate fold "
+            f"was skipped). A partial mean is not comparable to the model "
+            f"rows' full-fold means.")
 
     summary = build_summary(MODEL_NAME, args.cv_type, args.folds_dir,
                             fold_metrics)

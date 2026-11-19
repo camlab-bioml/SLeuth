@@ -1,0 +1,52 @@
+============================================================================
+Job: pair_export | ID: 1265136 | Node: gpu3
+PCA arm: joint (PCA on the concatenation of all modalities (variance 0.8)) | results: results/pca_joint/
+Start: Tue Nov 17 10:40:21 EST 2026
+NVIDIA L40, 46068 MiB, 1310 MiB
+NVIDIA L40, 46068 MiB, 3 MiB
+NVIDIA L40, 46068 MiB, 3 MiB
+NVIDIA L40, 46068 MiB, 3 MiB
+============================================================================
+
+PCA arm:   joint (PCA on the concatenation of all modalities (variance 0.8)): combos of results/pca_joint/
+Variants:  pd:pooled pd:per_head
+Combos:    cv3   (PAIR_EXPORT_CVS)
+Universe:  all   dtype float32   per-fold 0   logits 0
+Fine-tuned: splits [cv1]  datasets [Adamson]  modes [all]  (the cv3 combo only)
+
+============================================================================
+pd:pooled/cv3  ->  results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/pair_predictions/
+============================================================================
+Loading RAW embeddings (11 modalities)
+Model: SiameseSLMultiCell, heads ['ANY']; 5 folds; universe all (19,397 genes); device cuda
+Writing 4 matrices of 19,397 x 19,397 float32 = 6.0 GB -> results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/pair_predictions
+  Custom gene corrections: 86 mappings loaded from <repo>/SLMGAE-in-pytorch/gene_corrections_config.py
+  Non-coding genes: 65 listed in gene_corrections_config (informational; not applied)
+  HGNC loaded: 44981 current symbols, 59786 aliases/previous symbols, 44373 Entrez IDs
+  pass 1/1 fold 0: done (10s)
+  pass 1/1 fold 1: done (20s)
+  pass 1/1 fold 2: done (29s)
+  pass 1/1 fold 3: done (38s)
+  pass 1/1 fold 4: done (47s)
+Done in 59s: 4 fold-mean matrices + manifest.json under results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/pair_predictions (forward check max |diff| 1.14e-05)
+
+============================================================================
+pd:per_head/cv3  ->  results/pca_joint/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/pair_predictions/
+============================================================================
+Loading RAW embeddings (11 modalities)
+Model: SiameseSLMultiCell, heads ['K562', 'JURKAT', 'A549', 'HELA', 'A375', '293T', 'PC9', 'OTHER'] + ANY; 5 folds; universe all (19,397 genes); device cuda
+Writing 12 matrices of 19,397 x 19,397 float32 = 18.1 GB -> results/pca_joint/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/pair_predictions
+  Custom gene corrections: 86 mappings loaded from <repo>/SLMGAE-in-pytorch/gene_corrections_config.py
+  Non-coding genes: 65 listed in gene_corrections_config (informational; not applied)
+  HGNC loaded: 44981 current symbols, 59786 aliases/previous symbols, 44373 Entrez IDs
+  pass 1/1 fold 0: done (26s)
+  pass 1/1 fold 1: done (51s)
+  pass 1/1 fold 2: done (75s)
+  pass 1/1 fold 3: done (100s)
+  pass 1/1 fold 4: done (124s)
+Done in 158s: 12 fold-mean matrices + manifest.json under results/pca_joint/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/pair_predictions (forward check max |diff| 9.54e-06)
+
+============================================================================
+pair export: 2 of 2 combo(s) exported in full
+Completed at: Tue Nov 17 10:44:12 EST 2026
+============================================================================

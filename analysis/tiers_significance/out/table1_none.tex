@@ -1,0 +1,38 @@
+\begin{tabular}{ll|cccc}
+\hline
+Tier & Model & Trainable parameters & AUROC & AUPR (AP) & AUPRG \\
+\hline
+\multirow{10}{*}{I} & SLeuth (pooled) & 161{,}706 (5{,}884) & 0.961 (0.002) {\scriptsize [0.960, 0.963]} & 0.905 (0.004) {\scriptsize [0.902, 0.908]} & \textbf{0.990} (0.001) {\scriptsize [0.989, 0.990]} \\
+ & SLeuth-CL (cell-line heads) & 162{,}921 (5{,}884) & 0.918 (0.007) {\scriptsize [0.916, 0.920]} & 0.829 (0.008) {\scriptsize [0.825, 0.833]} & 0.975 (0.002) {\scriptsize [0.974, 0.976]} \\
+ & SLeuth-all (pooled, 16 emb.) & 320{,}106 & \textbf{0.962} (0.001) {\scriptsize [0.961, 0.964]} & \textbf{0.907} (0.003) {\scriptsize [0.904, 0.910]} & \textbf{0.990} (0.000) {\scriptsize [0.990, 0.990]} \\
+ & SLeuth-all-CL (cell-line, 16 emb.) & 321{,}321 & 0.923 (0.004) {\scriptsize [0.921, 0.926]} & 0.836 (0.014) {\scriptsize [0.832, 0.840]} & 0.976 (0.004) {\scriptsize [0.975, 0.977]} \\
+ & SLMGAE & 253{,}547{,}952 & 0.921 (0.002) {\scriptsize [0.919, 0.923]} & 0.855 (0.003) {\scriptsize [0.851, 0.859]} & 0.978 (0.000) {\scriptsize [0.977, 0.978]} \\
+ & SLGNN & 5{,}219{,}712 & 0.949 (0.002) {\scriptsize [0.948, 0.951]} & 0.885 (0.007) {\scriptsize [0.882, 0.888]} & 0.986 (0.001) {\scriptsize [0.985, 0.987]} \\
+ & NSF4SL & 469{,}760 & 0.629 (0.013) {\scriptsize [0.625, 0.633]} & 0.328 (0.012) {\scriptsize [0.323, 0.334]} & 0.530 (0.025) {\scriptsize [0.516, 0.543]} \\
+ & ELISL & 725{,}448 (327{,}432) & 0.843 (0.006) {\scriptsize [0.840, 0.847]} & 0.698 (0.010) {\scriptsize [0.692, 0.704]} & 0.936 (0.004) {\scriptsize [0.933, 0.938]} \\
+ & Bilinear probe & 148{,}738 (5{,}706) & 0.946 (0.003) {\scriptsize [0.944, 0.948]} & 0.870 (0.007) {\scriptsize [0.866, 0.874]} & 0.983 (0.001) {\scriptsize [0.983, 0.984]} \\
+ & Degree prior (control) & 0 & 0.881 (0.005) {\scriptsize [0.879, 0.884]} & 0.650 (0.011) {\scriptsize [0.643, 0.657]} & 0.912 (0.005) {\scriptsize [0.909, 0.915]} \\
+\hline
+\multirow{10}{*}{II} & SLeuth (pooled) & 156{,}294 (19{,}193) & 0.866 (0.023) {\scriptsize [0.864, 0.868]} & 0.728 (0.038) {\scriptsize [0.724, 0.731]} & 0.943 (0.029) {\scriptsize [0.941, 0.944]} \\
+ & SLeuth-CL (cell-line heads) & 157{,}509 (19{,}193) & 0.820 (0.024) {\scriptsize [0.817, 0.823]} & 0.650 (0.059) {\scriptsize [0.646, 0.655]} & 0.900 (0.059) {\scriptsize [0.898, 0.903]} \\
+ & SLeuth-all (pooled, 16 emb.) & 320{,}106 & \textbf{0.867} (0.032) {\scriptsize [0.865, 0.869]} & \textbf{0.740} (0.031) {\scriptsize [0.736, 0.744]} & \textbf{0.944} (0.029) {\scriptsize [0.943, 0.946]} \\
+ & SLeuth-all-CL (cell-line, 16 emb.) & 321{,}321 & 0.839 (0.020) {\scriptsize [0.836, 0.841]} & 0.687 (0.031) {\scriptsize [0.683, 0.692]} & 0.925 (0.034) {\scriptsize [0.923, 0.927]} \\
+ & SLMGAE & 253{,}547{,}952 & 0.765 (0.022) {\scriptsize [0.762, 0.768]} & 0.576 (0.028) {\scriptsize [0.571, 0.581]} & 0.863 (0.061) {\scriptsize [0.860, 0.866]} \\
+ & SLGNN & 5{,}219{,}712 & 0.841 (0.019) {\scriptsize [0.838, 0.843]} & 0.666 (0.030) {\scriptsize [0.662, 0.671]} & 0.915 (0.042) {\scriptsize [0.913, 0.918]} \\
+ & NSF4SL & 469{,}760 & 0.568 (0.080) {\scriptsize [0.565, 0.571]} & 0.241 (0.055) {\scriptsize [0.237, 0.245]} & 0.255 (0.302) {\scriptsize [0.244, 0.267]} \\
+ & ELISL & 773{,}811 (329{,}140) & 0.782 (0.007) {\scriptsize [0.779, 0.785]} & 0.573 (0.035) {\scriptsize [0.568, 0.578]} & 0.869 (0.038) {\scriptsize [0.866, 0.873]} \\
+ & Bilinear probe & 143{,}490 (18{,}611) & 0.834 (0.033) {\scriptsize [0.831, 0.836]} & 0.647 (0.044) {\scriptsize [0.643, 0.652]} & 0.903 (0.054) {\scriptsize [0.901, 0.906]} \\
+ & Degree prior (control) & 0 & 0.634 (0.099) {\scriptsize [0.631, 0.638]} & 0.445 (0.089) {\scriptsize [0.441, 0.450]} & 0.627 (0.275) {\scriptsize [0.618, 0.636]} \\
+\hline
+\multirow{10}{*}{III} & SLeuth (pooled) & 158{,}644 (16{,}496) & \textbf{0.767} (0.013) {\scriptsize [0.758, 0.776]} & 0.552 (0.097) {\scriptsize [0.536, 0.568]} & \textbf{0.867} (0.058) {\scriptsize [0.857, 0.877]} \\
+ & SLeuth-CL (cell-line heads) & 159{,}859 (16{,}496) & 0.735 (0.058) {\scriptsize [0.724, 0.744]} & 0.523 (0.094) {\scriptsize [0.507, 0.538]} & 0.824 (0.083) {\scriptsize [0.807, 0.836]} \\
+ & SLeuth-all (pooled, 16 emb.) & 320{,}106 & 0.750 (0.045) {\scriptsize [0.741, 0.760]} & 0.531 (0.090) {\scriptsize [0.516, 0.546]} & 0.829 (0.114) {\scriptsize [0.816, 0.841]} \\
+ & SLeuth-all-CL (cell-line, 16 emb.) & 321{,}321 & 0.756 (0.044) {\scriptsize [0.746, 0.766]} & \textbf{0.556} (0.097) {\scriptsize [0.541, 0.571]} & 0.854 (0.078) {\scriptsize [0.841, 0.864]} \\
+ & SLMGAE & 253{,}547{,}952 & 0.696 (0.050) {\scriptsize [0.686, 0.706]} & 0.387 (0.125) {\scriptsize [0.373, 0.403]} & 0.703 (0.097) {\scriptsize [0.674, 0.725]} \\
+ & SLGNN & 5{,}219{,}712 & 0.692 (0.016) {\scriptsize [0.682, 0.701]} & 0.377 (0.075) {\scriptsize [0.363, 0.392]} & 0.672 (0.135) {\scriptsize [0.648, 0.692]} \\
+ & NSF4SL & 469{,}760 & 0.520 (0.046) {\scriptsize [0.509, 0.529]} & 0.173 (0.070) {\scriptsize [0.168, 0.180]} & 0.025 (0.163) {\scriptsize [$-$0.025, 0.067]} \\
+ & ELISL & 556{,}671 (376{,}653) & 0.715 (0.029) {\scriptsize [0.705, 0.725]} & 0.417 (0.141) {\scriptsize [0.403, 0.434]} & 0.756 (0.055) {\scriptsize [0.735, 0.773]} \\
+ & Bilinear probe & 145{,}768 (15{,}996) & 0.741 (0.029) {\scriptsize [0.731, 0.751]} & 0.466 (0.094) {\scriptsize [0.449, 0.485]} & 0.799 (0.092) {\scriptsize [0.784, 0.812]} \\
+ & Degree prior (control) & 0 & 0.500 (0.000) {\scriptsize [0.500, 0.500]} & 0.168 (0.066) {\scriptsize [0.164, 0.173]} & 0.000 (0.000) {\scriptsize [0.000, 0.000]} \\
+\hline
+\end{tabular}

@@ -1,0 +1,925 @@
+{
+  "verdict": "PAPER COMPLETE",
+  "generated_at": "2026-11-17T10:36:30",
+  "root": "<repo>",
+  "mode": "pca_arms_table",
+  "run": {
+    "pca_arms": [
+      "none",
+      "joint"
+    ],
+    "reference_arm": "none",
+    "pca_targets": {
+      "PCA_MODALITY_VARIANCE": "0.8",
+      "PCA_JOINT_VARIANCE": "0.8",
+      "PCA_JOINT_DIM": null
+    },
+    "variants": [
+      "pd:pooled",
+      "pd:per_head"
+    ],
+    "selection_variant": "pd:pooled",
+    "run_token": "20261113T113339-1225758",
+    "code_manifest": "<repo>/sl_comparison/slurm/logs/code_20261113T113339-1225758_20261113T113540.sha256",
+    "code_drift": []
+  },
+  "arms": [
+    {
+      "arm": "none",
+      "pca": "no PCA",
+      "sia_results": "siamese_sl/results",
+      "cmp_results": "sl_comparison/results",
+      "step1_results": "siamese_sl/results",
+      "paper_tables": "sl_comparison/results/paper_tables",
+      "verdict": "PAPER COMPLETE"
+    },
+    {
+      "arm": "joint",
+      "pca": "PCA on the concatenation of all modalities (variance 0.8)",
+      "sia_results": "siamese_sl/results/pca_joint",
+      "cmp_results": "sl_comparison/results/pca_joint",
+      "step1_results": "siamese_sl/results",
+      "paper_tables": "sl_comparison/results/pca_joint/paper_tables",
+      "verdict": "PAPER COMPLETE"
+    }
+  ],
+  "tables": {
+    "tab_pca": {
+      "status": "ok",
+      "rows": 12
+    }
+  },
+  "items": {
+    "pca": {
+      "paper": "tab:pca (not yet in paper/main.tex)",
+      "value": {
+        "reference_arm": "none",
+        "arms": [
+          "none",
+          "joint"
+        ],
+        "pd:pooled": {
+          "cv1": {
+            "arms": {
+              "none": {
+                "auroc": {
+                  "mean": 0.961244290345536,
+                  "sd": 0.0016239785517758855
+                },
+                "ap": {
+                  "mean": 0.9048259364547026,
+                  "sd": 0.004125627890109536
+                },
+                "auprg": {
+                  "mean": 0.9896960005752501,
+                  "sd": 0.0005048278427268705
+                },
+                "delta_auroc": 0.0,
+                "delta_ap": 0.0,
+                "delta_auprg": 0.0,
+                "paired": null,
+                "verdict": "n/a (the reference arm)",
+                "input_dim": {
+                  "min": 4480,
+                  "max": 4864,
+                  "mean": 4648.0
+                },
+                "params_fold_mean": 161706.0,
+                "modalities": [
+                  "scgpt",
+                  "go2vec",
+                  "kg_complex",
+                  "ppi_raw",
+                  "esm1b",
+                  "text_embed",
+                  "geneformer",
+                  "go",
+                  "esm2",
+                  "prot_t5"
+                ]
+              },
+              "joint": {
+                "auroc": {
+                  "mean": 0.9580051946191052,
+                  "sd": 0.002328797016586041
+                },
+                "ap": {
+                  "mean": 0.8986840248027288,
+                  "sd": 0.005641846521013108
+                },
+                "auprg": {
+                  "mean": 0.9886798629936477,
+                  "sd": 0.0006709902362803645
+                },
+                "delta_auroc": -0.003239095726430885,
+                "delta_ap": -0.006141911651973753,
+                "delta_auprg": -0.00101613758160235,
+                "paired": {
+                  "mean": -0.0010161375816025054,
+                  "sd": 0.00038838983308550493,
+                  "se": 0.00019419491654275244,
+                  "n": 5
+                },
+                "verdict": "no measurable difference",
+                "input_dim": {
+                  "min": 1341,
+                  "max": 1561,
+                  "mean": 1459.0
+                },
+                "params_fold_mean": 56469.0,
+                "modalities": [
+                  "scgpt",
+                  "go2vec",
+                  "kg_complex",
+                  "ppi_raw",
+                  "esm1b",
+                  "text_embed",
+                  "geneformer",
+                  "go",
+                  "esm2",
+                  "prot_t5"
+                ]
+              }
+            },
+            "arms_missing": [],
+            "best_arm": "none",
+            "best_arms": [
+              "none"
+            ],
+            "effects": null
+          },
+          "cv2": {
+            "arms": {
+              "none": {
+                "auroc": {
+                  "mean": 0.8657903427255149,
+                  "sd": 0.02274125180331593
+                },
+                "ap": {
+                  "mean": 0.7275375795270558,
+                  "sd": 0.03844304645529154
+                },
+                "auprg": {
+                  "mean": 0.9426227855723022,
+                  "sd": 0.028650043170801456
+                },
+                "delta_auroc": 0.0,
+                "delta_ap": 0.0,
+                "delta_auprg": 0.0,
+                "paired": null,
+                "verdict": "n/a (the reference arm)",
+                "input_dim": {
+                  "min": 3656,
+                  "max": 5192,
+                  "mean": 4484.0
+                },
+                "params_fold_mean": 156294.0,
+                "modalities": [
+                  "geneformer",
+                  "go",
+                  "kg_complex",
+                  "node2vec_ppi",
+                  "esm1b",
+                  "text_embed",
+                  "scgpt",
+                  "go2vec",
+                  "ppi_raw",
+                  "mashup",
+                  "prot_t5"
+                ]
+              },
+              "joint": {
+                "auroc": {
+                  "mean": 0.8558061472990239,
+                  "sd": 0.02135090466962281
+                },
+                "ap": {
+                  "mean": 0.7132969743621205,
+                  "sd": 0.031227428734109892
+                },
+                "auprg": {
+                  "mean": 0.937384521613464,
+                  "sd": 0.029026304172772306
+                },
+                "delta_auroc": -0.009984195426490983,
+                "delta_ap": -0.014240605164935305,
+                "delta_auprg": -0.005238263958838196,
+                "paired": {
+                  "mean": -0.005238263958838263,
+                  "sd": 0.004480672382853468,
+                  "se": 0.002240336191426734,
+                  "n": 5
+                },
+                "verdict": "worse than the reference",
+                "input_dim": {
+                  "min": 881,
+                  "max": 1485,
+                  "mean": 1224.4
+                },
+                "params_fold_mean": 48727.2,
+                "modalities": [
+                  "geneformer",
+                  "go",
+                  "kg_complex",
+                  "node2vec_ppi",
+                  "esm1b",
+                  "text_embed",
+                  "scgpt",
+                  "go2vec",
+                  "ppi_raw",
+                  "mashup",
+                  "prot_t5"
+                ]
+              }
+            },
+            "arms_missing": [],
+            "best_arm": "none",
+            "best_arms": [
+              "none"
+            ],
+            "effects": null
+          },
+          "cv3": {
+            "arms": {
+              "none": {
+                "auroc": {
+                  "mean": 0.767074847021257,
+                  "sd": 0.012747252271635458
+                },
+                "ap": {
+                  "mean": 0.5523073883162732,
+                  "sd": 0.09660079027471032
+                },
+                "auprg": {
+                  "mean": 0.8674219093443203,
+                  "sd": 0.057508532071468964
+                },
+                "delta_auroc": 0.0,
+                "delta_ap": 0.0,
+                "delta_auprg": 0.0,
+                "paired": null,
+                "verdict": "n/a (the reference arm)",
+                "input_dim": {
+                  "min": 3700,
+                  "max": 5120,
+                  "mean": 4555.2
+                },
+                "params_fold_mean": 158643.6,
+                "modalities": [
+                  "geneformer",
+                  "go2vec",
+                  "kg_complex",
+                  "ppi_raw",
+                  "esm1b",
+                  "text_embed",
+                  "scgpt",
+                  "go",
+                  "ppi_svd",
+                  "mashup",
+                  "prot_t5"
+                ]
+              },
+              "joint": {
+                "auroc": {
+                  "mean": 0.7383130168022486,
+                  "sd": 0.03527395019026382
+                },
+                "ap": {
+                  "mean": 0.5032178375629879,
+                  "sd": 0.11104923955841242
+                },
+                "auprg": {
+                  "mean": 0.817568033553591,
+                  "sd": 0.09824621233010979
+                },
+                "delta_auroc": -0.028761830219008355,
+                "delta_ap": -0.04908955075328536,
+                "delta_auprg": -0.04985387579072931,
+                "paired": {
+                  "mean": -0.049853875790729196,
+                  "sd": 0.049522183538416226,
+                  "se": 0.024761091769208113,
+                  "n": 5
+                },
+                "verdict": "worse than the reference",
+                "input_dim": {
+                  "min": 1103,
+                  "max": 1564,
+                  "mean": 1322.2
+                },
+                "params_fold_mean": 51954.6,
+                "modalities": [
+                  "geneformer",
+                  "go2vec",
+                  "kg_complex",
+                  "ppi_raw",
+                  "esm1b",
+                  "text_embed",
+                  "scgpt",
+                  "go",
+                  "ppi_svd",
+                  "mashup",
+                  "prot_t5"
+                ]
+              }
+            },
+            "arms_missing": [],
+            "best_arm": "none",
+            "best_arms": [
+              "none"
+            ],
+            "effects": null
+          }
+        },
+        "pd:per_head": {
+          "cv1": {
+            "arms": {
+              "none": {
+                "auroc": {
+                  "mean": 0.9180308071662717,
+                  "sd": 0.007273858367750686
+                },
+                "ap": {
+                  "mean": 0.8292481969829864,
+                  "sd": 0.008376834195587672
+                },
+                "auprg": {
+                  "mean": 0.9748106577213699,
+                  "sd": 0.0018763604033363004
+                },
+                "delta_auroc": 0.0,
+                "delta_ap": 0.0,
+                "delta_auprg": 0.0,
+                "paired": null,
+                "verdict": "n/a (the reference arm)",
+                "input_dim": {
+                  "min": 4480,
+                  "max": 4864,
+                  "mean": 4648.0
+                },
+                "params_fold_mean": 162921.0,
+                "modalities": [
+                  "scgpt",
+                  "go2vec",
+                  "kg_complex",
+                  "ppi_raw",
+                  "esm1b",
+                  "text_embed",
+                  "geneformer",
+                  "go",
+                  "esm2",
+                  "prot_t5"
+                ]
+              },
+              "joint": {
+                "auroc": {
+                  "mean": 0.9184929464731537,
+                  "sd": 0.006318296819879436
+                },
+                "ap": {
+                  "mean": 0.8271697498815007,
+                  "sd": 0.015846652912161002
+                },
+                "auprg": {
+                  "mean": 0.973668879094622,
+                  "sd": 0.004104260761428522
+                },
+                "delta_auroc": 0.00046213930688199234,
+                "delta_ap": -0.0020784471014856365,
+                "delta_auprg": -0.0011417786267479135,
+                "paired": {
+                  "mean": -0.001141778626747869,
+                  "sd": 0.0028575688584493966,
+                  "se": 0.001428784429224698,
+                  "n": 5
+                },
+                "verdict": "no measurable difference",
+                "input_dim": {
+                  "min": 1341,
+                  "max": 1561,
+                  "mean": 1459.0
+                },
+                "params_fold_mean": 57684.0,
+                "modalities": [
+                  "scgpt",
+                  "go2vec",
+                  "kg_complex",
+                  "ppi_raw",
+                  "esm1b",
+                  "text_embed",
+                  "geneformer",
+                  "go",
+                  "esm2",
+                  "prot_t5"
+                ]
+              }
+            },
+            "arms_missing": [],
+            "best_arm": "none",
+            "best_arms": [
+              "none"
+            ],
+            "effects": null
+          },
+          "cv2": {
+            "arms": {
+              "none": {
+                "auroc": {
+                  "mean": 0.819786681584396,
+                  "sd": 0.02423513900681388
+                },
+                "ap": {
+                  "mean": 0.650275727030482,
+                  "sd": 0.05938693964314787
+                },
+                "auprg": {
+                  "mean": 0.9004681159338283,
+                  "sd": 0.05876785725108479
+                },
+                "delta_auroc": 0.0,
+                "delta_ap": 0.0,
+                "delta_auprg": 0.0,
+                "paired": null,
+                "verdict": "n/a (the reference arm)",
+                "input_dim": {
+                  "min": 3656,
+                  "max": 5192,
+                  "mean": 4484.0
+                },
+                "params_fold_mean": 157509.0,
+                "modalities": [
+                  "geneformer",
+                  "go",
+                  "kg_complex",
+                  "node2vec_ppi",
+                  "esm1b",
+                  "text_embed",
+                  "scgpt",
+                  "go2vec",
+                  "ppi_raw",
+                  "mashup",
+                  "prot_t5"
+                ]
+              },
+              "joint": {
+                "auroc": {
+                  "mean": 0.7885663265354276,
+                  "sd": 0.042922132633517344
+                },
+                "ap": {
+                  "mean": 0.6222386117571574,
+                  "sd": 0.06643304452694908
+                },
+                "auprg": {
+                  "mean": 0.8817582744594354,
+                  "sd": 0.07348483613175569
+                },
+                "delta_auroc": -0.031220355048968473,
+                "delta_ap": -0.02803711527332453,
+                "delta_auprg": -0.018709841474392808,
+                "paired": {
+                  "mean": -0.018709841474392985,
+                  "sd": 0.015050018032500159,
+                  "se": 0.007525009016250079,
+                  "n": 5
+                },
+                "verdict": "worse than the reference",
+                "input_dim": {
+                  "min": 881,
+                  "max": 1485,
+                  "mean": 1224.4
+                },
+                "params_fold_mean": 49942.2,
+                "modalities": [
+                  "geneformer",
+                  "go",
+                  "kg_complex",
+                  "node2vec_ppi",
+                  "esm1b",
+                  "text_embed",
+                  "scgpt",
+                  "go2vec",
+                  "ppi_raw",
+                  "mashup",
+                  "prot_t5"
+                ]
+              }
+            },
+            "arms_missing": [],
+            "best_arm": "none",
+            "best_arms": [
+              "none"
+            ],
+            "effects": null
+          },
+          "cv3": {
+            "arms": {
+              "none": {
+                "auroc": {
+                  "mean": 0.7345708171612613,
+                  "sd": 0.05838731485472782
+                },
+                "ap": {
+                  "mean": 0.5227470355672045,
+                  "sd": 0.09423234877364532
+                },
+                "auprg": {
+                  "mean": 0.823709451224017,
+                  "sd": 0.08318053103779662
+                },
+                "delta_auroc": 0.0,
+                "delta_ap": 0.0,
+                "delta_auprg": 0.0,
+                "paired": null,
+                "verdict": "n/a (the reference arm)",
+                "input_dim": {
+                  "min": 3700,
+                  "max": 5120,
+                  "mean": 4555.2
+                },
+                "params_fold_mean": 159858.6,
+                "modalities": [
+                  "geneformer",
+                  "go2vec",
+                  "kg_complex",
+                  "ppi_raw",
+                  "esm1b",
+                  "text_embed",
+                  "scgpt",
+                  "go",
+                  "ppi_svd",
+                  "mashup",
+                  "prot_t5"
+                ]
+              },
+              "joint": {
+                "auroc": {
+                  "mean": 0.6652934991854906,
+                  "sd": 0.044290113117430134
+                },
+                "ap": {
+                  "mean": 0.41937118613678814,
+                  "sd": 0.05272362269523912
+                },
+                "auprg": {
+                  "mean": 0.6772609978012634,
+                  "sd": 0.2082534373176292
+                },
+                "delta_auroc": -0.06927731797577064,
+                "delta_ap": -0.10337584943041633,
+                "delta_auprg": -0.1464484534227536,
+                "paired": {
+                  "mean": -0.14644845342275356,
+                  "sd": 0.1345469761141861,
+                  "se": 0.06727348805709304,
+                  "n": 5
+                },
+                "verdict": "worse than the reference",
+                "input_dim": {
+                  "min": 1103,
+                  "max": 1564,
+                  "mean": 1322.2
+                },
+                "params_fold_mean": 53169.6,
+                "modalities": [
+                  "geneformer",
+                  "go2vec",
+                  "kg_complex",
+                  "ppi_raw",
+                  "esm1b",
+                  "text_embed",
+                  "scgpt",
+                  "go",
+                  "ppi_svd",
+                  "mashup",
+                  "prot_t5"
+                ]
+              }
+            },
+            "arms_missing": [],
+            "best_arm": "none",
+            "best_arms": [
+              "none"
+            ],
+            "effects": null
+          }
+        },
+        "selection": {
+          "winners": {
+            "none": {
+              "cv1": {
+                "expression": {
+                  "0": "geneformer",
+                  "1": "scgpt",
+                  "2": "scgpt",
+                  "3": "geneformer",
+                  "4": "scgpt"
+                },
+                "go": {
+                  "0": "go2vec",
+                  "1": "go2vec",
+                  "2": "go",
+                  "3": "go2vec",
+                  "4": "go2vec"
+                },
+                "kg": {
+                  "0": "kg_complex",
+                  "1": "kg_complex",
+                  "2": "kg_complex",
+                  "3": "kg_complex",
+                  "4": "kg_complex"
+                },
+                "ppi": {
+                  "0": "ppi_raw",
+                  "1": "ppi_raw",
+                  "2": "ppi_raw",
+                  "3": "ppi_raw",
+                  "4": "ppi_raw"
+                },
+                "protein_seq": {
+                  "0": "prot_t5",
+                  "1": "esm1b",
+                  "2": "esm2",
+                  "3": "prot_t5",
+                  "4": "esm1b"
+                },
+                "text": {
+                  "0": "text_embed",
+                  "1": "text_embed",
+                  "2": "text_embed",
+                  "3": "text_embed",
+                  "4": "text_embed"
+                }
+              },
+              "cv2": {
+                "expression": {
+                  "0": "geneformer",
+                  "1": "scgpt",
+                  "2": "geneformer",
+                  "3": "geneformer",
+                  "4": "geneformer"
+                },
+                "go": {
+                  "0": "go",
+                  "1": "go",
+                  "2": "go",
+                  "3": "go2vec",
+                  "4": "go"
+                },
+                "kg": {
+                  "0": "kg_complex",
+                  "1": "kg_complex",
+                  "2": "kg_complex",
+                  "3": "kg_complex",
+                  "4": "kg_complex"
+                },
+                "ppi": {
+                  "0": "mashup",
+                  "1": "node2vec_ppi",
+                  "2": "ppi_raw",
+                  "3": "node2vec_ppi",
+                  "4": "ppi_raw"
+                },
+                "protein_seq": {
+                  "0": "esm1b",
+                  "1": "esm1b",
+                  "2": "prot_t5",
+                  "3": "prot_t5",
+                  "4": "esm1b"
+                },
+                "text": {
+                  "0": "text_embed",
+                  "1": "text_embed",
+                  "2": "text_embed",
+                  "3": "text_embed",
+                  "4": "text_embed"
+                }
+              },
+              "cv3": {
+                "expression": {
+                  "0": "scgpt",
+                  "1": "geneformer",
+                  "2": "geneformer",
+                  "3": "geneformer",
+                  "4": "geneformer"
+                },
+                "go": {
+                  "0": "go2vec",
+                  "1": "go",
+                  "2": "go",
+                  "3": "go2vec",
+                  "4": "go2vec"
+                },
+                "kg": {
+                  "0": "kg_complex",
+                  "1": "kg_complex",
+                  "2": "kg_complex",
+                  "3": "kg_complex",
+                  "4": "kg_complex"
+                },
+                "ppi": {
+                  "0": "mashup",
+                  "1": "ppi_raw",
+                  "2": "mashup",
+                  "3": "ppi_raw",
+                  "4": "ppi_svd"
+                },
+                "protein_seq": {
+                  "0": "prot_t5",
+                  "1": "prot_t5",
+                  "2": "esm1b",
+                  "3": "esm1b",
+                  "4": "esm1b"
+                },
+                "text": {
+                  "0": "text_embed",
+                  "1": "text_embed",
+                  "2": "text_embed",
+                  "3": "text_embed",
+                  "4": "text_embed"
+                }
+              }
+            },
+            "joint": {
+              "cv1": {
+                "expression": {
+                  "0": "geneformer",
+                  "1": "scgpt",
+                  "2": "scgpt",
+                  "3": "geneformer",
+                  "4": "scgpt"
+                },
+                "go": {
+                  "0": "go2vec",
+                  "1": "go2vec",
+                  "2": "go",
+                  "3": "go2vec",
+                  "4": "go2vec"
+                },
+                "kg": {
+                  "0": "kg_complex",
+                  "1": "kg_complex",
+                  "2": "kg_complex",
+                  "3": "kg_complex",
+                  "4": "kg_complex"
+                },
+                "ppi": {
+                  "0": "ppi_raw",
+                  "1": "ppi_raw",
+                  "2": "ppi_raw",
+                  "3": "ppi_raw",
+                  "4": "ppi_raw"
+                },
+                "protein_seq": {
+                  "0": "prot_t5",
+                  "1": "esm1b",
+                  "2": "esm2",
+                  "3": "prot_t5",
+                  "4": "esm1b"
+                },
+                "text": {
+                  "0": "text_embed",
+                  "1": "text_embed",
+                  "2": "text_embed",
+                  "3": "text_embed",
+                  "4": "text_embed"
+                }
+              },
+              "cv2": {
+                "expression": {
+                  "0": "geneformer",
+                  "1": "scgpt",
+                  "2": "geneformer",
+                  "3": "geneformer",
+                  "4": "geneformer"
+                },
+                "go": {
+                  "0": "go",
+                  "1": "go",
+                  "2": "go",
+                  "3": "go2vec",
+                  "4": "go"
+                },
+                "kg": {
+                  "0": "kg_complex",
+                  "1": "kg_complex",
+                  "2": "kg_complex",
+                  "3": "kg_complex",
+                  "4": "kg_complex"
+                },
+                "ppi": {
+                  "0": "mashup",
+                  "1": "node2vec_ppi",
+                  "2": "ppi_raw",
+                  "3": "node2vec_ppi",
+                  "4": "ppi_raw"
+                },
+                "protein_seq": {
+                  "0": "esm1b",
+                  "1": "esm1b",
+                  "2": "prot_t5",
+                  "3": "prot_t5",
+                  "4": "esm1b"
+                },
+                "text": {
+                  "0": "text_embed",
+                  "1": "text_embed",
+                  "2": "text_embed",
+                  "3": "text_embed",
+                  "4": "text_embed"
+                }
+              },
+              "cv3": {
+                "expression": {
+                  "0": "scgpt",
+                  "1": "geneformer",
+                  "2": "geneformer",
+                  "3": "geneformer",
+                  "4": "geneformer"
+                },
+                "go": {
+                  "0": "go2vec",
+                  "1": "go",
+                  "2": "go",
+                  "3": "go2vec",
+                  "4": "go2vec"
+                },
+                "kg": {
+                  "0": "kg_complex",
+                  "1": "kg_complex",
+                  "2": "kg_complex",
+                  "3": "kg_complex",
+                  "4": "kg_complex"
+                },
+                "ppi": {
+                  "0": "mashup",
+                  "1": "ppi_raw",
+                  "2": "mashup",
+                  "3": "ppi_raw",
+                  "4": "ppi_svd"
+                },
+                "protein_seq": {
+                  "0": "prot_t5",
+                  "1": "prot_t5",
+                  "2": "esm1b",
+                  "3": "esm1b",
+                  "4": "esm1b"
+                },
+                "text": {
+                  "0": "text_embed",
+                  "1": "text_embed",
+                  "2": "text_embed",
+                  "3": "text_embed",
+                  "4": "text_embed"
+                }
+              }
+            }
+          },
+          "same_selection": [
+            [
+              "none",
+              "joint"
+            ]
+          ],
+          "step1_results": {
+            "none": "siamese_sl/results",
+            "joint": "siamese_sl/results"
+          },
+          "run_token": {
+            "none": "20261113T113339-1225758",
+            "joint": "20261113T113339-1225758"
+          },
+          "selection_cv": {
+            "none": "cv1",
+            "joint": "cv1"
+          }
+        },
+        "settings": {
+          "modality": "variance 0.8",
+          "joint": "variance 0.8",
+          "targets": {
+            "PCA_MODALITY_VARIANCE": "0.8",
+            "PCA_JOINT_VARIANCE": "0.8",
+            "PCA_JOINT_DIM": null
+          },
+          "trained": {
+            "none": {
+              "modality": "no",
+              "joint": "no"
+            },
+            "joint": {
+              "modality": "no",
+              "joint": "variance 0.8"
+            }
+          }
+        }
+      },
+      "status": "ok"
+    }
+  },
+  "missing": [],
+  "absent_by_design": [
+    "numbers.json pca effects: the 2x2's per-modality / joint / interaction effects need all four PCA arms; this run compares none, joint (--pca_arms / PCA_ARMS), so they are left empty"
+  ],
+  "notes": []
+}

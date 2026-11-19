@@ -1,0 +1,146 @@
+== tab_pca.csv ( sl_comparison/results/pca_arms/tab_pca.csv )
+pca_arm     variant tier  n_modalities  same_modalities_as_reference  input_dim_mean  input_dim_min  input_dim_max  params_fold_mean  auprg_mean  auprg_sd  ap_mean    ap_sd  auroc_mean  auroc_sd  delta_auprg  delta_ap  delta_auroc  delta_auprg_paired_sd  delta_auprg_se  n_paired                  verdict  best_arm
+   none   pd:pooled    I            10                          True          4648.0           4480           4864          161706.0    0.989696  0.000505 0.904826 0.004126    0.961244  0.001624     0.000000  0.000000     0.000000                    NaN             NaN       NaN  n/a (the reference arm)      True
+  joint   pd:pooled    I            10                          True          1459.0           1341           1561           56469.0    0.988680  0.000671 0.898684 0.005642    0.958005  0.002329    -0.001016 -0.006142    -0.003239               0.000388        0.000194       5.0 no measurable difference     False
+   none   pd:pooled   II            11                          True          4484.0           3656           5192          156294.0    0.942623  0.028650 0.727538 0.038443    0.865790  0.022741     0.000000  0.000000     0.000000                    NaN             NaN       NaN  n/a (the reference arm)      True
+  joint   pd:pooled   II            11                          True          1224.4            881           1485           48727.2    0.937385  0.029026 0.713297 0.031227    0.855806  0.021351    -0.005238 -0.014241    -0.009984               0.004481        0.002240       5.0 worse than the reference     False
+   none   pd:pooled  III            11                          True          4555.2           3700           5120          158643.6    0.867422  0.057509 0.552307 0.096601    0.767075  0.012747     0.000000  0.000000     0.000000                    NaN             NaN       NaN  n/a (the reference arm)      True
+  joint   pd:pooled  III            11                          True          1322.2           1103           1564           51954.6    0.817568  0.098246 0.503218 0.111049    0.738313  0.035274    -0.049854 -0.049090    -0.028762               0.049522        0.024761       5.0 worse than the reference     False
+   none pd:per_head    I            10                          True          4648.0           4480           4864          162921.0    0.974811  0.001876 0.829248 0.008377    0.918031  0.007274     0.000000  0.000000     0.000000                    NaN             NaN       NaN  n/a (the reference arm)      True
+  joint pd:per_head    I            10                          True          1459.0           1341           1561           57684.0    0.973669  0.004104 0.827170 0.015847    0.918493  0.006318    -0.001142 -0.002078     0.000462               0.002858        0.001429       5.0 no measurable difference     False
+   none pd:per_head   II            11                          True          4484.0           3656           5192          157509.0    0.900468  0.058768 0.650276 0.059387    0.819787  0.024235     0.000000  0.000000     0.000000                    NaN             NaN       NaN  n/a (the reference arm)      True
+  joint pd:per_head   II            11                          True          1224.4            881           1485           49942.2    0.881758  0.073485 0.622239 0.066433    0.788566  0.042922    -0.018710 -0.028037    -0.031220               0.015050        0.007525       5.0 worse than the reference     False
+   none pd:per_head  III            11                          True          4555.2           3700           5120          159858.6    0.823709  0.083181 0.522747 0.094232    0.734571  0.058387     0.000000  0.000000     0.000000                    NaN             NaN       NaN  n/a (the reference arm)      True
+  joint pd:per_head  III            11                          True          1322.2           1103           1564           53169.6    0.677261  0.208253 0.419371 0.052724    0.665293  0.044290    -0.146448 -0.103376    -0.069277               0.134547        0.067273       5.0 worse than the reference     False
+
+== sl_comparison/results/paper_tables/tab_tiers.csv SLeuth rows
+pca_arm tier                       model     kind  params_fold_mean  auroc_mean  auroc_sd  ap_mean    ap_sd  auprg_mean  auprg_sd
+   none    I        siamese_sl_pd_pooled   SLeuth          161706.0    0.961244  0.001624 0.904826 0.004126    0.989696  0.000505
+   none    I                  siamese_sl   SLeuth          162921.0    0.918031  0.007274 0.829248 0.008377    0.974811  0.001876
+   none    I siamese_sl_allmod_pd_pooled ablation          320106.0    0.962232  0.001468 0.907217 0.003429    0.990063  0.000418
+   none    I           siamese_sl_allmod ablation          321321.0    0.923326  0.003936 0.835997 0.013633    0.976146  0.003610
+   none   II        siamese_sl_pd_pooled   SLeuth          156294.0    0.865790  0.022741 0.727538 0.038443    0.942623  0.028650
+   none   II                  siamese_sl   SLeuth          157509.0    0.819787  0.024235 0.650276 0.059387    0.900468  0.058768
+   none   II siamese_sl_allmod_pd_pooled ablation          320106.0    0.867061  0.031542 0.739661 0.030734    0.944390  0.029349
+   none   II           siamese_sl_allmod ablation          321321.0    0.838509  0.019799 0.687274 0.030544    0.924987  0.033682
+   none  III        siamese_sl_pd_pooled   SLeuth          158643.6    0.767075  0.012747 0.552307 0.096601    0.867422  0.057509
+   none  III                  siamese_sl   SLeuth          159858.6    0.734571  0.058387 0.522747 0.094232    0.823709  0.083181
+   none  III siamese_sl_allmod_pd_pooled ablation          320106.0    0.750081  0.045343 0.530863 0.089726    0.829236  0.113574
+   none  III           siamese_sl_allmod ablation          321321.0    0.756004  0.043807 0.555869 0.097181    0.853551  0.077930
+
+== sl_comparison/results/pca_joint/paper_tables/tab_tiers.csv SLeuth rows
+pca_arm tier                       model     kind  params_fold_mean  auroc_mean  auroc_sd  ap_mean    ap_sd  auprg_mean  auprg_sd
+  joint    I        siamese_sl_pd_pooled   SLeuth           56469.0    0.958005  0.002329 0.898684 0.005642    0.988680  0.000671
+  joint    I                  siamese_sl   SLeuth           57684.0    0.918493  0.006318 0.827170 0.015847    0.973669  0.004104
+  joint    I siamese_sl_allmod_pd_pooled ablation           65055.6    0.958701  0.001344 0.901099 0.003461    0.989012  0.000402
+  joint    I           siamese_sl_allmod ablation           66270.6    0.908260  0.014844 0.822175 0.022809    0.971952  0.005608
+  joint   II        siamese_sl_pd_pooled   SLeuth           48727.2    0.855806  0.021351 0.713297 0.031227    0.937385  0.029026
+  joint   II                  siamese_sl   SLeuth           49942.2    0.788566  0.042922 0.622239 0.066433    0.881758  0.073485
+  joint   II siamese_sl_allmod_pd_pooled ablation           62910.6    0.863439  0.024241 0.730137 0.023183    0.942797  0.028033
+  joint   II           siamese_sl_allmod ablation           64125.6    0.800855  0.023680 0.633459 0.040935    0.893114  0.053441
+  joint  III        siamese_sl_pd_pooled   SLeuth           51954.6    0.738313  0.035274 0.503218 0.111049    0.817568  0.098246
+  joint  III                  siamese_sl   SLeuth           53169.6    0.665293  0.044290 0.419371 0.052724    0.677261  0.208253
+  joint  III siamese_sl_allmod_pd_pooled ablation           65194.2    0.739850  0.041094 0.525454 0.128723    0.832755  0.110211
+  joint  III           siamese_sl_allmod ablation           66409.2    0.687058  0.035840 0.439184 0.086841    0.722948  0.153349
+
+== fold-paired none - joint (graded per-fold), positive = no PCA better
+                              label tier metric  none_mean  joint_mean  mean_diff  sd_diff  se_diff  ci95_low  ci95_high       t    p_t  p_t_holm_tier  p_t_holm_metric15  p_signflip  n_pos
+     SLeuth pooled (selected combo)    I  auprg     0.9897      0.9887     0.0010   0.0004   0.0002    0.0005     0.0016  5.2326 0.0064         0.0255             0.0892      0.0625      5
+     SLeuth pooled (selected combo)    I     ap     0.9048      0.8987     0.0061   0.0022   0.0010    0.0034     0.0089  6.2241 0.0034         0.0136             0.0407      0.0625      5
+     SLeuth pooled (selected combo)    I  auroc     0.9612      0.9580     0.0032   0.0015   0.0007    0.0014     0.0051  4.8857 0.0081         0.0325             0.1138      0.0625      5
+     SLeuth pooled (selected combo)   II  auprg     0.9426      0.9374     0.0052   0.0050   0.0022   -0.0010     0.0115  2.3382 0.0795         0.2710             0.8130      0.1250      4
+     SLeuth pooled (selected combo)   II     ap     0.7275      0.7133     0.0142   0.0104   0.0047    0.0013     0.0272  3.0571 0.0378         0.0755             0.2819      0.0625      5
+     SLeuth pooled (selected combo)   II  auroc     0.8658      0.8558     0.0100   0.0059   0.0027    0.0026     0.0174  3.7543 0.0199         0.0795             0.2385      0.0625      5
+     SLeuth pooled (selected combo)  III  auprg     0.8674      0.8176     0.0499   0.0554   0.0248   -0.0189     0.1186  2.0134 0.1144         0.3803             0.8556      0.1875      4
+     SLeuth pooled (selected combo)  III     ap     0.5523      0.5032     0.0491   0.0691   0.0309   -0.0367     0.1349  1.5887 0.1873         0.3746             1.0000      0.1875      4
+     SLeuth pooled (selected combo)  III  auroc     0.7671      0.7383     0.0288   0.0279   0.0125   -0.0059     0.0634  2.3036 0.0826         0.2425             0.5970      0.1250      4
+  SLeuth cell-line (selected combo)    I  auprg     0.9748      0.9737     0.0011   0.0032   0.0014   -0.0028     0.0051  0.7991 0.4690         0.9380             1.0000      0.5625      3
+  SLeuth cell-line (selected combo)    I     ap     0.8292      0.8272     0.0021   0.0143   0.0064   -0.0156     0.0198  0.3258 0.7609         1.0000             1.0000      0.7500      3
+  SLeuth cell-line (selected combo)    I  auroc     0.9180      0.9185    -0.0005   0.0027   0.0012   -0.0038     0.0029 -0.3814 0.7223         0.7223             1.0000      0.6875      2
+  SLeuth cell-line (selected combo)   II  auprg     0.9005      0.8818     0.0187   0.0168   0.0075   -0.0022     0.0396  2.4864 0.0677         0.2710             0.8130      0.0625      5
+  SLeuth cell-line (selected combo)   II     ap     0.6503      0.6222     0.0280   0.0082   0.0037    0.0178     0.0382  7.6259 0.0016         0.0071             0.0206      0.0625      5
+  SLeuth cell-line (selected combo)   II  auroc     0.8198      0.7886     0.0312   0.0274   0.0123   -0.0028     0.0653  2.5447 0.0637         0.1910             0.5730      0.0625      5
+  SLeuth cell-line (selected combo)  III  auprg     0.8237      0.6773     0.1464   0.1504   0.0673   -0.0403     0.3332  2.1769 0.0951         0.3803             0.8556      0.1250      4
+  SLeuth cell-line (selected combo)  III     ap     0.5227      0.4194     0.1034   0.0590   0.0264    0.0301     0.1767  3.9148 0.0173         0.0866             0.1732      0.0625      5
+  SLeuth cell-line (selected combo)  III  auroc     0.7346      0.6653     0.0693   0.0568   0.0254   -0.0013     0.1398  2.7265 0.0526         0.2425             0.5335      0.1250      4
+   SLeuth pooled, all 16 embeddings    I  auprg     0.9901      0.9890     0.0011   0.0002   0.0001    0.0008     0.0013 11.1201 0.0004         0.0019             0.0056      0.0625      5
+   SLeuth pooled, all 16 embeddings    I     ap     0.9072      0.9011     0.0061   0.0016   0.0007    0.0041     0.0081  8.5360 0.0010         0.0052             0.0155      0.0625      5
+   SLeuth pooled, all 16 embeddings    I  auroc     0.9622      0.9587     0.0035   0.0006   0.0003    0.0028     0.0042 13.8624 0.0002         0.0008             0.0024      0.0625      5
+   SLeuth pooled, all 16 embeddings   II  auprg     0.9444      0.9428     0.0016   0.0046   0.0021   -0.0042     0.0074  0.7684 0.4851         0.4851             1.0000      0.5625      3
+   SLeuth pooled, all 16 embeddings   II     ap     0.7397      0.7301     0.0095   0.0136   0.0061   -0.0074     0.0264  1.5623 0.1933         0.1933             1.0000      0.2500      4
+   SLeuth pooled, all 16 embeddings   II  auroc     0.8671      0.8634     0.0036   0.0119   0.0053   -0.0112     0.0185  0.6779 0.5350         0.5350             1.0000      0.5625      3
+   SLeuth pooled, all 16 embeddings  III  auprg     0.8292      0.8328    -0.0035   0.0993   0.0444   -0.1268     0.1198 -0.0792 0.9407         0.9407             1.0000      1.0000      4
+   SLeuth pooled, all 16 embeddings  III     ap     0.5309      0.5255     0.0054   0.0709   0.0317   -0.0826     0.0935  0.1706 0.8728         0.8728             1.0000      1.0000      4
+   SLeuth pooled, all 16 embeddings  III  auroc     0.7501      0.7398     0.0102   0.0676   0.0302   -0.0737     0.0942  0.3385 0.7520         0.7520             1.0000      0.8750      4
+SLeuth cell-line, all 16 embeddings    I  auprg     0.9761      0.9720     0.0042   0.0058   0.0026   -0.0031     0.0114  1.6063 0.1835         0.5505             0.9174      0.1875      4
+SLeuth cell-line, all 16 embeddings    I     ap     0.8360      0.8222     0.0138   0.0234   0.0105   -0.0152     0.0428  1.3225 0.2565         0.7696             1.0000      0.3125      4
+SLeuth cell-line, all 16 embeddings    I  auroc     0.9233      0.9083     0.0151   0.0171   0.0076   -0.0061     0.0362  1.9751 0.1195         0.3016             0.5970      0.1250      4
+SLeuth cell-line, all 16 embeddings   II  auprg     0.9250      0.8931     0.0319   0.0232   0.0104    0.0031     0.0607  3.0732 0.0372         0.1859             0.4833      0.0625      5
+SLeuth cell-line, all 16 embeddings   II     ap     0.6873      0.6335     0.0538   0.0153   0.0068    0.0348     0.0728  7.8681 0.0014         0.0071             0.0197      0.0625      5
+SLeuth cell-line, all 16 embeddings   II  auroc     0.8385      0.8009     0.0377   0.0185   0.0083    0.0147     0.0606  4.5588 0.0103         0.0517             0.1345      0.0625      5
+SLeuth cell-line, all 16 embeddings  III  auprg     0.8536      0.7229     0.1306   0.1214   0.0543   -0.0201     0.2813  2.4064 0.0738         0.3692             0.8130      0.0625      5
+SLeuth cell-line, all 16 embeddings  III     ap     0.5559      0.4392     0.1167   0.0834   0.0373    0.0131     0.2202  3.1285 0.0352         0.1057             0.2819      0.0625      5
+SLeuth cell-line, all 16 embeddings  III  auroc     0.7560      0.6871     0.0689   0.0646   0.0289   -0.0113     0.1492  2.3860 0.0755         0.2425             0.5970      0.1250      4
+  SLeuth cell-line, cell_emb zeroed    I  auprg     0.9737      0.9736     0.0001   0.0032   0.0014   -0.0039     0.0041  0.0522 0.9609         0.9609             1.0000      1.0000      3
+  SLeuth cell-line, cell_emb zeroed    I     ap     0.8248      0.8270    -0.0022   0.0157   0.0070   -0.0217     0.0173 -0.3167 0.7673         1.0000             1.0000      0.8125      3
+  SLeuth cell-line, cell_emb zeroed    I  auroc     0.9151      0.9185    -0.0034   0.0035   0.0016   -0.0078     0.0010 -2.1271 0.1005         0.3016             0.5970      0.1875      1
+  SLeuth cell-line, cell_emb zeroed   II  auprg     0.9017      0.8831     0.0186   0.0196   0.0088   -0.0057     0.0430  2.1231 0.1010         0.2710             0.8556      0.0625      5
+  SLeuth cell-line, cell_emb zeroed   II     ap     0.6506      0.6234     0.0272   0.0109   0.0049    0.0137     0.0407  5.5877 0.0050         0.0151             0.0554      0.0625      5
+  SLeuth cell-line, cell_emb zeroed   II  auroc     0.8197      0.7932     0.0265   0.0247   0.0110   -0.0042     0.0571  2.3967 0.0746         0.1910             0.5970      0.1250      4
+  SLeuth cell-line, cell_emb zeroed  III  auprg     0.8408      0.6952     0.1456   0.1509   0.0675   -0.0417     0.3330  2.1578 0.0971         0.3803             0.8556      0.1250      4
+  SLeuth cell-line, cell_emb zeroed  III     ap     0.5333      0.4252     0.1081   0.0652   0.0291    0.0272     0.1891  3.7099 0.0207         0.0866             0.1859      0.0625      5
+  SLeuth cell-line, cell_emb zeroed  III  auroc     0.7426      0.6700     0.0727   0.0579   0.0259    0.0008     0.1446  2.8063 0.0485         0.2425             0.5335      0.1250      4
+
+== cross-check vs tab_pca (delta_auprg = joint - none; paired sd = population)
+pd:pooled cv1 tab_pca delta=-0.001016 mine=-0.001016 | paired_sd tab=0.000388 mine_pop=0.000388 | se tab=0.000194 mine=0.000194
+pd:pooled cv2 tab_pca delta=-0.005238 mine=-0.005238 | paired_sd tab=0.004481 mine_pop=0.004481 | se tab=0.002240 mine=0.002240
+pd:pooled cv3 tab_pca delta=-0.049854 mine=-0.049854 | paired_sd tab=0.049522 mine_pop=0.049522 | se tab=0.024761 mine=0.024761
+pd:per_head cv1 tab_pca delta=-0.001142 mine=-0.001142 | paired_sd tab=0.002858 mine_pop=0.002858 | se tab=0.001429 mine=0.001429
+pd:per_head cv2 tab_pca delta=-0.018710 mine=-0.018710 | paired_sd tab=0.015050 mine_pop=0.015050 | se tab=0.007525 mine=0.007525
+pd:per_head cv3 tab_pca delta=-0.146448 mine=-0.146448 | paired_sd tab=0.134547 mine_pop=0.134547 | se tab=0.067273 mine=0.067273
+
+== AUPRG fold-mean with pair-bootstrap 95% CI per arm (ci_tiers.csv, fold=mean)
+                                ci_high          ci_low           point        
+arm                               joint    none   joint    none   joint    none
+model                       cv                                                 
+siamese_sl                  cv1  0.9747  0.9758  0.9726  0.9739  0.9737  0.9748
+                            cv2  0.8851  0.9033  0.8784  0.8977  0.8818  0.9005
+                            cv3  0.6958  0.8360  0.6560  0.8074  0.6773  0.8237
+siamese_sl_allmod           cv1  0.9730  0.9771  0.9709  0.9752  0.9720  0.9761
+                            cv2  0.8958  0.9271  0.8905  0.9230  0.8931  0.9250
+                            cv3  0.7420  0.8640  0.6985  0.8410  0.7229  0.8536
+siamese_sl_allmod_pd_pooled cv1  0.9895  0.9905  0.9885  0.9896  0.9890  0.9901
+                            cv2  0.9444  0.9460  0.9413  0.9428  0.9428  0.9444
+                            cv3  0.8444  0.8414  0.8196  0.8160  0.8328  0.8292
+siamese_sl_nocell           cv1  0.9747  0.9747  0.9726  0.9728  0.9736  0.9737
+                            cv2  0.8865  0.9045  0.8797  0.8990  0.8831  0.9017
+                            cv3  0.7131  0.8518  0.6733  0.8264  0.6952  0.8408
+siamese_sl_pd_pooled        cv1  0.9892  0.9901  0.9882  0.9893  0.9887  0.9897
+                            cv2  0.9391  0.9442  0.9359  0.9412  0.9374  0.9426
+                            cv3  0.8290  0.8766  0.8036  0.8566  0.8176  0.8674
+
+== encoder input width and trainable params (results.json fold_metrics)
+none ('pd:per_head', 'allmod', 'cv1') input_dim 9448 - 9448 mean 9448 | params mean 321321 | siamese_sl/results/allmod__all_modalities_cv1
+none ('pd:per_head', 'allmod', 'cv2') input_dim 9448 - 9448 mean 9448 | params mean 321321 | siamese_sl/results/allmod__all_modalities_cv2
+none ('pd:per_head', 'allmod', 'cv3') input_dim 9448 - 9448 mean 9448 | params mean 321321 | siamese_sl/results/allmod__all_modalities_cv3
+none ('pd:per_head', 'combo', 'cv1') input_dim 4480 - 4864 mean 4648 | params mean 162921 | siamese_sl/results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_raw_esm2_esm1b_prot_t5_text_embed_cv1
+none ('pd:per_head', 'combo', 'cv2') input_dim 3656 - 5192 mean 4484 | params mean 157509 | siamese_sl/results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_node2vec_ppi_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv2
+none ('pd:per_head', 'combo', 'cv3') input_dim 3700 - 5120 mean 4555 | params mean 159859 | siamese_sl/results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3
+none ('pd:pooled', 'allmod', 'cv1') input_dim 9448 - 9448 mean 9448 | params mean 320106 | siamese_sl/results/allmod__var_pd_pooled__all_modalities_cv1
+none ('pd:pooled', 'allmod', 'cv2') input_dim 9448 - 9448 mean 9448 | params mean 320106 | siamese_sl/results/allmod__var_pd_pooled__all_modalities_cv2
+none ('pd:pooled', 'allmod', 'cv3') input_dim 9448 - 9448 mean 9448 | params mean 320106 | siamese_sl/results/allmod__var_pd_pooled__all_modalities_cv3
+none ('pd:pooled', 'combo', 'cv1') input_dim 4480 - 4864 mean 4648 | params mean 161706 | siamese_sl/results/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_raw_esm2_esm1b_prot_t5_text_embed_cv1
+none ('pd:pooled', 'combo', 'cv2') input_dim 3656 - 5192 mean 4484 | params mean 156294 | siamese_sl/results/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_node2vec_ppi_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv2
+none ('pd:pooled', 'combo', 'cv3') input_dim 3700 - 5120 mean 4555 | params mean 158644 | siamese_sl/results/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3
+joint ('pd:per_head', 'allmod', 'cv1') input_dim 1718 - 1720 mean 1719 | params mean 66271 | siamese_sl/results/pca_joint/allmod__all_modalities_cv1
+joint ('pd:per_head', 'allmod', 'cv2') input_dim 1638 - 1669 mean 1654 | params mean 64126 | siamese_sl/results/pca_joint/allmod__all_modalities_cv2
+joint ('pd:per_head', 'allmod', 'cv3') input_dim 1719 - 1729 mean 1723 | params mean 66409 | siamese_sl/results/pca_joint/allmod__all_modalities_cv3
+joint ('pd:per_head', 'combo', 'cv1') input_dim 1341 - 1561 mean 1459 | params mean 57684 | siamese_sl/results/pca_joint/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_raw_esm2_esm1b_prot_t5_text_embed_cv1
+joint ('pd:per_head', 'combo', 'cv2') input_dim 881 - 1485 mean 1224 | params mean 49942 | siamese_sl/results/pca_joint/best_cat_geneformer_scgpt_go_go2vec_kg_complex_node2vec_ppi_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv2
+joint ('pd:per_head', 'combo', 'cv3') input_dim 1103 - 1564 mean 1322 | params mean 53170 | siamese_sl/results/pca_joint/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3
+joint ('pd:pooled', 'allmod', 'cv1') input_dim 1718 - 1720 mean 1719 | params mean 65056 | siamese_sl/results/pca_joint/allmod__var_pd_pooled__all_modalities_cv1
+joint ('pd:pooled', 'allmod', 'cv2') input_dim 1638 - 1669 mean 1654 | params mean 62911 | siamese_sl/results/pca_joint/allmod__var_pd_pooled__all_modalities_cv2
+joint ('pd:pooled', 'allmod', 'cv3') input_dim 1719 - 1729 mean 1723 | params mean 65194 | siamese_sl/results/pca_joint/allmod__var_pd_pooled__all_modalities_cv3
+joint ('pd:pooled', 'combo', 'cv1') input_dim 1341 - 1561 mean 1459 | params mean 56469 | siamese_sl/results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_raw_esm2_esm1b_prot_t5_text_embed_cv1
+joint ('pd:pooled', 'combo', 'cv2') input_dim 881 - 1485 mean 1224 | params mean 48727 | siamese_sl/results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_node2vec_ppi_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv2
+joint ('pd:pooled', 'combo', 'cv3') input_dim 1103 - 1564 mean 1322 | params mean 51955 | siamese_sl/results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3

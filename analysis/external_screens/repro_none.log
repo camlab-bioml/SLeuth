@@ -1,0 +1,14 @@
+none Adamson/cv1: 105 vectors [24.2s]
+none Adamson/cv2: 105 vectors [52.9s]
+none Adamson/cv3: 105 vectors [4.1s]
+none AdamsonGI/cv1: 105 vectors [23.3s]
+none AdamsonGI/cv2: 105 vectors [53.2s]
+none AdamsonGI/cv3: 105 vectors [4.3s]
+none Corn/cv1: 105 vectors [29.3s]
+none Corn/cv2: 105 vectors [67.1s]
+none Corn/cv3: 105 vectors [4.9s]
+none Gilbert/cv1: 105 vectors [2.2s]
+none Gilbert/cv2: 105 vectors [4.3s]
+none Gilbert/cv3: 105 vectors [0.7s]
+{"n_point": 1260, "n_ci": 252, "n_diff": 168, "max_abs_err": 1.1102230246251565e-16, "arm": "none", "manifest_started": "2026-11-16T20:24:17", "seconds": 270.81117701530457}
+exit 0

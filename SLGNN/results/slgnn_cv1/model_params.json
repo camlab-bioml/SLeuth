@@ -1,0 +1,22 @@
+{
+  "trainable_params": 5219712,
+  "total_params": 5219712,
+  "model_class": "SLGNNOriginal",
+  "fold_stamp": {
+    "folds_dir": "../sl_comparison/folds",
+    "cv_type": "cv1",
+    "genes.txt": "42ff034debb48f84",
+    "all_pos.npy": "20be58a407d6aa9a",
+    "meta.json": "1a5aa49fb909a0e1"
+  },
+  "selection_regime": "val",
+  "selection_metric": "auprg",
+  "arch": "original",
+  "seed": 42,
+  "kg_stamp": {
+    "kg_dir": "../data/synlethkg",
+    "kg_triples_sha256": "a9abebe379bdd9b8",
+    "entity_entrez_sha256": "a98caca834d31be1",
+    "source_commit": "c56e23fbd20e825c5571ef3e94377944c669ee80"
+  }
+}

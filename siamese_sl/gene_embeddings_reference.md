@@ -12,10 +12,12 @@ These are trained on scRNA-seq data. The embedding for each gene is a learned to
 
 - **What it encodes:** Co-expression and functional context from ~30 million single-cell transcriptomes
 - **Architecture:** Transformer with masked gene prediction objective
-- **Dimensions:** 256
+- **Dimensions:** 256 (V1-10M, the 2023 model); V2-104M is 768 and V2-316M 1152
 - **Reference:** Theodoris et al. (2023). *Transfer learning enables predictions in network biology.* Nature 618, 616–624.
 - **GitHub:** <https://github.com/ctheodoris/Geneformer>
 - **HuggingFace:** `ctheodoris/Geneformer`
+
+`generate_embeddings.py --type geneformer` reads the token embeddings of the HuggingFace repo's root `model.safetensors`, which is now **Geneformer-V2-316M** (18 layers, 1152d, trained on ~104M cells), not the 256d V1 model below. The revision is pinned (`GENEFORMER_REVISION`, the three files checked by sha256), and tokens map to genes through the repo's `token_dictionary_gc104M.pkl` (Ensembl ID → token) and `gene_name_id_dict_gc104M.pkl`. The snippet below is the V1-era recipe: on today's root model `AutoModel.from_pretrained("ctheodoris/Geneformer")` loads the 1152d V2-316M.
 
 **Loading code:**
 
@@ -62,6 +64,8 @@ with open("geneformer_gene_embeddings.pkl", "rb") as f:
 - **Dimensions:** 512
 - **Reference:** Cui et al. (2024). *scGPT: towards building a foundation model for single-cell multi-omics using generative AI.* Nature Methods 21, 1470–1480.
 - **GitHub:** <https://github.com/bowang-lab/scGPT>
+
+`generate_embeddings.py --type scgpt` extracts the gene-encoder embeddings from the whole-human checkpoint folder placed at `data/embeddings_cache/scGPT_human/` (`best_model.pt` + `vocab.json`). That folder is git-ignored, so copy it to every checkout that generates embeddings: the SLURM generation job deletes the cached `scgpt_gene_embeddings.pkl` and can rebuild it only from the checkpoint.
 
 **Loading code:**
 
@@ -159,7 +163,9 @@ gene_embeddings = model.gene_encoder.weight.detach().cpu().numpy()
 
 ## 2. Protein Sequence–Based (Protein Language Models)
 
-These embed the amino acid sequence of each gene's protein product. The general procedure is: gene → canonical protein sequence (via UniProt) → run through PLM → mean-pool amino acid embeddings → one vector per gene.
+These embed the amino acid sequence of each gene's protein product. The general procedure is: gene → canonical protein sequence (via UniProt) → run through PLM → mean-pool amino acid embeddings → one vector per gene. (This repo's ESM-2 file is pooled with Pool PaRTI instead, see below.)
+
+In this repo, `generate_all_genes_esm.resolve_protein_sequences` does the gene → sequence step for every protein model (ESM-2, ESM-1b, ESM-C, ProtT5, SeqVec): the UniProt reviewed canonical sequence reached through HGNC `entrez_id` → `uniprot_ids`, with NCBI RefSeq (NP_ preferred) only for the ~0.5% of genes UniProt does not cover. Do not take the first RefSeq protein NCBI links to a gene: elink lists the newest record first, which is often a predicted XP_ isoform.
 
 ### ESM-2 (Meta/FAIR)
 
@@ -169,6 +175,8 @@ These embed the amino acid sequence of each gene's protein product. The general 
 - **Benchmark performance:** Strong for functional and genetic interaction prediction tasks (AUROC: SL=0.82, NG=0.75, TF=0.75 in Zhong et al.)
 - **Reference:** Lin et al. (2023). *Evolutionary-scale prediction of atomic-level protein structure with a language model.* Science 379, 1123–1130.
 - **GitHub:** <https://github.com/facebookresearch/esm>
+
+`generate_all_genes_esm.py` does not mean-pool: it uses Pool PaRTI (Tartici et al., 2025), as in the authors' code. The attention is maxed over heads and layers, PageRank runs on the whole token graph (BOS and EOS included), and the BOS/EOS scores are dropped and the residue scores renormalised to weight the final-layer residue embeddings.
 
 **Loading code:**
 
@@ -255,18 +263,21 @@ tokenizer = T5Tokenizer.from_pretrained("Rostlab/prot_t5_xl_uniref50", do_lower_
 model = T5EncoderModel.from_pretrained("Rostlab/prot_t5_xl_uniref50")
 model.eval()
 
-# Protein sequences must have spaces between each amino acid
-sequence = "M D L S A L R E V E N"  # space-separated amino acids
+import re
+
+# Map rare/ambiguous residues to X (as in ProtT5 pre-training), then put
+# spaces between amino acids
+seq = "MDLSALREVEN"
+sequence = " ".join(re.sub(r"[UZOB]", "X", seq))
 
 ids = tokenizer(sequence, return_tensors="pt", padding=True)
 
 with torch.no_grad():
     output = model(**ids)
 
-# Mean-pool over residue positions (exclude padding)
-attention_mask = ids["attention_mask"].unsqueeze(-1)
-emb = (output.last_hidden_state * attention_mask).sum(1) / attention_mask.sum(1)
-gene_embedding = emb.squeeze().numpy()  # shape: (1024,)
+# Mean-pool over the residue positions only: the tokenizer appends </s>
+# after the last residue, which the attention mask also covers
+gene_embedding = output.last_hidden_state[0, :len(seq)].mean(0).numpy()  # (1024,)
 ```
 
 ---
@@ -367,6 +378,8 @@ embedding = np.array(response.data[0].embedding)
 - **Advantage:** No API costs, data privacy preserved, runs locally
 - **Reference:** (2025). *Small, open-source text-embedding models as substitutes to OpenAI models for gene analysis.* PMC.
 
+`generate_embeddings.py --type text_embed` uses `mxbai-embed-large-v1` on less than this: per gene, "`<symbol>: <full name>. Also known as: <other designations>`" from NCBI `gene_info` (no RefSeq summaries), keyed by NCBI GeneID.
+
 **Loading code:**
 
 ```python
@@ -431,9 +444,9 @@ from gensim.models import KeyedVectors
 
 wv = KeyedVectors.load_word2vec_format("BioConceptVec_word2vec_cbow.bin", binary=True)
 
-# Gene concepts are indexed by NCBI Gene ID prefixed with "Gene:"
-# e.g., BRCA1 (Gene ID 672) -> "Gene:672"
-brca1_emb = wv["Gene:672"]  # shape: (200,) for word2vec, (100,) for fasttext
+# Gene concepts are indexed by NCBI Gene ID prefixed with "Gene_"
+# e.g., BRCA1 (Gene ID 672) -> "Gene_672"
+brca1_emb = wv["Gene_672"]  # shape: (100,) for every BioConceptVec model
 
 # To map gene symbols to NCBI IDs, use mygene:
 # pip install mygene
@@ -441,8 +454,14 @@ import mygene
 mg = mygene.MyGeneInfo()
 result = mg.query("BRCA1", scopes="symbol", fields="entrezgene", species="human")
 gene_id = result["hits"][0]["entrezgene"]  # "672"
-emb = wv[f"Gene:{gene_id}"]
+emb = wv[f"Gene_{gene_id}"]
 ```
+
+`generate_embeddings.py --type bioconceptvec` reads the same CBOW model from
+NCBI's `concept_cbow.json` rather than the `.bin`, keeps only single-gene
+`Gene_<id>` concepts (multi-gene concepts such as `Gene_123_456` are dropped)
+restricted to human by `Homo_sapiens.gene_info`, and keys the pkl by the Entrez
+ID itself — no symbol round trip.
 
 ---
 
@@ -525,24 +544,25 @@ embeddings = mashup({A1, A2}, ndim);
 
 ```python
 import numpy as np
-from scipy.sparse import csr_matrix
-from scipy.sparse.linalg import svds
 
 def mashup_embed(adjacency_matrices, ndim=500, alpha=0.5):
-    diffusion_profiles = []
+    # Mirrors the authors' rwr.m + mashup.m (svd_approx = true)
+    n = adjacency_matrices[0].shape[0]
+    RR_sum = np.zeros((n, n))
     for A in adjacency_matrices:
-        D_inv = np.diag(1.0 / np.maximum(A.sum(axis=1), 1e-10))
-        W = D_inv @ A
-        # RWR: Q = alpha * (I - (1-alpha)*W)^{-1}
-        n = A.shape[0]
-        Q = alpha * np.linalg.inv(np.eye(n) - (1 - alpha) * W)
-        Q = np.log(Q + 1e-10)  # log transform
-        diffusion_profiles.append(Q)
-    # Stack and SVD
-    stacked = np.hstack(diffusion_profiles)
-    U, S, Vt = svds(csr_matrix(stacked), k=ndim)
-    return U * S  # shape: (num_genes, ndim)
+        A = A - np.diag(np.diag(A))
+        A = A + np.diag(A.sum(axis=0) == 0)
+        P = A / A.sum(axis=0, keepdims=True)  # column-stochastic
+        # RWR: Q = alpha * (I - (1-alpha)*P)^{-1}
+        Q = alpha * np.linalg.inv(np.eye(n) - (1 - alpha) * P)
+        R = np.log(Q + 1.0 / n)  # elementwise, smoothed by 1/n
+        RR_sum += R @ R.T
+    d, V = np.linalg.eigh(RR_sum)
+    d, V = d[::-1][:ndim], V[:, ::-1][:, :ndim]
+    return V * d ** 0.25  # shape: (num_genes, ndim); x = d^(1/4) V'
 ```
+
+`generate_embeddings.py --type mashup` runs this for one network, the binary STRING (combined_score ≥ 700) graph.
 
 ---
 
@@ -582,6 +602,8 @@ A = A.tocsr()
 # Dimensionality = number of genes (high-dimensional, sparse)
 ```
 
+`generate_embeddings.py --type ppi_raw` is NOT this raw-row baseline: it stores the rank-1024 truncated SVD (U·S) of the same kind of adjacency, so the AUROCs above do not apply to it.
+
 ---
 
 ## 5. Gene Ontology–Based
@@ -592,7 +614,7 @@ These embed genes through their GO annotations or the GO graph structure.
 
 - **What it encodes:** GO term semantics from the GO directed acyclic graph (DAG), optionally including protein-GO annotation edges
 - **Architecture:** Node2Vec applied to the GO graph (and/or GOA graph including protein annotations)
-- **Reference:** Zhong et al. (2020). *GO2Vec: transforming GO terms and proteins to vector representations via graph embeddings.* BMC Genomics 20(Suppl 1), 919.
+- **Reference:** Zhong et al. (2019). *GO2Vec: transforming GO terms and proteins to vector representations via graph embeddings.* BMC Genomics 20(Suppl 9).
 
 **Loading code:**
 
@@ -656,15 +678,16 @@ with open("anc2vec/embeddings/anc2vec_bp.pkl", "rb") as f:
 
 # go_embeddings: dict of GO_term_id -> numpy array
 # To get gene-level embeddings, aggregate over annotated GO terms
-# (same procedure as GO2Vec above)
 ```
+
+`generate_go_esm_embeddings.py` (the `go` modality) takes the anc2vec term vectors from the authors' `anc2vec/data/embeddings.npz` (github.com/aedera/anc2vec) and SUMS, rather than averages, the vectors of a gene's annotated terms (`go_pooling='sum'` in the file), so a gene's vector norm grows with its annotation count. GO2Vec and Onto2Vec in `generate_embeddings.py` average.
 
 ---
 
 ### Onto2Vec
 
 - **What it encodes:** GO ontology axioms treated as sentences, embedded via Word2Vec
-- **Reference:** Smaili et al. (2018). *OPA2Vec: combining formal and informal content of biomedical ontologies to improve similarity-based prediction.* Bioinformatics 35(12), 2133–2140.
+- **Reference:** Smaili, Gao & Hoehndorf (2018). *Onto2Vec: joint vector-based representation of biological entities and their ontology-based annotations.* Bioinformatics 34(13), i52–i60.
 - **GitHub:** <https://github.com/bio-ontology-research-group/onto2vec>
 
 **Loading code:**
@@ -682,7 +705,7 @@ from gensim.models import Word2Vec
 model = Word2Vec.load("onto2vec_model")
 go_term_emb = model.wv["GO:0008150"]
 
-# Gene embeddings: aggregate annotated GO terms (same as GO2Vec/Anc2Vec)
+# Gene embeddings: average the annotated GO terms' vectors (as GO2Vec)
 ```
 
 ---

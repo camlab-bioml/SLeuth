@@ -3,15 +3,17 @@
 PyTorch implementation of NSF4SL (negative-sample-free contrastive learning
 for ranking synthetic-lethal gene pairs; Wang et al., Bioinformatics 2022).
 
-Faithful port of the benchmark reference (SL_benchmark/src/models/nsf4sl.py):
+Line-for-line the model of the original repo (JieZheng-ShanghaiTech/NSF4SL
+model.py, identical in SL_benchmark/src/models/nsf4sl.py):
   - BYOL-style dual encoder: an online encoder + an EMA target encoder, with a
     predictor head on the online branch (no negative samples).
-  - Feature-masking augmentation (masked dims -> dataset column mean).
+  - Feature-masking augmentation (masked dims -> the feature column mean; done
+    in train_nsf4sl.PosPairDataset).
   - Symmetric bootstrap loss between the two genes of an SL pair.
 
-The only adaptation vs. the original is the feature source: instead of TransE
-knowledge-graph embeddings loaded from a fixed .npy, per-gene features come from
-any repo ``all_genes_*.pt`` file (default: kg_complex, the closest analog).
+Its input is the original's SynLethKG TransE features by default
+(build_transe_features.py, train_nsf4sl.py --features transe); an
+``all_genes_*.pt`` file can be fed instead with --features embedding.
 """
 
 import numpy as np

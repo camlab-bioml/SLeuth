@@ -2,15 +2,18 @@
 #SBATCH --job-name=reset_env
 #SBATCH --partition=gpu_Prosmn
 #SBATCH --nodes=1
-# Pinned to gpu3 (2026-08-10, by request). gpu3 threw a transient "CUDA
-# unknown error" at torch init in 2026-07 and the whole tree was moved to
-# gpu2 for that; if it recurs, the symptom is a torch.cuda init failure in
-# the very first seconds of the job, not a training-time error.
+# Pinned to gpu3 (2026-10-01, by request). GPU_NODES
+# (siamese_sl/slurm/config.conf) moves a whole orchestrated submission: both
+# orchestrators pass it as --nodelist on the command line, which replaces this
+# line (GPU_EXCLUDE only adds --exclude and cannot lift it).
 #SBATCH --nodelist=gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=16G
 #SBATCH --cpus-per-task=4
-#SBATCH --time=0-01:00:00
+# 4 h: the same install took ~3 min in four runs but 51m44s on 2026-08-27
+# (shared-filesystem I/O). The venv is rm -rf'd first, so a TIMEOUT leaves no
+# interpreter and cancels every afterok job downstream.
+#SBATCH --time=0-04:00:00
 #SBATCH --output=slurm/logs/reset_env_%j.out
 #SBATCH --error=slurm/logs/reset_env_%j.err
 
@@ -27,8 +30,33 @@
 
 set -e
 
-# Must match the parent directory of PYTHON_PATH in config.conf
-VENV_DIR="/ddn_exa/campbell/kaiyang/pytorch"
+# The venv every job runs: config.conf's PYTHON_PATH is <venv>/bin/python3, so
+# moving the venv stays a one-line edit there. Read in a subshell with
+# SLURM_JOB_ID unset so config.conf's compute-node block (module purge, cd)
+# stays inert, as sl_comparison/slurm/python_path.sh does.
+PYTHON_PATH=$(bash -c 'unset SLURM_JOB_ID; source "$1" >/dev/null 2>&1; printf "%s" "${PYTHON_PATH:-}"' \
+    _ "${SLURM_SUBMIT_DIR:-.}/slurm/config.conf")
+case "$PYTHON_PATH" in
+    /?*/bin/python*) ;;
+    *) echo "ERROR: config.conf PYTHON_PATH='$PYTHON_PATH' is not <venv>/bin/python*"
+       echo "  (submit from siamese_sl/: cd siamese_sl && sbatch slurm/reset_env.sh)"
+       exit 1 ;;
+esac
+VENV_DIR="$(dirname "$(dirname "$PYTHON_PATH")")"
+# Guard the rm -rf below against a PYTHON_PATH outside a venv (/usr/bin/python3
+# would name /usr): an existing VENV_DIR must hold pyvenv.cfg or, after an
+# interrupted reset, nothing but venv entries.
+if [ -d "$VENV_DIR" ] && [ ! -f "$VENV_DIR/pyvenv.cfg" ]; then
+    for _e in "$VENV_DIR"/* "$VENV_DIR"/.[!.]*; do
+        { [ -e "$_e" ] || [ -L "$_e" ]; } || continue
+        case "$(basename "$_e")" in
+            bin|include|lib|lib64|share|etc|.gitignore) ;;   # .gitignore: Python >= 3.13 venvs
+            *) echo "ERROR: $VENV_DIR (from config.conf PYTHON_PATH) has no pyvenv.cfg and"
+               echo "  holds '$(basename "$_e")': not a venv, refusing to rm -rf it."
+               exit 1 ;;
+        esac
+    done
+fi
 
 echo "============================================================================"
 echo "Reset Python Environment"
@@ -66,12 +94,16 @@ echo ""
 
 # Step 4b: Install torch FIRST — it is the one driver-coupled dependency.
 # torch ships ("built-in") its own bundled CUDA runtime; by default we take the
-# latest PyPI build. If a floating build ever outruns the gpu3 NVIDIA
-# driver, the CUDA smoke test in Step 6 fails loudly HERE instead of deep inside
-# every downstream GPU job. Pin a driver-matched build WITHOUT editing this file:
+# latest PyPI build. If a floating build ever outruns the GPU node's NVIDIA
+# driver, the check that would catch it here, Step 6's CUDA smoke test, is
+# commented out (2026-09-23, by request). When generation runs, its ESM step
+# refuses CPU and fails, which cancels the afterok DAG; when generation is
+# skipped, every trainer falls back to CPU SILENTLY, so check the first
+# bestcat / sl_compare log for 'Using CPU' / 'Device: cpu'. Pin a
+# driver-matched build WITHOUT editing this file:
 #   TORCH_SPEC="torch==2.5.1" \
 #   TORCH_INDEX_URL="https://download.pytorch.org/whl/cu124" sbatch slurm/reset_env.sh
-# (cuXXX must match `nvidia-smi` driver on gpu3). Installing torch separately
+# (cuXXX must match the `nvidia-smi` driver on the GPU node). Installing torch separately
 # also keeps the CPU-only PyPI deps below off any custom --index-url.
 echo "--- Installing torch (${TORCH_SPEC:-torch}${TORCH_INDEX_URL:+ from $TORCH_INDEX_URL}) ---"
 if [ -n "${TORCH_INDEX_URL:-}" ]; then
@@ -116,7 +148,9 @@ echo "--- Installing packages ---"
     mygene \
     robpy \
     einops \
-    openpyxl
+    openpyxl \
+    lightgbm \
+    scikit-optimize
 echo ""
 
 # Step 6: Verify
@@ -133,6 +167,7 @@ pkgs = [
     'sentencepiece', 'sentence_transformers', 'gensim', 'obonet',
     'node2vec', 'pykeen', 'tiktoken', 'google.protobuf', 'mygene', 'robpy',
     'einops', 'openpyxl',
+    'lightgbm', 'skopt',   # for the ELISL baseline's trainer
 ]
 ok = 0
 fail = 0
@@ -160,39 +195,41 @@ assert hasattr(esm, 'pretrained'), (
 )
 print(f'  esm.pretrained check:    OK (fair-esm)')
 
-# CUDA smoke test — this job holds a GPU (--gres=gpu:1), so exercise torch's
-# built-in CUDA here to catch a torch-CUDA/driver mismatch (or a bad node) at
-# env-reset time instead of deep inside every downstream training job. Retry the
-# transient 'CUDA unknown error' a few times before failing loudly.
-print()
-print('CUDA smoke test...')
 import torch
-import time as _t
-_cuda_ok = False
-_last = None
-for _i in range(1, 4):
-    try:
-        torch.cuda.init()
-        assert torch.cuda.is_available(), 'torch.cuda.is_available() is False'
-        _x = torch.zeros(1, device='cuda'); _ = (_x + 1).item()
-        _cuda_ok = True
-        break
-    except Exception as _e:
-        _last = _e
-        print(f'  cuda check attempt {_i}/3 failed: {_e}')
-        try:
-            torch.cuda.empty_cache()
-        except Exception:
-            pass
-        _t.sleep(10 * _i)
-if not _cuda_ok:
-    print(f'  CUDA CHECK FAILED after 3 attempts: {_last}')
-    print(f'  torch={torch.__version__}  cuda={torch.version.cuda}')
-    print('  -> If a driver/build mismatch: pin torch via TORCH_SPEC /')
-    print('     TORCH_INDEX_URL (see Step 4b note). If node-local: resubmit.')
-    exit(1)
-print(f'  cuda check: OK  torch={torch.__version__}  '
-      f'cuda={torch.version.cuda}  device={torch.cuda.get_device_name(0)}')
+# CUDA smoke test — COMMENTED OUT 2026-09-23 (by request): it passes in almost
+# every run, and a node-local CUDA failure shows up soon enough in the first
+# GPU job. Restore this block to catch a torch-CUDA/driver mismatch (see the
+# Step 4b TORCH_SPEC / TORCH_INDEX_URL note) at env-reset time instead. The
+# torch VERSION line below does not touch the device, so it still runs.
+# print()
+# print('CUDA smoke test...')
+# import time as _t
+# _cuda_ok = False
+# _last = None
+# for _i in range(1, 4):
+#     try:
+#         torch.cuda.init()
+#         assert torch.cuda.is_available(), 'torch.cuda.is_available() is False'
+#         _x = torch.zeros(1, device='cuda'); _ = (_x + 1).item()
+#         _cuda_ok = True
+#         break
+#     except Exception as _e:
+#         _last = _e
+#         print(f'  cuda check attempt {_i}/3 failed: {_e}')
+#         try:
+#             torch.cuda.empty_cache()
+#         except Exception:
+#             pass
+#         _t.sleep(10 * _i)
+# if not _cuda_ok:
+#     print(f'  CUDA CHECK FAILED after 3 attempts: {_last}')
+#     print(f'  torch={torch.__version__}  cuda={torch.version.cuda}')
+#     print('  -> If a driver/build mismatch: pin torch via TORCH_SPEC /')
+#     print('     TORCH_INDEX_URL (see Step 4b note). If node-local: resubmit.')
+#     exit(1)
+print()
+print(f'  torch={torch.__version__}  cuda={torch.version.cuda}  '
+      f'(CUDA smoke test disabled; device not touched)')
 
 # Pre-cache HGNC gene name database
 print()

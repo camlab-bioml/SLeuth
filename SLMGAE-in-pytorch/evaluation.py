@@ -2,8 +2,8 @@
 """
 Pure wrapper for SL_benchmark's evaluation functions.
 
-This module ONLY imports and calls functions from preprocess_benchmarking_paper.py.
-No custom logic - just format conversion.
+evaluate_predictions(_dict) return cal_metrics' outputs unmodified ('aupr' is its
+trapezoidal auc(recall, precision), not AP); calculate_optimal_f1 is a local helper.
 
 Source: https://github.com/JieZheng-ShanghaiTech/SL_benchmark/blob/main/src/preprocess.py
 """
@@ -110,27 +110,3 @@ def calculate_optimal_f1(labels: np.ndarray, predictions: np.ndarray) -> float:
     max_f1 = np.max(f1_scores)
 
     return max_f1
-
-
-def evaluate_from_edges(predictions: np.ndarray,
-                        labels: np.ndarray) -> Dict[str, float]:
-    """
-    Helper to convert edge-based predictions to score matrix format.
-
-    This is for compatibility with training scripts that have edge predictions.
-    Converts to the format expected by cal_metrics().
-
-    Args:
-        predictions: Predicted scores for edges, shape (N_edges,)
-        labels: Ground truth labels for edges, shape (N_edges,)
-
-    Returns:
-        Simple metrics dict with auc, aupr, f1
-    """
-    from sklearn.metrics import roc_auc_score, average_precision_score
-
-    auc = roc_auc_score(labels, predictions)
-    aupr = average_precision_score(labels, predictions)
-    f1 = calculate_optimal_f1(labels, predictions)
-
-    return {"auc": auc, "aupr": aupr, "f1": f1}

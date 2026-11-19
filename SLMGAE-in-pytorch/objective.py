@@ -5,10 +5,16 @@ Objective (loss) functions for SLMGAE.
 This module provides different loss function implementations for experimentation.
 Contains SLMGAELoss and can be extended with alternative objective functions.
 
-KEY PRINCIPLE:
---------------
-Loss is computed ONLY on selected edges (training edges), not on all possible edges.
-This prevents computing loss on O(n²) pairs and focuses only on relevant edges.
+LOSS INDEX SET:
+---------------
+The MSE terms are gathered at the pair set S the trainer passes (train_edges),
+not over V×V. The trainers here follow the SL_benchmark release of SLMGAE
+(Feng2024; its src/train/train_slmgae.py:102, train_index =
+np.vstack((train_pos, train_neg))): S = the fold's training positives (1) +
+training negatives (0); train_slmgae_shared.py passes the shared folds'
+train_pos + screened train_neg. The original Hao2021 release instead passes
+every upper-triangle pair not in the fold's test set, unlabelled pairs as 0
+(original_tensorflow_code/train.py:92-96, :137-150; ~20M pairs at 6,375 genes).
 
 MATHEMATICAL FORMULATION:
 -------------------------
@@ -32,9 +38,11 @@ Notation:
   - R|_S means R restricted to edges in S
   - MSE(R|_S, y) = (1/|S|) Σ_{(i,j)∈S} (R[i,j] - y[i,j])²
 
-CRITICAL: All MSE terms are computed on training edges S only, NOT on all V×V pairs.
+All MSE terms are computed on the pair set S passed in (see LOSS INDEX SET).
 
-Reference: Matches TensorFlow implementation in original_tensorflow_code/
+Reference: the gather-then-MSE form, the per-view sum and the α/β/1 weighting
+match original_tensorflow_code/objective.py (Optimizer); the choice of S is
+the caller's and follows SL_benchmark, not original train.py.
 """
 
 import torch

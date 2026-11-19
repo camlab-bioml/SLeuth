@@ -1,9 +1,27 @@
 #!/usr/bin/env python3
 """
-Pure wrapper for SL_benchmark's data splitting functions.
+Wrapper for SL_benchmark's data splitting functions.
 
-This module ONLY imports and calls functions from preprocess_benchmarking_paper.py.
-No custom logic - just format conversion.
+Mostly format conversion -- inject our edges into their globals, reshape their
+output -- but NOT purely: with negative_strategy="experimental" this module
+adds two steps of its own that the benchmark does not do.
+
+  * cv1 only: the negative pool is pre-trimmed HERE to num_pos*pos_neg_ratio
+    with random.Random(seed).sample (_run_cv), because their cv1 splits the
+    pool with an independent KFold and never subsamples it. cv2/cv3 get the
+    full pool and subsample per fold inside their own *_division step.
+  * an empty fold retries the WHOLE split at seed+1, seed+2, ...
+    (_split_with_retry), so the EFFECTIVE seed can differ from the requested
+    random_state. Both seeds are printed.
+
+The "random" strategy does neither: no pre-trim, no retry, one split on the
+base seed.
+
+Not reached by any current run -- this copy is vendored and has no importer:
+the live copy is SLMGAE-in-pytorch/data_split.py (siamese_sl/data_loader.py
+puts that directory on sys.path, so every `import data_split` resolves there),
+and every benchmarked model trains on the shared folds (sl_comparison/folds)
+anyway.
 
 Source: https://github.com/JieZheng-ShanghaiTech/SL_benchmark/blob/main/src/preprocess.py
 Source saved as preprocess_benchmarking_paper.py
@@ -31,11 +49,14 @@ DEFAULT_MAX_SPLIT_RETRIES = 10
 
 class SLDataSplitter:
     """
-    Pure wrapper for SL_benchmark's cv1/cv2/cv3 functions.
+    Wrapper for SL_benchmark's cv1/cv2/cv3 functions.
 
-    Only does two things:
     1. Set global variables to inject our data into their functions
     2. Convert their output format to our expected format
+    3. negative_strategy="experimental" only: pre-trim the cv1 negative pool
+       to pos_neg_ratio (_run_cv) and retry the split at seed+1, seed+2, ...
+       when a fold comes out empty (_split_with_retry) -- the effective seed
+       is then not random_state.
     """
 
     def __init__(

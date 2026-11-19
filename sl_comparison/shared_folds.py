@@ -24,6 +24,10 @@ def load_shared_folds(folds_dir, cv_type):
 
     fold_dirs = sorted((root / cv_type).glob("fold_*"),
                        key=lambda d: int(d.name.split("_")[1]))
+    if not fold_dirs:
+        # An empty CV directory must stop the run: every per-fold loop would
+        # otherwise be skipped and the trainer would write an all-NaN summary.
+        raise SystemExit(f"no fold_* directories under {root / cv_type}")
     splits = []
     for k, d in enumerate(fold_dirs):
         tp = np.load(d / "train_pos.npy")
@@ -31,8 +35,8 @@ def load_shared_folds(folds_dir, cv_type):
         ep = np.load(d / "test_pos.npy")
         en = np.load(d / "test_neg.npy")
         # Validation (prepare_folds --val_frac). Absent in legacy fold sets,
-        # in which case val_* come back empty and the caller must fall back to
-        # test-based selection (and say so).
+        # in which case val_* come back empty and every trainer REFUSES the
+        # fold set (selection is val-only; there is no test fallback).
         vp = np.load(d / "val_pos.npy") if (d / "val_pos.npy").exists() \
             else ep[:0].copy()
         vn = np.load(d / "val_neg.npy") if (d / "val_neg.npy").exists() \

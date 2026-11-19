@@ -2,10 +2,9 @@
 #SBATCH --job-name=sl_preflight
 #SBATCH --partition=gpu_Prosmn
 #SBATCH --nodes=1
-# Pinned to gpu3 (2026-08-10, by request). gpu3 threw a transient "CUDA
-# unknown error" at torch init in 2026-07 and the whole tree was moved to
-# gpu2 for that; if it recurs, the symptom is a torch.cuda init failure in
-# the very first seconds of the job, not a training-time error.
+# Pinned to gpu3 (2026-10-01, by request). No
+# orchestrator submits this script, so GPU_NODES does not reach it: pass
+# --nodelist=<node> on the command line to run it elsewhere.
 #SBATCH --nodelist=gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
@@ -42,13 +41,21 @@ echo "=================================================="
 module purge
 module load gnu15 openmpi5 EasyBuild cmake openblas fftw
 
-PYTHON_PATH="${PYTHON_PATH:-/ddn_exa/campbell/kaiyang/pytorch/bin/python}"
 cd "${SLURM_SUBMIT_DIR:-$(pwd)}"
-EMB="${EMB:-../data/all_genes_kg_complex.pt}"
+. sl_comparison/slurm/python_path.sh   # the siamese jobs' interpreter (config.conf)
 SEED="${SEED:-42}"
 PF=sl_comparison/folds_preflight
 CV=cv1
 FAIL=0
+
+# This job exists to exercise CUDA (see the header). The three trainers fall
+# back to the CPU without it, so a run without CUDA must not report PASSED.
+# The models still run below: shape and path bugs show on the CPU too.
+if ! $PYTHON_PATH -c 'import sys, torch; sys.exit(0 if torch.cuda.is_available() else 1)'; then
+    echo "FAIL: CUDA is not available to $PYTHON_PATH on $(hostname): the three"
+    echo "      trainers fall back to the CPU, so nothing below exercises CUDA."
+    FAIL=1
+fi
 
 echo "--- building tiny fold set (seed $SEED) ---"
 $PYTHON_PATH sl_comparison/prepare_folds.py --max_genes 300 --num_folds 2 \
@@ -66,24 +73,41 @@ run () {   # name  dir  "cmd..."  pred_subdir
 }
 
 mkdir -p sl_comparison/results_preflight
+# Throwaway rows: drop the previous preflight's, so a model that FAILs here
+# is missing from the table below instead of showing its old row.
+rm -f sl_comparison/results_preflight/*.json
 
 run SLGNN SLGNN \
-  "$PYTHON_PATH train_slgnn.py --cv_type $CV --folds_dir ../$PF --embedding_path $EMB \
+  "$PYTHON_PATH train_slgnn.py --cv_type $CV --folds_dir ../$PF --kg_dir ../data/synlethkg \
      --output_dir results/pf_slgnn --dim 16 --n_hops 1 --n_factors 2 \
      --epochs 2 --eval_interval 1 --early_stop 5 --seed $SEED" \
   "SLGNN/results/pf_slgnn"
 
 run NSF4SL NSF4SL \
-  "$PYTHON_PATH train_nsf4sl.py --cv_type $CV --folds_dir ../$PF --embedding_path $EMB \
+  "$PYTHON_PATH train_nsf4sl.py --cv_type $CV --folds_dir ../$PF \
+     --transe_path ../data/nsf4sl_transe_features.pt \
      --output_dir results/pf_nsf4sl --latent_size 32 --batch_size 64 \
      --epochs 2 --eval_interval 1 --early_stop 5 --seed $SEED" \
   "NSF4SL/results/pf_nsf4sl"
 
-run SLMGAE SLMGAE-in-pytorch \
-  "$PYTHON_PATH train_slmgae_shared.py --cv_type $CV --folds_dir ../$PF \
-     --output_dir results/pf_slmgae --hidden1 32 --hidden2 16 \
-     --epochs 2 --eva_epochs 1 --early_stopping 5 --seed $SEED" \
-  "SLMGAE-in-pytorch/results/pf_slmgae"
+# SLMGAE's authors' support views + the index they are keyed by, checked by
+# name so a missing file reports FAIL with its path (the full run refuses to
+# submit without them; a model missing a view is not the published SLMGAE).
+SLMGAE_MISSING=""
+for _f in Human_GOsim.txt Human_GOsim_CC.txt biogrid_ppi_sparse.txt List_Proteins_in_SL.txt; do
+    [ -f "data/$_f" ] || SLMGAE_MISSING="$SLMGAE_MISSING data/$_f"
+done
+if [ -n "$SLMGAE_MISSING" ]; then
+    echo ""; echo "--- SLMGAE (GPU) ---"
+    echo "FAIL: SLMGAE input(s) missing:$SLMGAE_MISSING (copy them into data/)"
+    FAIL=1
+else
+    run SLMGAE SLMGAE-in-pytorch \
+      "$PYTHON_PATH train_slmgae_shared.py --cv_type $CV --folds_dir ../$PF \
+         --output_dir results/pf_slmgae --hidden1 32 --hidden2 16 \
+         --epochs 2 --eva_epochs 1 --early_stopping 5 --seed $SEED" \
+      "SLMGAE-in-pytorch/results/pf_slmgae"
+fi
 
 echo ""; echo "--- comparison table (preflight) ---"
 $PYTHON_PATH sl_comparison/compare.py --results_dir sl_comparison/results_preflight || FAIL=1

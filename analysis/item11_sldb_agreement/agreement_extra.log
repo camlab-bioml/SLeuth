@@ -1,0 +1,105 @@
+Adamson: n=4794 genes=263 [2s]
+AdamsonGI: n=4705 genes=262 [3s]
+Corn: n=1251 genes=181 [3s]
+Gilbert: n=87113 genes=430 [28s]
+
+== (a) same-map contrast
+       screen                                     subset  n_pos  n_neg reportable     auroc  auroc_ci_low  auroc_ci_high  spearman  spearman_ci_low  spearman_ci_high  p_boot_le0  p_two_sided    p_holm
+0     Adamson                              k562_same_map    245   4182       True  0.660881      0.626992       0.691853  0.127427         0.100225          0.152318         NaN          NaN       NaN
+1     Adamson                       jurkat_only_same_map     60   4182       True  0.452491      0.390009       0.519196 -0.019434        -0.045106          0.007806         NaN          NaN       NaN
+2     Adamson                    other_line_not_same_map    116   4182       True  0.189099      0.147028       0.233484 -0.174529        -0.201183         -0.146553         NaN          NaN       NaN
+3     Adamson  DIFF k562_same_map - jurkat_only_same_map    245     60       True  0.208390      0.131375       0.276414       NaN              NaN               NaN         0.0     0.001998  0.005994
+4   AdamsonGI                              k562_same_map    245   4093       True  0.632110      0.593239       0.673357  0.105643         0.074454          0.140090         NaN          NaN       NaN
+5   AdamsonGI                       jurkat_only_same_map     60   4093       True  0.468153      0.398733       0.536031 -0.013164        -0.042145          0.014672         NaN          NaN       NaN
+6   AdamsonGI                    other_line_not_same_map    116   4093       True  0.556994      0.512408       0.600130  0.032321         0.006987          0.055888         NaN          NaN       NaN
+7   AdamsonGI  DIFF k562_same_map - jurkat_only_same_map    245     60       True  0.163957      0.092451       0.243572       NaN              NaN               NaN         0.0     0.001998  0.005994
+8        Corn                              k562_same_map      0   1011        NaN       NaN           NaN            NaN       NaN              NaN               NaN         NaN          NaN       NaN
+9        Corn                       jurkat_only_same_map     55   1011       True  0.448251      0.378289       0.521798 -0.041665        -0.094945          0.017884         NaN          NaN       NaN
+10       Corn                    other_line_not_same_map     38   1011       True  0.497020      0.421036       0.575459 -0.002022        -0.052513          0.051519         NaN          NaN       NaN
+11    Gilbert                              k562_same_map   3966  81092       True  0.845362      0.838150       0.852746  0.252241         0.245857          0.258963         NaN          NaN       NaN
+12    Gilbert                       jurkat_only_same_map   1914  81092       True  0.515612      0.502159       0.528118  0.008117         0.001151          0.014586         NaN          NaN       NaN
+13    Gilbert                    other_line_not_same_map     30  81092       True  0.742928      0.624453       0.850469  0.016180         0.007833          0.023503         NaN          NaN       NaN
+14    Gilbert  DIFF k562_same_map - jurkat_only_same_map   3966   1914       True  0.329750      0.314755       0.345028       NaN              NaN               NaN         0.0     0.001998  0.005994
+
+== (b) descriptive
+       screen                      subset      n  median_outcome_raw  q25_outcome_raw  q75_outcome_raw  frac_both_genes_in_gilbert_screen
+0     Adamson                    own_line    258           -0.252508        -0.288857        -0.215707                           0.930233
+1     Adamson                  other_line    191           -0.162205        -0.209767        -0.099502                           0.314136
+2     Adamson                unknown_line    163           -0.118824        -0.185738        -0.065238                           0.000000
+3     Adamson                         all    612           -0.196917        -0.255045        -0.120631                           0.490196
+4     Adamson               k562_same_map    245           -0.254811        -0.289662        -0.220638                           0.951020
+5     Adamson        jurkat_only_same_map     60           -0.204623        -0.235951        -0.175359                           1.000000
+6     Adamson     other_line_not_same_map    116           -0.121474        -0.180251        -0.039885                           0.000000
+7     Adamson       nonSL (all negatives)   4182           -0.216015        -0.259503        -0.174978                           0.888092
+8     Adamson  nonSL screened in own line   3720           -0.222762        -0.265748        -0.186525                           0.998387
+9   AdamsonGI                    own_line    258           -0.444434        -1.207039         0.382209                           0.930233
+10  AdamsonGI                  other_line    191           -0.004483        -0.374354         0.458598                           0.314136
+11  AdamsonGI                unknown_line    163            0.219959        -0.277850         0.661639                           0.000000
+12  AdamsonGI                         all    612           -0.054863        -0.680713         0.529217                           0.490196
+13  AdamsonGI               k562_same_map    245           -0.466169        -1.208086         0.448159                           0.951020
+14  AdamsonGI        jurkat_only_same_map     60            0.204101        -0.304151         0.719324                           1.000000
+15  AdamsonGI     other_line_not_same_map    116           -0.085320        -0.398325         0.315368                           0.000000
+16  AdamsonGI       nonSL (all negatives)   4093            0.108412        -0.504916         0.715206                           0.885658
+17  AdamsonGI  nonSL screened in own line   3631            0.126364        -0.509736         0.756220                           0.998348
+18       Corn                    own_line      0                 NaN              NaN              NaN                                NaN
+19       Corn                  other_line    172           -0.196029        -0.708301         0.000000                           0.686047
+20       Corn                unknown_line     68           -0.268171        -0.613475         0.000000                           0.000000
+21       Corn                         all    240           -0.229829        -0.673108         0.000000                           0.491667
+22       Corn               k562_same_map      0                 NaN              NaN              NaN                                NaN
+23       Corn        jurkat_only_same_map     55            0.000000        -0.491837         0.000000                           0.981818
+24       Corn     other_line_not_same_map     38           -0.250322        -0.405806         0.000000                           0.210526
+25       Corn       nonSL (all negatives)   1011           -0.082919        -0.605260         0.000000                           0.810089
+26       Corn  nonSL screened in own line     57            0.000000        -0.192876         0.000000                           0.000000
+27    Gilbert                    own_line   4076           -1.913892        -3.273883        -0.695265                           1.000000
+28    Gilbert                  other_line   1944            0.051443        -0.615068         0.746169                           1.000000
+29    Gilbert                unknown_line      1           -0.494784        -0.494784        -0.494784                           1.000000
+30    Gilbert                         all   6021           -1.084154        -2.771571         0.012710                           1.000000
+31    Gilbert               k562_same_map   3966           -1.863823        -3.229393        -0.663035                           1.000000
+32    Gilbert        jurkat_only_same_map   1914            0.065173        -0.582103         0.752372                           1.000000
+33    Gilbert     other_line_not_same_map     30           -1.181204        -1.964156        -0.113327                           1.000000
+34    Gilbert       nonSL (all negatives)  81092            0.136930        -0.548799         0.791569                           1.000000
+35    Gilbert  nonSL screened in own line  81050            0.136881        -0.548892         0.791431                           1.000000
+
+== (c) gene bootstrap
+       screen                subset  n_pos  n_neg  n_genes     auroc  auroc_ci_low  auroc_ci_high  auroc_boot_se  auroc_n_finite  p_two_sided_vs_chance  spearman  spearman_ci_low  spearman_ci_high  spearman_boot_se
+0     Adamson                   all    612   4182      263  0.418336      0.311225       0.552396       0.062559          1000.0               0.290000 -0.094404        -0.245062          0.053053          0.076630
+1     Adamson              own_line    258   4182      263  0.648067      0.569415       0.724707       0.040040          1000.0               0.002000  0.119996         0.056010          0.187700          0.033858
+2     Adamson            other_line    191   4182      263  0.280140      0.174517       0.412593       0.060086          1000.0               0.001998 -0.155656        -0.242000         -0.053227          0.047955
+3     Adamson          unknown_line    163   4182      263  0.216647      0.127921       0.406895       0.072430          1000.0               0.004000 -0.186515        -0.324868         -0.044343          0.072650
+4     Adamson         k562_same_map    245   4182      263  0.660881      0.585139       0.741557       0.039251          1000.0               0.001998  0.127427         0.065409          0.194632          0.032479
+5     Adamson  jurkat_only_same_map     60   4182      263  0.452491      0.275249       0.622241       0.094089          1000.0               0.606000 -0.019434        -0.085549          0.045430          0.034631
+6   AdamsonGI                   all    612   4093      262  0.555940      0.486574       0.628818       0.035267          1000.0               0.094000  0.065185        -0.016220          0.142322          0.038829
+7   AdamsonGI              own_line    258   4093      262  0.634541      0.528254       0.719865       0.048827          1000.0               0.016000  0.110075         0.020858          0.182150          0.041336
+8   AdamsonGI            other_line    191   4093      262  0.527235      0.455336       0.606344       0.038840          1000.0               0.456000  0.019472        -0.031530          0.074272          0.026912
+9   AdamsonGI          unknown_line    163   4093      262  0.465162      0.389596       0.604993       0.054993          1000.0               0.652000 -0.023161        -0.084377          0.054984          0.035920
+10  AdamsonGI         k562_same_map    245   4093      262  0.632110      0.513802       0.721923       0.051832          1000.0               0.018000  0.105643         0.010894          0.179313          0.042774
+11  AdamsonGI  jurkat_only_same_map     60   4093      262  0.468153      0.346408       0.603251       0.065225          1000.0               0.580000 -0.013164        -0.056945          0.032336          0.022720
+12       Corn                   all    240   1011      181  0.543764      0.464969       0.620832       0.039728          1000.0               0.274000  0.062327        -0.047018          0.169188          0.056664
+13       Corn              own_line      0   1011      181       NaN           NaN            NaN            NaN             NaN                    NaN       NaN              NaN               NaN               NaN
+14       Corn            other_line    172   1011      181  0.530996      0.443708       0.627353       0.046655          1000.0               0.508000  0.039642        -0.068650          0.158619          0.058244
+15       Corn          unknown_line     68   1011      181  0.576060      0.416084       0.704370       0.074446          1000.0               0.348000  0.066906        -0.059657          0.208527          0.069063
+16       Corn         k562_same_map      0   1011      181       NaN           NaN            NaN            NaN             NaN                    NaN       NaN              NaN               NaN               NaN
+17       Corn  jurkat_only_same_map     55   1011      181  0.448251      0.319645       0.627934       0.076180          1000.0               0.518000 -0.041665        -0.145059          0.078954          0.055805
+18    Gilbert                   all   6021  81092      430  0.742475      0.695095       0.796453       0.025890          1000.0               0.001998  0.213058         0.173374          0.253499          0.020623
+19    Gilbert              own_line   4076  81092      430  0.849004      0.806301       0.888474       0.020917          1000.0               0.001998  0.258078         0.223144          0.293198          0.018443
+20    Gilbert            other_line   1944  81092      430  0.519120      0.480549       0.563269       0.021190          1000.0               0.330000  0.010015        -0.010837          0.031799          0.010664
+21    Gilbert          unknown_line      1  81092      430       NaN           NaN            NaN            NaN             NaN                    NaN       NaN              NaN               NaN               NaN
+22    Gilbert         k562_same_map   3966  81092      430  0.845362      0.800945       0.885828       0.021369          1000.0               0.001998  0.252241         0.216793          0.287384          0.018390
+23    Gilbert  jurkat_only_same_map   1914  81092      430  0.515612      0.477376       0.560777       0.021103          1000.0               0.390000  0.008117        -0.012625          0.029837          0.010571
+
+== (c) gene bootstrap diffs
+       screen                              contrast    metric     point  boot_mean   boot_se    ci_low   ci_high  n_finite  p_boot_le0  p_two_sided    p_holm
+0     Adamson                 own_line - other_line     auroc  0.367927   0.366861  0.068629  0.218818  0.491861      1000       0.000     0.001998  0.005994
+1     Adamson                 own_line - other_line  spearman  0.275653   0.272740  0.056000  0.156748  0.375346      1000       0.000     0.001998  0.005994
+2     Adamson  k562_same_map - jurkat_only_same_map     auroc  0.208390   0.212925  0.094003  0.034958  0.394546      1000       0.012     0.024000  0.048000
+3     Adamson  k562_same_map - jurkat_only_same_map  spearman  0.146861   0.147085  0.043471  0.063624  0.231149      1000       0.000     0.001998  0.005994
+4   AdamsonGI                 own_line - other_line     auroc  0.107306   0.101246  0.061382 -0.023741  0.210237      1000       0.056     0.112000  0.112000
+5   AdamsonGI                 own_line - other_line  spearman  0.090603   0.086612  0.049052 -0.010702  0.176427      1000       0.043     0.086000  0.086000
+6   AdamsonGI  k562_same_map - jurkat_only_same_map     auroc  0.163957   0.155034  0.075223 -0.012813  0.289263      1000       0.031     0.062000  0.062000
+7   AdamsonGI  k562_same_map - jurkat_only_same_map  spearman  0.118807   0.113504  0.044120  0.015259  0.195997      1000       0.014     0.028000  0.028000
+8     Gilbert                 own_line - other_line     auroc  0.329883   0.329220  0.024809  0.280098  0.375817      1000       0.000     0.001998  0.005994
+9     Gilbert                 own_line - other_line  spearman  0.248062   0.248034  0.020159  0.208777  0.287763      1000       0.000     0.001998  0.005994
+10    Gilbert  k562_same_map - jurkat_only_same_map     auroc  0.329750   0.328910  0.025283  0.280162  0.375817      1000       0.000     0.001998  0.005994
+11    Gilbert  k562_same_map - jurkat_only_same_map  spearman  0.244124   0.243995  0.020236  0.204861  0.283573      1000       0.000     0.001998  0.005994
+{"runtime_s": 27.6}
+exit 0

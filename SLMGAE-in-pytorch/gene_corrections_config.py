@@ -66,7 +66,9 @@ GENE_CORRECTIONS = {
     "GLTSCR2": "NOP53",  # https://www.uniprot.org/uniprotkb/Q9NZM5/entry
     "HIST3H2A": "H2AC25",  # https://www.uniprot.org/uniprotkb/Q7L7L0/entry
     "HIST3H3": "H3-4",  # https://www.uniprot.org/uniprotkb/Q16695/entry
-    "HIST4H4": "H4C1",  # https://www.uniprot.org/uniprotkb/P62805/entry
+    # H4C16 (Entrez 121504; HGNC prev symbol HIST4H4), not H4C1 (= HIST1H4A).
+    # All H4C* genes encode P62805, whose primary UniProt name is H4C1.
+    "HIST4H4": "H4C16",  # https://www.uniprot.org/uniprotkb/P62805/entry
     "ICT1": "MRPL58",  # https://www.uniprot.org/uniprotkb/Q14197/entry
     "KIAA0020": "PUM3",  # https://www.uniprot.org/uniprotkb/Q15397/entry
     "KIAA0101": "PCLAF",  # https://www.uniprot.org/uniprotkb/Q15004/entry

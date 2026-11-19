@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PyTorch implementation of SLMGAE matching TensorFlow version exactly.
-Uses sparse tensors and kNN caching for efficiency.
+Uses sparse tensors for efficiency.
 """
 
 import torch
@@ -252,10 +252,13 @@ class SLMGAE(nn.Module):
             )
             self.gcn_dense_layers.append(layer)
 
-        # Decoders: one for each branch
+        # Decoders: one for each branch. No dropout: the original models.py
+        # builds every InnerProductDecoder without a dropout argument, so it
+        # takes layers.py's default dropout=0. (keep_prob 1, a no-op); only
+        # the GCN layers above receive the dropout placeholder.
         self.decoders = nn.ModuleList()
         for i in range(4):  # 3 support + 1 main decoder
-            decoder = InnerProductDecoder(hidden_dim=hidden2, dropout=dropout)
+            decoder = InnerProductDecoder(hidden_dim=hidden2, dropout=0.0)
             self.decoders.append(decoder)
 
         # Attention layer for combining support views (matching TF)
@@ -307,6 +310,19 @@ class SLMGAE(nn.Module):
         return reconstructions, main_rec, att, support_recs
 
 
+def array2coo(S: np.ndarray, t: float = 0) -> sp.coo_matrix:
+    """Vectorised original utils.array2coo: an entry of 1 for every S[i][j] > t
+    on the upper triangle INCLUDING the diagonal, then + transpose (so a
+    diagonal hit becomes 2). np.nonzero walks row-major, like the original's
+    nested loops, so the result is identical.
+    """
+    row, col = np.nonzero(S > t)
+    upper = col >= row
+    row, col = row[upper], col[upper]
+    coo = sp.coo_matrix((np.ones(len(row)), (row, col)), shape=S.shape)
+    return (coo + coo.T).tocoo()
+
+
 class DataLoader:
     """Data loader matching TensorFlow data loading exactly."""
 
@@ -318,7 +334,8 @@ class DataLoader:
 
     def load_sl_matrix(self):
         """Load SL adjacency: A_ij = 1 if (i,j) is SL pair, 0 otherwise"""
-        # Gene index mapping: Entrez Gene ID → index ∈ [0, n-1]
+        # Gene index mapping: List_Proteins_in_SL.txt entry → index ∈ [0, n-1]
+        # (the upstream file holds gene SYMBOLS, as does SL_Human_Approved.txt)
         sl_mapping = {}
         with open(f"{self.data_path}/List_Proteins_in_SL.txt", "r") as f:
             for idx, line in enumerate(f):
@@ -377,8 +394,14 @@ class DataLoader:
             X[i, ii] = S[i, ii]
         return X
 
-    def load_dense_feature(self, filename, knn=True):
-        """Load dense feature matrix matching TensorFlow implementation."""
+    def load_dense_feature(self, filename, knn=True, binarize=True):
+        """Load dense feature matrix matching TensorFlow implementation.
+
+        binarize=True (the original) ends with array2coo, so the view is an
+        UNWEIGHTED graph. binarize=False keeps the similarity weights; only
+        train_BC.py uses it (the original BC reads its own pre-built matrices
+        with np.loadtxt and never calls this loader).
+        """
         print(f"Loading {filename}")
 
         # Ensure num_nodes is set
@@ -387,9 +410,12 @@ class DataLoader:
                 "num_nodes not set. Either pass gene_names to DataLoader.__init__() "
                 "or call load_sl_matrix() first to infer num_nodes from data.")
 
-        # Load using TensorFlow's approach: upper triangular format with j+1 offset
-        # File format: row i contains columns from i onwards (triangular)
-        # TensorFlow places them at featureMatrix[i][j+1] (1-indexed columns)
+        # Verbatim copy of original_tensorflow_code/utils.py:156-160, kept on
+        # purpose (see the DO NOT "FIX" note in train_slmgae_shared.py). The
+        # shipped files are RELATIVE-triangular: row i holds sim(i, i+1..n-1)
+        # (n-1-i values + a trailing tab), so parts[j] = sim(i, i+1+j). This
+        # loop reads only parts[i:] and writes parts[j] at column j+1: rows
+        # i > 0 land shifted by i columns, and rows i >= (n-1)/2 read nothing.
         with open(filename, "r") as f:
             lines = f.readlines()
 
@@ -414,15 +440,14 @@ class DataLoader:
                                                    self.nn_size)
 
         # Second symmetrization (after KNN) - matching TensorFlow
-        # NOTE: This doubles edge weights if both nodes are in each other's top-k.
-        # While mathematically questionable, this matches the original TensorFlow
-        # implementation for exact reproducibility.
+        # (original utils.py:166). It doubles mutual-kNN weights, but the
+        # original then binarizes with array2coo (utils.py:167), so neither the
+        # similarity weights nor the doubling ever reach the model.
         feature_matrix = feature_matrix + feature_matrix.T
 
-        # Convert to a sparse format for consistency
-        coo_matrix = sp.coo_matrix(feature_matrix)
-
-        return coo_matrix
+        if binarize:
+            return array2coo(feature_matrix)
+        return sp.coo_matrix(feature_matrix)
 
     def load_sparse_feature(self, filename):
         """Load sparse feature matrix matching TF implementation."""

@@ -1,0 +1,16 @@
+============================================================================
+Job: bestcat_emb | ID: 1268226 | Node: gpu3
+Array task: 74 (of job 1265114)
+PCA arm: none (no PCA) | results: results/
+Start: Sun Nov 15 02:08:23 EST 2026
+NVIDIA L40, 46068 MiB, 1857 MiB
+NVIDIA L40, 46068 MiB, 633 MiB
+NVIDIA L40, 46068 MiB, 633 MiB
+NVIDIA L40, 46068 MiB, 3 MiB
+============================================================================
+
+Task 74: esmc (protein_seq) / cv3  [PCA arm none: --no_post_pca; dir tag pcavar0.8]
+  Embedding: <repo>/data/all_genes_esmc.pt
+  Variant block 1: pd:per_head (BESTCAT_EXTRA_VARIANTS=1; reporting only, never ranked)
+
+SKIP: all_genes_esmc.pt not found in <repo>/data

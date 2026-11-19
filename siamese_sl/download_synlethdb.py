@@ -59,6 +59,12 @@ RAW_NAMES = {
     "NONSL": "Human.non.SL.detailed.tsv",
 }
 
+# Header columns process_synlethdb() needs; a cached or downloaded file
+# without them (a Drive quota / confirmation HTML page) is not a SynLethDB
+# table. A fetch cut after the header keeps it, so looks_like_synlethdb() also
+# wants a data row and a final newline.
+REQUIRED_COLUMNS = ("x:START_ID", "y:END_ID", "rel_source")
+
 # Source types that count as experimental (wet-lab / screen-based).
 # A pair is kept if it has at least one of these. Any unknown source
 # type defaults to excluded — safer than a blocklist if SynLethDB adds
@@ -73,44 +79,88 @@ EXPERIMENTAL_SOURCES = {
 }
 
 
+def looks_like_synlethdb(path: str) -> bool:
+    """True if *path* is a complete-looking SynLethDB detailed TSV.
+
+    Needs the REQUIRED_COLUMNS header, at least one data row and a final
+    newline: a header-only file, or one cut mid-row, is refused (and, as a
+    cache, deleted and fetched again). A cut exactly at a row boundary still
+    passes; nothing short of a pinned checksum can tell that apart.
+    """
+    try:
+        with open(path, newline="") as f:
+            header = f.readline().rstrip("\r\n").split("\t")
+            if not all(c in header for c in REQUIRED_COLUMNS):
+                return False
+            n_rows, last = 0, ""
+            for line in f:
+                n_rows, last = n_rows + 1, line
+    except (OSError, UnicodeDecodeError):
+        return False
+    return n_rows > 0 and last.endswith("\n")
+
+
 def download_tsv(output_path: str, file_id: str, label: str) -> bool:
-    """Download a SynLethDB ``*.detailed.tsv`` from Google Drive."""
+    """Download a SynLethDB ``*.detailed.tsv`` from Google Drive.
+
+    Every tool writes ``output_path + '.part'``, which replaces output_path
+    only once it has a SynLethDB header; otherwise it is deleted. (A Drive
+    quota/confirmation HTML page or a partial file used to be left at
+    output_path, where the size-only cache check reused it on every retry.)
+    """
     url = f"https://drive.google.com/uc?export=download&id={file_id}"
     print(f"Downloading SynLethDB {label} table (Drive id {file_id})...")
+    part = output_path + ".part"
+
+    def _accept() -> bool:
+        if looks_like_synlethdb(part):
+            os.replace(part, output_path)
+            return True
+        if os.path.exists(part):
+            with open(part, errors="replace") as f:
+                print(f"  Not a SynLethDB TSV; first line: "
+                      f"{f.readline()[:200]!r}")
+            os.remove(part)
+        return False
 
     # Try gdown first (handles Google Drive confirmations)
     try:
         import gdown
-        gdown.download(id=file_id, output=output_path, quiet=False)
-        if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+        gdown.download(id=file_id, output=part, quiet=False)
+        if _accept():
             return True
     except ImportError:
         pass
     except Exception as e:
         print(f"  gdown failed: {e}")
+        if os.path.exists(part):
+            os.remove(part)
 
-    # Fallback to urllib
+    # Fallback to urllib (raises on HTTP 4xx/5xx)
     try:
         import urllib.request
         print(f"  Downloading via urllib...")
-        urllib.request.urlretrieve(url, output_path)
-        if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+        urllib.request.urlretrieve(url, part)
+        if _accept():
             return True
     except Exception as e:
         print(f"  urllib failed: {e}")
+        if os.path.exists(part):
+            os.remove(part)
 
-    # Fallback to subprocess wget/curl
+    # Fallback to subprocess wget/curl (curl -f: HTTP errors exit non-zero)
     import subprocess
     import shutil
     for cmd in [
-        ["wget", "-q", "-O", output_path, url],
-        ["curl", "-sL", "-o", output_path, url],
+        ["wget", "-q", "-O", part, url],
+        ["curl", "-fsSL", "-o", part, url],
     ]:
         if shutil.which(cmd[0]):
             ret = subprocess.run(cmd, capture_output=True)
-            if ret.returncode == 0 and os.path.exists(
-                    output_path) and os.path.getsize(output_path) > 1000:
+            if ret.returncode == 0 and _accept():
                 return True
+            if os.path.exists(part):
+                os.remove(part)
 
     print("ERROR: Could not download SynLethDB data")
     return False
@@ -238,6 +288,13 @@ def process_synlethdb(raw_tsv_path: str,
             if col_pmid is not None and col_pmid < len(fields):
                 rec["pubmed_ids"].update(_split_multi(fields[col_pmid]))
 
+    # Refuse before writing: an empty .txt/.sources.tsv pair would pass the
+    # generation job's existence-only skip check on every later run.
+    if not pairs:
+        print(f"ERROR: no experimental pairs in {raw_tsv_path} "
+              f"({total} data rows); nothing written")
+        return {}
+
     # Write output: entrez1 TAB entrez2 (no header)
     _numkey = lambda x: ((len(x[0]), x[0]), (len(x[1]), x[1]))
     with open(output_path, "w") as f:
@@ -298,12 +355,14 @@ def main():
         "--file_id",
         type=str,
         default=None,
-        help="Override the Google Drive file ID (default: per --relation)")
+        help="Override the Google Drive file ID (default: per --relation); "
+        "its raw download is cached under a name that includes the ID")
     parser.add_argument(
         "--cache_dir",
         type=str,
         default="../data/cache",
-        help="Directory for cached raw download (default: ../data/cache)")
+        help="Directory for cached raw download (default: ../data/cache); a "
+        "valid copy in its sibling cache/ or embeddings_cache/ is reused too")
     parser.add_argument("--keep_sources",
                         type=str,
                         nargs="+",
@@ -314,23 +373,33 @@ def main():
 
     file_id = args.file_id or DRIVE_IDS[args.relation]
     raw_name = RAW_NAMES[args.relation]
+    if args.file_id:  # never reuse a raw file downloaded under another ID
+        raw_name = f"{Path(raw_name).stem}.{args.file_id}.tsv"
 
-    # Download raw TSV (cache it)
+    # Download raw TSV (cache it). A cached file is reused only if it has a
+    # SynLethDB header; an invalid one is deleted and downloaded again, so a
+    # retry can recover from a bad earlier fetch.
     os.makedirs(args.cache_dir, exist_ok=True)
     raw_path = os.path.join(args.cache_dir, raw_name)
-    if os.path.exists(raw_path) and os.path.getsize(raw_path) > 1000:
+    cached = looks_like_synlethdb(raw_path)
+    if not cached:
+        # The SLURM CACHE_DIR is data/embeddings_cache, but git tracks the
+        # NONSL raw only in data/cache: reuse a valid sibling copy before
+        # going to Drive (as generate_all_genes_esm._find_source_file does).
+        # raw_name carries a --file_id override, so no other ID's copy fits.
+        base = Path(args.cache_dir).resolve()
+        for d in (base.parent / "cache", base.parent / "embeddings_cache"):
+            if d != base and looks_like_synlethdb(str(d / raw_name)):
+                raw_path, cached = str(d / raw_name), True
+                break
+    if cached:
         print(f"Using cached SynLethDB download: {raw_path}")
     else:
+        if os.path.exists(raw_path):
+            print(f"Discarding invalid cached download: {raw_path}")
+            os.remove(raw_path)
         if not download_tsv(raw_path, file_id, args.relation):
             sys.exit(1)
-
-    # Verify it looks like a TSV
-    with open(raw_path) as f:
-        header = f.readline()
-    if "x_name" not in header:
-        print(f"ERROR: Downloaded file doesn't look like SynLethDB TSV")
-        print(f"  First line: {header[:200]}")
-        sys.exit(1)
 
     print(f"Raw TSV: {raw_path}")
 

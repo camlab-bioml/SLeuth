@@ -1,0 +1,283 @@
+============================================================================
+Job: bilinear_probe | ID: 1265117 | Node: gpu3
+Array task: 2 (of job 1265117)
+PCA arm: none (no PCA) | results: results/
+Start: Sun Nov 15 23:52:50 EST 2026
+NVIDIA L40, 46068 MiB, 553 MiB
+NVIDIA L40, 46068 MiB, 555 MiB
+NVIDIA L40, 46068 MiB, 579 MiB
+NVIDIA L40, 46068 MiB, 553 MiB
+============================================================================
+
+Bilinear probe: tau * (W x_i)^T (W x_j) + b on PCA arm none's pd:pooled combo features
+  CVs: cv3   markers: results/var_pd_pooled__latest_combo_<cv>.txt
+
+============================================================================
+BilinearProbe / cv3
+============================================================================
+  combo: results/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3
+  train.py --embeddings_paths <repo>/data/all_genes_geneformer.pt <repo>/data/all_genes_scgpt.pt <repo>/data/all_genes_go.pt <repo>/data/all_genes_go2vec.pt <repo>/data/all_genes_kg_complex.pt <repo>/data/all_genes_ppi_svd.pt <repo>/data/all_genes_ppi_raw.pt <repo>/data/all_genes_mashup.pt <repo>/data/all_genes_esm1b.pt <repo>/data/all_genes_prot_t5.pt <repo>/data/all_genes_text_embed.pt --sl_path <repo>/data/SL_SynLethDB_experimental.txt --neg_pairs_path <repo>/data/SL_SynLethDB_experimental_negatives.txt --folds_dir ../sl_comparison/folds --output_dir results/bilinear_probe_cv3 --cv_type cv3 --fold_modalities {"0":[1,3,4,7,9,10],"1":[0,2,4,6,9,10],"2":[0,2,4,7,8,10],"3":[0,3,4,6,8,10],"4":[0,3,4,5,8,10]} --selection_frac 0.1 --selection_seed 42 --preprocessing_fit_scope train --pca_method plain --no_post_pca --epochs 2000 --batch_size 256 --learning_rate 0.001 --weight_decay 1e-05 --eval_interval 30 --patience 10 --warmrestart_T0 50 --warmrestart_Tmult 2 --num_folds 5 --seed 42 --dropout 0.2 --select_metric auprg_any --use_cell_lines --cell_lines pooled --kernel pd --model_type siamese --siamese_encoder_type residual --encoder_dims 32 --pd_epsilon 0 --no_gene_term --no_pair_features --no_per_head_last_layer_bias --no-last-layer-bias --no_input_bias --inner_norm none --l1_lambdas 0.01
+
+Using GPU: NVIDIA L40
+
+Loading 11 modality file(s) [raw, preprocessing deferred to per-fold fit]:
+Cell-line conditioning: ENABLED (masked multi-label, 8 heads)
+    labeled pairs: 128,870 over 8,844 genes (dropped 0 with no known head)
+    same-head SL/non-SL conflicts resolved by OR (label=SL): 1,877 pairs -> 2,172 head-cells [JURKAT 1,461, K562 406, HELA 126, OTHER 107, 293T 36, A549 30, A375 6]
+    K562     known  91,937  pos  8,705  neg  83,232  (or-resolved   406)
+    JURKAT   known  66,122  pos  2,617  neg  63,505  (or-resolved 1,461)
+    A549     known   8,889  pos    314  neg   8,575  (or-resolved    30)
+    HELA     known   5,931  pos  1,251  neg   4,680  (or-resolved   126)
+    A375     known   2,509  pos  1,094  neg   1,415  (or-resolved     6)
+    293T     known   2,438  pos    326  neg   2,112  (or-resolved    36)
+    PC9      known   1,014  pos     68  neg     946  (or-resolved     0)
+    OTHER    known  27,002  pos  8,721  neg  18,281  (or-resolved   107)
+Cell lines POOLED: one OR-collapsed label per pair — 22,166 SL / 106,704 non-SL over 128,870 pairs
+Loaded raw tensors for 19397 genes
+Loaded 22166 positive SL pairs
+SL pairs involve 5257 unique genes
+============================================================
+Siamese SL Training
+Model: SiameseSLMultiCell (kernel pd, cell_lines pooled)
+CV Type: cv3
+Folds: 5
+============================================================
+
+Generating CV3 splits (pair-based, shared folds)...
+  Fold 1: train 61,677 pairs/61,677 labels  val 697 pairs/697 labels  selection 6,853 pairs/6,853 labels [4e4635155d10]  test 5,006 pairs/5,006 labels
+  Fold 2: train 56,783 pairs/56,783 labels  val 1,012 pairs/1,012 labels  selection 6,309 pairs/6,309 labels [7d44b3c2acbe]  test 5,689 pairs/5,689 labels
+  Fold 3: train 57,325 pairs/57,325 labels  val 778 pairs/778 labels  selection 6,370 pairs/6,370 labels [96fd3aba8c4d]  test 6,142 pairs/6,142 labels
+  Fold 4: train 61,638 pairs/61,638 labels  val 1,057 pairs/1,057 labels  selection 6,849 pairs/6,849 labels [c895a0f16773]  test 4,111 pairs/4,111 labels
+  Fold 5: train 60,771 pairs/60,771 labels  val 890 pairs/890 labels  selection 6,752 pairs/6,752 labels [338228aef8bc]  test 4,809 pairs/4,809 labels
+
+============================================================
+Training Fold 1
+============================================================
+
+[fold 0] fitting preprocessing [method=plain: mean → col-standardize+SVD → mean/std; scope=train]
+[fold 0] modalities (per-fold selection): ['scgpt', 'go2vec', 'kg_complex', 'mashup', 'prot_t5', 'text_embed']
+  Fit subset: 18371/19397 rows (94.7%)
+  [scgpt] 512d, 19397 genes, 130 missing
+    mean-imputed 130/19397 genes (66560 NaN cells; locations fit on 18371 fit rows)
+  [go2vec] 128d, 19397 genes, 606 missing
+    mean-imputed 606/19397 genes (77568 NaN cells; locations fit on 18371 fit rows)
+  [kg_complex] 512d, 19397 genes, 394 missing
+    mean-imputed 394/19397 genes (201728 NaN cells; locations fit on 18371 fit rows)
+  [mashup] 500d, 19397 genes, 3465 missing
+    mean-imputed 3465/19397 genes (1732500 NaN cells; locations fit on 18371 fit rows)
+  [prot_t5] 1024d, 19397 genes, 56 missing
+    mean-imputed 56/19397 genes (57344 NaN cells; locations fit on 18371 fit rows)
+  [text_embed] 1024d, 19397 genes, 0 missing
+[fold 0] fold embeddings: (19397, 3700)
+Fold 1 input_dim: 3700
+  Trainable parameters: 118,402 (total 118,402) [SiameseSLMultiCell]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  L1 λ=0.01 for encoder.projection.weight
+
+Early stopping at epoch 510
+
+  selected on val (auprg_any=0.8204 @ epoch 210); test scored once
+  selection split (6,853 pairs, 4e4635155d10): auprg_any=0.9724
+
+Fold 1 Best (epoch 210): AUROC=0.7174, AUPR=0.3378, F1=0.3827
+  Params: 6,388/118,402 nonzero | Weights: 6,386/118,400 nonzero (94.61% sparse)
+    encoder.projection.weight: 6,386/118,400 nonzero (94.6% sparse)
+  [retrieval] index space: n=19397 num_genes=19397 num_p_genes=8844 (P-space differs from full space)
+  Saved 8844x8844 shared-space score matrix -> fold_0_cv3_predictions.npy
+  [retrieval] universe 19,397 genes (peers rank vs 8,844), 213 scored rows, 422 test-pos, 21,744 known SL pairs suppressed | fwd-check 1.43e-05 | NDCG@10 0.0000 NDCG@50 0.0299 R@50 0.0751 MAP@50 0.0047
+
+============================================================
+Training Fold 2
+============================================================
+
+[fold 1] fitting preprocessing [method=plain: mean → col-standardize+SVD → mean/std; scope=train]
+[fold 1] modalities (per-fold selection): ['geneformer', 'go', 'kg_complex', 'ppi_raw', 'prot_t5', 'text_embed']
+  Fit subset: 17891/19397 rows (92.2%)
+  [geneformer] 1152d, 19397 genes, 135 missing
+    mean-imputed 135/19397 genes (155520 NaN cells; locations fit on 17891 fit rows)
+  [go] 200d, 19397 genes, 606 missing
+    mean-imputed 606/19397 genes (121200 NaN cells; locations fit on 17891 fit rows)
+  [kg_complex] 512d, 19397 genes, 394 missing
+    mean-imputed 394/19397 genes (201728 NaN cells; locations fit on 17891 fit rows)
+  [ppi_raw] 1024d, 19397 genes, 3465 missing
+    mean-imputed 3465/19397 genes (3548160 NaN cells; locations fit on 17891 fit rows)
+  [prot_t5] 1024d, 19397 genes, 56 missing
+    mean-imputed 56/19397 genes (57344 NaN cells; locations fit on 17891 fit rows)
+  [text_embed] 1024d, 19397 genes, 0 missing
+[fold 1] fold embeddings: (19397, 4936)
+Fold 2 input_dim: 4936
+  Trainable parameters: 157,954 (total 157,954) [SiameseSLMultiCell]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  L1 λ=0.01 for encoder.projection.weight
+
+Early stopping at epoch 420
+
+  selected on val (auprg_any=0.9013 @ epoch 120); test scored once
+  selection split (6,309 pairs, 7d44b3c2acbe): auprg_any=0.9831
+
+Fold 2 Best (epoch 120): AUROC=0.7025, AUPR=0.5697, F1=0.5052
+  Params: 8,772/157,954 nonzero | Weights: 8,770/157,952 nonzero (94.45% sparse)
+    encoder.projection.weight: 8,770/157,952 nonzero (94.4% sparse)
+  [retrieval] index space: n=19397 num_genes=19397 num_p_genes=8844 (P-space differs from full space)
+  Saved 8844x8844 shared-space score matrix -> fold_1_cv3_predictions.npy
+  [retrieval] universe 19,397 genes (peers rank vs 8,844), 921 scored rows, 1,502 test-pos, 20,664 known SL pairs suppressed | fwd-check 1.24e-05 | NDCG@10 0.1982 NDCG@50 0.2172 R@50 0.3199 MAP@50 0.1645
+
+============================================================
+Training Fold 3
+============================================================
+
+[fold 2] fitting preprocessing [method=plain: mean → col-standardize+SVD → mean/std; scope=train]
+[fold 2] modalities (per-fold selection): ['geneformer', 'go', 'kg_complex', 'mashup', 'esm1b', 'text_embed']
+  Fit subset: 18054/19397 rows (93.1%)
+  [geneformer] 1152d, 19397 genes, 135 missing
+    mean-imputed 135/19397 genes (155520 NaN cells; locations fit on 18054 fit rows)
+  [go] 200d, 19397 genes, 606 missing
+    mean-imputed 606/19397 genes (121200 NaN cells; locations fit on 18054 fit rows)
+  [kg_complex] 512d, 19397 genes, 394 missing
+    mean-imputed 394/19397 genes (201728 NaN cells; locations fit on 18054 fit rows)
+  [mashup] 500d, 19397 genes, 3465 missing
+    mean-imputed 3465/19397 genes (1732500 NaN cells; locations fit on 18054 fit rows)
+  [esm1b] 1280d, 19397 genes, 56 missing
+    mean-imputed 56/19397 genes (71680 NaN cells; locations fit on 18054 fit rows)
+  [text_embed] 1024d, 19397 genes, 0 missing
+[fold 2] fold embeddings: (19397, 4668)
+Fold 3 input_dim: 4668
+  Trainable parameters: 149,378 (total 149,378) [SiameseSLMultiCell]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  L1 λ=0.01 for encoder.projection.weight
+
+Early stopping at epoch 780
+
+  selected on val (auprg_any=0.9029 @ epoch 480); test scored once
+  selection split (6,370 pairs, 96fd3aba8c4d): auprg_any=0.9765
+
+Fold 3 Best (epoch 480): AUROC=0.7566, AUPR=0.4883, F1=0.4929
+  Params: 3,907/149,378 nonzero | Weights: 3,905/149,376 nonzero (97.39% sparse)
+    encoder.projection.weight: 3,905/149,376 nonzero (97.4% sparse)
+  [retrieval] index space: n=19397 num_genes=19397 num_p_genes=8844 (P-space differs from full space)
+  Saved 8844x8844 shared-space score matrix -> fold_2_cv3_predictions.npy
+  [retrieval] universe 19,397 genes (peers rank vs 8,844), 499 scored rows, 1,307 test-pos, 20,859 known SL pairs suppressed | fwd-check 4.39e-05 | NDCG@10 0.0227 NDCG@50 0.0329 R@50 0.0272 MAP@50 0.0150
+
+============================================================
+Training Fold 4
+============================================================
+
+[fold 3] fitting preprocessing [method=plain: mean → col-standardize+SVD → mean/std; scope=train]
+[fold 3] modalities (per-fold selection): ['geneformer', 'go2vec', 'kg_complex', 'ppi_raw', 'esm1b', 'text_embed']
+  Fit subset: 18230/19397 rows (94.0%)
+  [geneformer] 1152d, 19397 genes, 135 missing
+    mean-imputed 135/19397 genes (155520 NaN cells; locations fit on 18230 fit rows)
+  [go2vec] 128d, 19397 genes, 606 missing
+    mean-imputed 606/19397 genes (77568 NaN cells; locations fit on 18230 fit rows)
+  [kg_complex] 512d, 19397 genes, 394 missing
+    mean-imputed 394/19397 genes (201728 NaN cells; locations fit on 18230 fit rows)
+  [ppi_raw] 1024d, 19397 genes, 3465 missing
+    mean-imputed 3465/19397 genes (3548160 NaN cells; locations fit on 18230 fit rows)
+  [esm1b] 1280d, 19397 genes, 56 missing
+    mean-imputed 56/19397 genes (71680 NaN cells; locations fit on 18230 fit rows)
+  [text_embed] 1024d, 19397 genes, 0 missing
+[fold 3] fold embeddings: (19397, 5120)
+Fold 4 input_dim: 5120
+  Trainable parameters: 163,842 (total 163,842) [SiameseSLMultiCell]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  L1 λ=0.01 for encoder.projection.weight
+
+Early stopping at epoch 660
+
+  selected on val (auprg_any=0.9526 @ epoch 360); test scored once
+  selection split (6,849 pairs, c895a0f16773): auprg_any=0.9714
+
+Fold 4 Best (epoch 360): AUROC=0.7861, AUPR=0.5592, F1=0.5291
+  Params: 8,773/163,842 nonzero | Weights: 8,771/163,840 nonzero (94.65% sparse)
+    encoder.projection.weight: 8,771/163,840 nonzero (94.6% sparse)
+  [retrieval] index space: n=19397 num_genes=19397 num_p_genes=8844 (P-space differs from full space)
+  Saved 8844x8844 shared-space score matrix -> fold_3_cv3_predictions.npy
+  [retrieval] universe 19,397 genes (peers rank vs 8,844), 261 scored rows, 711 test-pos, 21,455 known SL pairs suppressed | fwd-check 1.81e-05 | NDCG@10 0.0034 NDCG@50 0.0541 R@50 0.0433 MAP@50 0.0153
+
+============================================================
+Training Fold 5
+============================================================
+
+[fold 4] fitting preprocessing [method=plain: mean → col-standardize+SVD → mean/std; scope=train]
+[fold 4] modalities (per-fold selection): ['geneformer', 'go2vec', 'kg_complex', 'ppi_svd', 'esm1b', 'text_embed']
+  Fit subset: 18160/19397 rows (93.6%)
+  [geneformer] 1152d, 19397 genes, 135 missing
+    mean-imputed 135/19397 genes (155520 NaN cells; locations fit on 18160 fit rows)
+  [go2vec] 128d, 19397 genes, 606 missing
+    mean-imputed 606/19397 genes (77568 NaN cells; locations fit on 18160 fit rows)
+  [kg_complex] 512d, 19397 genes, 394 missing
+    mean-imputed 394/19397 genes (201728 NaN cells; locations fit on 18160 fit rows)
+  [ppi_svd] 256d, 19397 genes, 3465 missing
+    mean-imputed 3465/19397 genes (887040 NaN cells; locations fit on 18160 fit rows)
+  [esm1b] 1280d, 19397 genes, 56 missing
+    mean-imputed 56/19397 genes (71680 NaN cells; locations fit on 18160 fit rows)
+  [text_embed] 1024d, 19397 genes, 0 missing
+[fold 4] fold embeddings: (19397, 4352)
+Fold 5 input_dim: 4352
+  Trainable parameters: 139,266 (total 139,266) [SiameseSLMultiCell]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  L1 λ=0.01 for encoder.projection.weight
+
+Early stopping at epoch 750
+
+  selected on val (auprg_any=0.7492 @ epoch 450); test scored once
+  selection split (6,752 pairs, 338228aef8bc): auprg_any=0.9782
+
+Fold 5 Best (epoch 450): AUROC=0.7438, AUPR=0.3762, F1=0.4282
+  Params: 3,898/139,266 nonzero | Weights: 3,896/139,264 nonzero (97.20% sparse)
+    encoder.projection.weight: 3,896/139,264 nonzero (97.2% sparse)
+  [retrieval] index space: n=19397 num_genes=19397 num_p_genes=8844 (P-space differs from full space)
+  Saved 8844x8844 shared-space score matrix -> fold_4_cv3_predictions.npy
+  [retrieval] universe 19,397 genes (peers rank vs 8,844), 193 scored rows, 518 test-pos, 21,648 known SL pairs suppressed | fwd-check 3.72e-05 | NDCG@10 0.0000 NDCG@50 0.0305 R@50 0.0416 MAP@50 0.0098
+
+============================================================
+Cross-Validation Results: CV3 (pair-based)
+============================================================
+
+Fold        AUROC       AUPR         F1
+----------------------------------------
+1          0.7174     0.3378     0.3827
+2          0.7025     0.5697     0.5052
+3          0.7566     0.4883     0.4929
+4          0.7861     0.5592     0.5291
+5          0.7438     0.3762     0.4282
+----------------------------------------
+Mean       0.7413     0.4662     0.4676
+Std        0.0294     0.0942     0.0540
+
+============================================================
+Summary:
+  AUROC: 0.7413 ± 0.0294
+  AUPR:  0.4662 ± 0.0942
+  F1:    0.4676 ± 0.0540
+  Params: 6,347.6/145,768.4 nonzero (weight sparsity: 95.66%)
+============================================================
+
+Cell-line metrics (mean over folds):
+  STRATIFIED (pooled per-cell-line obs):
+    baseline(pi) 0.1684  AUPR 0.4662  normAUPR 0.3620  AUPRG 0.7992  AUROC 0.7413
+  GLOBAL (SL in any cell line; headline; SELECTION basis):
+    AUPRG 0.7992 ± 0.0917   AUPR 0.4662   AUROC 0.7413
+  PER-LINE macro (equal weight/line; diagnostic):
+    AUPRG 0.7992  AUPR 0.4662
+  RETRIEVAL (rank vs the whole 19,397-gene universe; peers rank vs 8,844 -- NOT strictly comparable):
+    NDCG@10 0.0448  NDCG@50 0.0729  R@50 0.1014  MAP@50 0.0419
+
+Results saved to results/bilinear_probe_cv3
+
+--- BilinearProbe / cv3 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.7174 AP 0.3378 AUPRG 0.8902 NDCG@10 0.0000 (corrected 0.0000)
+  fold 1: AUROC 0.7025 AP 0.5697 AUPRG 0.6714 NDCG@10 0.2049 (corrected 0.1806)
+  fold 2: AUROC 0.7566 AP 0.4883 AUPRG 0.7053 NDCG@10 0.0174 (corrected 0.0113)
+  fold 3: AUROC 0.7861 AP 0.5592 AUPRG 0.8633 NDCG@10 0.0236 (corrected 0.0115)
+  fold 4: AUROC 0.7438 AP 0.3762 AUPRG 0.8660 NDCG@10 0.0264 (corrected 0.0170)
+
+BilinearProbe(139,266)/cv3: AUROC 0.7413 | AP 0.4662 | AUPRG 0.7992 | R@50 0.1158  -> sl_comparison/results/BilinearProbe_cv3.json
+  per-fold trainable params: 145,768.4 (15,996.1) over 5 folds
+  row: sl_comparison/results/BilinearProbe_cv3.json
+
+============================================================================
+Completed at: Mon Nov 16 01:13:38 EST 2026
+Rerun arm none's compare and paper tables to publish the row:
+  PCA_ARM=none sbatch --export=ALL sl_comparison/slurm/run_compare.sh   (from the repo root)
+============================================================================

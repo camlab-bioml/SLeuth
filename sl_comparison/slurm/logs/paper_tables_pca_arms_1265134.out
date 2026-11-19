@@ -1,0 +1,26 @@
+  python: <home>/pytorch/bin/python3
+  PCA arm: none (no PCA): siamese_sl/results/, sl_comparison/results/
+==================================================
+Paper tables: the cross-arm comparison of PCA arms none joint
+  (this job's own PCA_ARM plays no part)
+Start: Tue Nov 17 10:36:29 EST 2026 | Job: 1265134 | Node: gpu3
+  run token: 20261113T113339-1225758
+  output: sl_comparison/results/pca_arms/
+==================================================
+  variants: pd:pooled pd:per_head | selection: pd:pooled | pcavar0.8 | BESTCAT_EXTRA_VARIANTS=1
+  code manifest: <repo>/sl_comparison/slurm/logs/code_20261113T113339-1225758_20261113T113540.sha256
+PCA arms (none, joint) -> sl_comparison/results/pca_arms
+  tab_pca          ok (12 rows)
+  arm none          PAPER COMPLETE
+  arm joint         PAPER COMPLETE
+  1 absent by design; see README.md
+PAPER COMPLETE
+
+==================================================
+Written to sl_comparison/results/pca_arms/:
+  README.md
+  numbers.json
+  tab_pca.csv
+verdict: PAPER COMPLETE
+Completed at: Tue Nov 17 10:36:30 EST 2026
+==================================================

@@ -5,12 +5,15 @@ vendored benchmark versions rather than replacing them.
 
 WHY THIS EXISTS
 ---------------
-preprocess_benchmarking_paper.cal_metrics is kept byte-faithful to the
-SL_benchmark reference implementation so our numbers stay comparable with
-published SLMGAE / SLGNN / NSF4SL tables. That reference has three
-normalisation defects, all of which inflate scores:
+preprocess_benchmarking_paper.cal_metrics is kept faithful (bar an F1 epsilon)
+to the SL_benchmark reference implementation so our numbers stay comparable
+with published SLMGAE / SLGNN / NSF4SL tables. That reference has three
+normalisation defects, all of which inflate scores. (Line numbers below are
+sl_comparison/preprocess_benchmarking_paper.py, the copy evaluate_model.py
+imports; the per-model copies lack its F1 epsilon and 8-line comment, so from
+cal_metrics' F1 line on theirs are 8 lower.)
 
-1. NDCG@k -- cal_metrics:1439-1441 calls
+1. NDCG@k -- cal_metrics' `ndcg_k[i] = ndcg_score(...)` lines (:1447-1449) call
        sklearn.metrics.ndcg_score(y_bool_list, y_sorted_score_list, k=k)
    where `y_bool_list` carries relevance ONLY over each model's own top-100.
    sklearn therefore derives the ideal ranking from that truncated slice, so
@@ -22,13 +25,15 @@ normalisation defects, all of which inflate scores:
    dividing by hits-in-top-k rather than min(k, n_relevant). This is the larger
    of the two defects, and it is this repo's own code, not sklearn's.
 
-3. precision@k -- cal_metrics:1443-1448 divides by min(n_relevant, k) rather
-   than k, which makes it a second copy of recall@k whenever n_relevant <= k.
-   On the 2026-08-06 run it agreed with recall@k to three decimals.
+3. precision@k -- cal_metrics' precision_k block (:1451-1456) divides by
+   min(n_relevant, k) rather than k, which makes it a second copy of recall@k
+   whenever n_relevant <= k. On the 2026-08-06 run it agreed with recall@k to
+   three decimals.
 
-recall@k (cal_metrics:1449-1454) divides by the true n_relevant and is correct
-as published; it is recomputed here only as a cross-check that this module
-reproduces cal_metrics' ranking construction exactly.
+recall@k (cal_metrics' recall_k block, :1457-1459) divides by the true
+n_relevant and is correct as published; it is recomputed here only as a
+cross-check that this module reproduces cal_metrics' ranking construction
+exactly.
 
 The corrections did not reorder the models on any cell measured to date, and in
 general they shrink scores -- but NOT unconditionally, and NDCG in particular is

@@ -10,11 +10,17 @@ with the project environment — e.g. on the cluster:
 
 Covers, in particular, the five audit fixes:
   1. plain-path PCA resolves the variance target on the standardized spectrum
-  2. predict.py gene-order guard (invariant tested via load_raw_multimodal)
+  2. gene-order guards: predict.py refuses an embedding file whose order is not
+     the checkpoint's stored gene_order (run through predict.main), and
+     load_raw_multimodal refuses modalities in different orders
   3. load_single_embedding symbol/Entrez majority detection + dedup
-  4. degenerate-fold handling (transforms stay finite)
-  5. leakage-free fit: excluded (test-only) genes never shape the transform
+  4. degenerate-fold handling (a constant column, a column all-NaN on the fit
+     rows, fewer fit rows than dims: transforms stay finite)
+  5. leakage-free fit: excluded (val-/test-only) genes never shape any fitted
+     statistic, and _fold_fit_mask excludes exactly those genes
 """
+import contextlib
+import io
 import os
 import sys
 import tempfile
@@ -99,21 +105,36 @@ def test_leakage_free_excluded_rows_do_not_shape_transform():
                                   post_pca=0.8,
                                   pca_method="plain")
 
-    def _same_V(a, b, label):
-        if a is None or b is None:
-            assert a is None and b is None, f"{label}: PCA reduction differs (leak)"
-        else:
-            assert torch.allclose(
-                a, b), f"{label}: PCA basis leaked from excluded rows"
+    # The post-concat branch must actually run, or its stats go unchecked.
+    assert t1["post_pca_V"] is not None and t1["post_median"] is not None
 
+    def _same(a, b, label):
+        if a is None or b is None:
+            assert a is None and b is None, f"{label}: fitted/skipped differs (leak)"
+        elif torch.is_tensor(a):
+            assert a.shape == b.shape and torch.allclose(a, b), \
+                f"{label}: leaked from excluded rows"
+        elif isinstance(a, (int, float)):
+            assert abs(a - b) < 1e-6, f"{label}: leaked from excluded rows"
+        else:
+            assert a == b, f"{label}: differs"
+
+    # EVERY fitted field, per modality (impute locations, pre-PCA column
+    # standardization, V, normalize center/scale) and post-concat (the same
+    # plus the re-normalization), so a new or moved statistic is covered too.
     for k in range(len(mods)):
         m1, m2 = t1["per_modality"][k], t2["per_modality"][k]
-        assert torch.allclose(m1["impute_locations"], m2["impute_locations"]), \
-            f"modality {k}: impute leaked from excluded rows"
-        _same_V(m1["pca_V"], m2["pca_V"], f"modality {k}")
-        assert abs(m1["median"] - m2["median"]) < 1e-6
-        assert abs(m1["mad"] - m2["mad"]) < 1e-6
-    _same_V(t1["post_pca_V"], t2["post_pca_V"], "post-concat")
+        assert m1.keys() == m2.keys()
+        for key in m1:
+            _same(m1[key], m2[key], f"modality {k} {key}")
+    assert t1.keys() == t2.keys()
+    for key in t1:
+        if key != "per_modality":
+            _same(t1[key], t2[key], f"post-concat {key}")
+    # End to end: the same unperturbed input maps to the same features.
+    assert torch.allclose(apply_multimodal_transform(mods, t1),
+                          apply_multimodal_transform(mods, t2)), \
+        "features differ although only excluded rows were perturbed"
 
 
 def test_post_pca_none_skips_post_normalize():
@@ -127,6 +148,60 @@ def test_post_pca_none_skips_post_normalize():
     assert t["post_median"] is None and t["post_pca_V"] is None
     out = apply_multimodal_transform(mods, t)  # must not KeyError/NaN
     assert not torch.isnan(out).any()
+
+
+def test_post_pca_count_at_or_above_the_width_is_refused():
+    """An exact post-concat count (--post_pca_dim: PCA_JOINT_DIM of PCA arms
+    joint and both) at or above the width it would reduce ran NO joint PCA
+    (_fit_pca_V's no-op) while config.json still recorded it, so the run was
+    labelled with a PCA it never had: refused per fold since 2026-10-21,
+    naming the count and the width, k == width included. One below the width
+    projects; a variance target is never refused, nor an int per-modality
+    entry at or above its modality's dim (a documented no-op)."""
+    g = torch.Generator().manual_seed(5)
+    mods = [torch.randn(300, 6, generator=g) @ torch.randn(6, d, generator=g)
+            + 0.1 * torch.randn(300, d, generator=g) for d in (20, 30)]
+    fm = torch.ones(300, dtype=torch.bool)
+
+    def fit(**kw):
+        with contextlib.redirect_stdout(io.StringIO()):
+            return fit_multimodal_transform(mods, fm, **kw)
+
+    def refused(k, w, **kw):
+        try:
+            fit(post_pca=k, **kw)
+        except ValueError as e:
+            msg = str(e)
+            assert f"post-concat PCA to {k} components" in msg \
+                and f"has only {w} columns" in msg \
+                and "PCA_JOINT_DIM" in msg, msg
+            return True
+        return False
+
+    for method in ("plain", "robust", "svd"):
+        # the width the joint stage meets: the per-modality components
+        t = fit(pca_dims=[0.8, 0.8], post_pca=None, pca_method=method)
+        w = sum(m["pca_V"].shape[1] for m in t["per_modality"])
+        assert 2 < w < 50, (method, w)
+        t = fit(pca_dims=[0.8, 0.8], post_pca=w - 1, pca_method=method)
+        assert t["post_pca_V"] is not None and \
+            tuple(t["post_pca_V"].shape) == (w, w - 1), method
+        assert tuple(apply_multimodal_transform(mods, t).shape) == \
+            (300, w - 1), method
+        for k in (w, w + 5):
+            assert refused(k, w, pca_dims=[0.8, 0.8], pca_method=method), \
+                (method, k, w)
+    # without a per-modality PCA it is the native concatenation's width
+    assert refused(50, 50, pca_dims=None)
+    t = fit(pca_dims=None, post_pca=49)
+    assert tuple(t["post_pca_V"].shape) == (50, 49)
+    # a variance target is never refused, even one keeping every component
+    for post in (0.8, 0.999999):
+        fit(pca_dims=[0.8, 0.8], post_pca=post)
+        fit(pca_dims=None, post_pca=post)
+    # nor an int per-modality entry at or above its modality's dim
+    t = fit(pca_dims=[20, 30], post_pca=None)
+    assert all(m["pca_V"] is None for m in t["per_modality"])
 
 
 # ---------------------------------------------------------------------------
@@ -168,9 +243,23 @@ def test_load_single_embedding_dedups_numeric_ids():
         assert emb.shape[0] == 3
 
 
+def test_load_single_embedding_majority_entrez_keeps_stray_non_digit():
+    """A mostly-Entrez list with one non-digit id up front must take the
+    Entrez branch (whole-list majority vote), not the symbol branch, which
+    would drop every numeric id (the old first-10-rows rule did exactly
+    that)."""
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "emb.pt")
+        order_in = ["NOT_A_GENE"] + [str(10 + i) for i in range(12)]
+        emb_in = _write_pt(p, order_in, dim=3)
+        emb, order = load_single_embedding(p)
+        assert order == order_in, order
+        assert torch.equal(emb, emb_in)
+
+
 def test_load_raw_multimodal_rejects_gene_order_mismatch():
-    """Backs the predict.py gene-order guard: differently-ordered files cannot
-    be silently aligned."""
+    """Differently-ordered modality files cannot be silently aligned
+    (load_raw_multimodal raises)."""
     with tempfile.TemporaryDirectory() as d:
         p1 = os.path.join(d, "a.pt")
         p2 = os.path.join(d, "b.pt")
@@ -184,19 +273,97 @@ def test_load_raw_multimodal_rejects_gene_order_mismatch():
         assert raised, "gene-order mismatch across modalities must raise"
 
 
-# ---------------------------------------------------------------------------
-# Fix #5 (mask side) — _fold_fit_mask excludes exactly the test-only genes
-# ---------------------------------------------------------------------------
-def test_fold_fit_mask_excludes_test_only_genes():
+def test_predict_refuses_checkpoint_gene_order_mismatch():
+    """predict.py's own guard: an embedding file whose row order differs from
+    the checkpoint's stored gene_order is not the file the model was trained
+    on and must be refused. Run through predict.main on a tiny single-output
+    checkpoint; the matching order is the control (same files, same genes),
+    so a ValueError can only come from the order check."""
+    import predict
+    from siamese_esm import SiameseSL
+
     with tempfile.TemporaryDirectory() as d:
-        genes = ["10", "11", "12", "13", "14"]
+        genes = ["10", "11", "12", "13", "14", "15"]
+        p = os.path.join(d, "emb.pt")
+        _write_pt(p, genes, dim=5, seed=3)
+        raw, _, idx_to_gene = load_raw_multimodal([p])
+        t = fit_multimodal_transform(raw,
+                                     torch.ones(len(genes), dtype=torch.bool),
+                                     pca_dims=None,
+                                     post_pca=None,
+                                     pca_method="plain")
+        model = SiameseSL(input_dim=5, encoder_dims=[4, 3])
+        ckpt = os.path.join(d, "fold_0_best.pt")
+
+        def _predict(gene_order):
+            torch.save(
+                {
+                    "model_state_dict": model.state_dict(),
+                    "config": {
+                        "pd_epsilon": 0.001,
+                        "dropout": 0.2
+                    },
+                    "preprocessing_transform": t,
+                    "gene_order": gene_order,
+                }, ckpt)
+            argv = sys.argv
+            sys.argv = [
+                "predict.py", "--model", ckpt, "--embeddings_paths", p,
+                "--gene1", "10", "--gene2", "11"
+            ]
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    predict.main()
+            finally:
+                sys.argv = argv
+
+        _predict([idx_to_gene[i] for i in range(len(idx_to_gene))])  # control
+        raised = False
+        try:
+            _predict(list(reversed(genes)))
+        except ValueError:
+            raised = True
+        assert raised, "a checkpoint/file gene-order mismatch must raise"
+
+
+# ---------------------------------------------------------------------------
+# Fix #4 — degenerate folds keep the transform finite
+# ---------------------------------------------------------------------------
+def test_degenerate_fold_transform_stays_finite():
+    """A constant column (std 0), a column all-NaN on every fit row, and a
+    fold with fewer fit rows than dims must all give a finite transform."""
+    g = torch.Generator().manual_seed(4)
+    n = 40
+    a = torch.randn(n, 12, generator=g)
+    a[:, 0] = 3.0  # constant column
+    b = torch.randn(n, 8, generator=g)
+    fm = torch.ones(n, dtype=torch.bool)
+    fm[:10] = False
+    b[10:, 1] = float("nan")  # observed only on excluded rows
+    for fit_mask in (fm, torch.arange(n) < 5):  # the second: n_fit=5 < d
+        t = fit_multimodal_transform([a.clone(), b.clone()],
+                                     fit_mask,
+                                     pca_dims=[0.8, 0.8],
+                                     post_pca=0.8,
+                                     pca_method="plain")
+        out = apply_multimodal_transform([a.clone(), b.clone()], t)
+        assert torch.isfinite(out).all(), \
+            f"degenerate fold (n_fit={int(fit_mask.sum())}) gave non-finite output"
+
+
+# ---------------------------------------------------------------------------
+# Fix #5 (mask side) — _fold_fit_mask excludes exactly the val-/test-only genes
+# ---------------------------------------------------------------------------
+def test_fold_fit_mask_excludes_val_and_test_only_genes():
+    with tempfile.TemporaryDirectory() as d:
+        genes = ["10", "11", "12", "13", "14", "15"]
         p1 = os.path.join(d, "m1.pt")
         p2 = os.path.join(d, "m2.pt")
         _write_pt(p1, genes, dim=4, seed=1)
         _write_pt(p2, genes, dim=6, seed=2)
         slp = os.path.join(d, "sl.txt")
         with open(slp, "w") as f:
-            f.write("10\t11\n11\t12\n12\t13\n13\t14\n"
+            f.write("10\t11\n11\t12\n12\t13\n13\t14\n14\t15\n"
                     )  # numeric = Entrez, no HGNC needed
 
         dm = SLDataManager(embeddings_paths=[p1, p2],
@@ -204,20 +371,27 @@ def test_fold_fit_mask_excludes_test_only_genes():
                            seed=42,
                            preprocessing_fit_scope="train")
 
-        # Hand-crafted fold: train touches genes {0,1}, test touches {3,4}.
+        # Hand-crafted fold, shaped like the shared folds (train/val/test):
+        # train touches {0,1}, val {1,2} (gene 1 is also a train gene), test
+        # {3,4}; gene 5 is in no pair.
         fold = {
             "fold": 0,
             "train": {
                 "pairs": np.array([[0, 1]], dtype=np.int64)
+            },
+            "val": {
+                "pairs": np.array([[1, 2]], dtype=np.int64)
             },
             "test": {
                 "pairs": np.array([[3, 4]], dtype=np.int64)
             },
         }
         mask = dm._fold_fit_mask(fold)
-        assert mask.dtype == torch.bool and mask.numel() == 5
-        assert bool(mask[0]) and bool(mask[1]) and bool(
-            mask[2]), "train/other genes kept"
+        assert mask.dtype == torch.bool and mask.numel() == 6
+        assert bool(mask[0]) and bool(mask[1]), \
+            "train genes kept (incl. one shared with val)"
+        assert bool(mask[5]), "genes in no pair stay in the fit"
+        assert not bool(mask[2]), "val-only genes must be excluded"
         assert not bool(mask[3]) and not bool(
             mask[4]), "test-only genes must be excluded"
 

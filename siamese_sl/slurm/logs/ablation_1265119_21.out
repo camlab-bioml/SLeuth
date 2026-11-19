@@ -1,0 +1,423 @@
+============================================================================
+Job: ablation | ID: 1270489 | Node: gpu3
+Array task: 21 (of job 1265119)
+PCA arm: none (no PCA) | results: results/
+Start: Mon Nov 16 12:31:38 EST 2026
+NVIDIA L40, 46068 MiB, 903 MiB
+NVIDIA L40, 46068 MiB, 0 MiB
+NVIDIA L40, 46068 MiB, 717 MiB
+NVIDIA L40, 46068 MiB, 825 MiB
+============================================================================
+
+============================================================================
+ABLATION  task 21 of 36
+  PCA arm: none (no PCA) -> results/
+  Variant: pd:per_head  (--kernel pd --cell_lines per_head)
+  CV:      cv1
+  Dropped: ppi
+  ARCH_ARGS: (none; train.py defaults)
+============================================================================
+  Surviving (union of the per-fold winners, 9; 5 per fold): geneformer+scgpt+go+go2vec+kg_complex+esm2+esm1b+prot_t5+text_embed
+  Per-fold modalities (positions in that list): {"0":[0,3,4,7,8],"1":[1,3,4,6,8],"2":[1,2,4,5,8],"3":[0,3,4,7,8],"4":[1,3,4,6,8]}
+  Selection split: --selection_frac 0.1 --selection_seed 42
+  Output: results/ablate_no_ppi_cv1
+  PCA: --no_post_pca
+
+  Architecture/selection signature matches the reference combo.
+Using GPU: NVIDIA L40
+
+Loading 9 modality file(s) [raw, preprocessing deferred to per-fold fit]:
+Cell-line conditioning: ENABLED (masked multi-label, 8 heads)
+    labeled pairs: 128,870 over 8,844 genes (dropped 0 with no known head)
+    same-head SL/non-SL conflicts resolved by OR (label=SL): 1,877 pairs -> 2,172 head-cells [JURKAT 1,461, K562 406, HELA 126, OTHER 107, 293T 36, A549 30, A375 6]
+    K562     known  91,937  pos  8,705  neg  83,232  (or-resolved   406)
+    JURKAT   known  66,122  pos  2,617  neg  63,505  (or-resolved 1,461)
+    A549     known   8,889  pos    314  neg   8,575  (or-resolved    30)
+    HELA     known   5,931  pos  1,251  neg   4,680  (or-resolved   126)
+    A375     known   2,509  pos  1,094  neg   1,415  (or-resolved     6)
+    293T     known   2,438  pos    326  neg   2,112  (or-resolved    36)
+    PC9      known   1,014  pos     68  neg     946  (or-resolved     0)
+    OTHER    known  27,002  pos  8,721  neg  18,281  (or-resolved   107)
+Loaded raw tensors for 19397 genes
+Loaded 22166 positive SL pairs
+SL pairs involve 5257 unique genes
+============================================================
+Siamese SL Training
+Model: SiameseSLMultiCell (kernel pd, cell_lines per_head, gene_term, pair_features)
+CV Type: cv1
+Folds: 5
+============================================================
+
+Generating CV1 splits (edge-based, shared folds)...
+  Fold 1: train 83,507 pairs/133,425 labels  val 10,309 pairs/16,486 labels  selection 9,279 pairs/14,873 labels [d3ec97a6f6df]  test 25,775 pairs/41,058 labels
+  Fold 2: train 83,508 pairs/133,416 labels  val 10,309 pairs/16,456 labels  selection 9,279 pairs/14,801 labels [f1e49c2f6293]  test 25,774 pairs/41,169 labels
+  Fold 3: train 83,508 pairs/133,242 labels  val 10,309 pairs/16,471 labels  selection 9,279 pairs/14,788 labels [4ade903da816]  test 25,774 pairs/41,341 labels
+  Fold 4: train 83,508 pairs/133,378 labels  val 10,309 pairs/16,515 labels  selection 9,279 pairs/14,895 labels [e9ebae54473c]  test 25,774 pairs/41,054 labels
+  Fold 5: train 83,509 pairs/133,304 labels  val 10,309 pairs/16,435 labels  selection 9,279 pairs/14,883 labels [f6cfc7ccfd38]  test 25,773 pairs/41,220 labels
+
+============================================================
+Training Fold 1
+============================================================
+
+[fold 0] fitting preprocessing [method=plain: mean → col-standardize+SVD → mean/std; scope=train]
+[fold 0] modalities (per-fold selection): ['geneformer', 'go2vec', 'kg_complex', 'prot_t5', 'text_embed']
+  Fit subset: 17764/19397 rows (91.6%)
+  [geneformer] 1152d, 19397 genes, 135 missing
+    mean-imputed 135/19397 genes (155520 NaN cells; locations fit on 17764 fit rows)
+  [go2vec] 128d, 19397 genes, 606 missing
+    mean-imputed 606/19397 genes (77568 NaN cells; locations fit on 17764 fit rows)
+  [kg_complex] 512d, 19397 genes, 394 missing
+    mean-imputed 394/19397 genes (201728 NaN cells; locations fit on 17764 fit rows)
+  [prot_t5] 1024d, 19397 genes, 56 missing
+    mean-imputed 56/19397 genes (57344 NaN cells; locations fit on 17764 fit rows)
+  [text_embed] 1024d, 19397 genes, 0 missing
+[fold 0] fold embeddings: (19397, 3840)
+Fold 1 input_dim: 3840
+  Trainable parameters: 136,257 (total 136,257) [SiameseSLMultiCell]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  L1 λ=0.01 for encoder.hidden_blocks.0.0.weight
+  L1 λ=0.0075 for encoder.hidden_blocks.1.0.weight
+  L1 λ=0.005 for encoder.hidden_blocks.2.0.weight
+  L1 λ=0.004 for encoder.hidden_blocks.3.0.weight
+  L1 λ=0.0025 for encoder.hidden_blocks.4.0.weight
+  L1 λ=0.0015 for encoder.hidden_blocks.5.0.weight
+  L1 λ=0.001 for encoder.projection.weight
+
+  cell-line metrics  [baseline | raw AUPR | norm AUPR | AUPRG]
+    strat : 0.112 | 0.882 | 0.867 | 0.994
+    any   : 0.172 | 0.823 | 0.786 | 0.975   (AUROC 0.928)   <- AUPRG selects
+    macro : 0.168 | 0.636 | 0.609 | 0.664   (per-line avg)
+    K562   : 0.093 | 0.780 | 0.757 | 0.989
+    JURKAT : 0.042 | 0.664 | 0.650 | 0.996
+    A549   : 0.028 | 0.160 | 0.136 | 0.838
+    HELA   : 0.190 | 0.920 | 0.901 | 0.987
+    A375   : 0.478 | 0.999 | 0.998 | 0.999
+    293T   : 0.125 | 0.515 | 0.445 | 0.898
+    PC9    : 0.061 | 0.064 | 0.003 | -1.394
+    OTHER  : 0.331 | 0.990 | 0.985 | 0.995
+
+Early stopping at epoch 330
+
+  selected on val (auprg_any=0.9749 @ epoch 30); test scored once
+  selection split (9,279 pairs, d3ec97a6f6df): auprg_any=0.9712
+
+Fold 1 Best (epoch 30): AUROC=0.9653, AUPR=0.8868, F1=0.8159
+  Params: 128,806/136,257 nonzero | Weights: 124,869/132,320 nonzero (5.63% sparse)
+    head_proj_bias: 256/256 nonzero (0.0% sparse)
+    cell_emb.weight: 192/192 nonzero (0.0% sparse)
+    encoder.hidden_blocks.0.0.weight: 116,274/123,648 nonzero (6.0% sparse)
+    encoder.hidden_blocks.1.0.weight: 968/1,024 nonzero (5.5% sparse)
+    encoder.hidden_blocks.2.0.weight: 1,012/1,024 nonzero (1.2% sparse)
+    encoder.hidden_blocks.3.0.weight: 1,019/1,024 nonzero (0.5% sparse)
+    encoder.hidden_blocks.4.0.weight: 1,020/1,024 nonzero (0.4% sparse)
+    encoder.hidden_blocks.5.0.weight: 1,024/1,024 nonzero (0.0% sparse)
+    encoder.projection.weight: 1,024/1,024 nonzero (0.0% sparse)
+    pair_fc1.weight: 2,048/2,048 nonzero (0.0% sparse)
+    pair_fc2.weight: 32/32 nonzero (0.0% sparse)
+  [retrieval] index space: n=19397 num_genes=19397 num_p_genes=8844 (P-space differs from full space)
+  Saved 8844x8844 shared-space score matrix -> fold_0_cv1_predictions.npy
+  [retrieval] universe 19,397 genes (peers rank vs 8,844), 2,273 scored rows, 4,434 test-pos, 17,732 known SL pairs suppressed | fwd-check 4.77e-06 | NDCG@10 0.0572 NDCG@50 0.1218 R@50 0.3168 MAP@50 0.0514
+
+============================================================
+Training Fold 2
+============================================================
+
+[fold 1] fitting preprocessing [method=plain: mean → col-standardize+SVD → mean/std; scope=train]
+[fold 1] modalities (per-fold selection): ['scgpt', 'go2vec', 'kg_complex', 'esm1b', 'text_embed']
+  Fit subset: 17771/19397 rows (91.6%)
+  [scgpt] 512d, 19397 genes, 130 missing
+    mean-imputed 130/19397 genes (66560 NaN cells; locations fit on 17771 fit rows)
+  [go2vec] 128d, 19397 genes, 606 missing
+    mean-imputed 606/19397 genes (77568 NaN cells; locations fit on 17771 fit rows)
+  [kg_complex] 512d, 19397 genes, 394 missing
+    mean-imputed 394/19397 genes (201728 NaN cells; locations fit on 17771 fit rows)
+  [esm1b] 1280d, 19397 genes, 56 missing
+    mean-imputed 56/19397 genes (71680 NaN cells; locations fit on 17771 fit rows)
+  [text_embed] 1024d, 19397 genes, 0 missing
+[fold 1] fold embeddings: (19397, 3456)
+Fold 2 input_dim: 3456
+  Trainable parameters: 123,585 (total 123,585) [SiameseSLMultiCell]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  L1 λ=0.01 for encoder.hidden_blocks.0.0.weight
+  L1 λ=0.0075 for encoder.hidden_blocks.1.0.weight
+  L1 λ=0.005 for encoder.hidden_blocks.2.0.weight
+  L1 λ=0.004 for encoder.hidden_blocks.3.0.weight
+  L1 λ=0.0025 for encoder.hidden_blocks.4.0.weight
+  L1 λ=0.0015 for encoder.hidden_blocks.5.0.weight
+  L1 λ=0.001 for encoder.projection.weight
+
+  cell-line metrics  [baseline | raw AUPR | norm AUPR | AUPRG]
+    strat : 0.112 | 0.888 | 0.874 | 0.994
+    any   : 0.172 | 0.835 | 0.801 | 0.975   (AUROC 0.917)   <- AUPRG selects
+    macro : 0.164 | 0.681 | 0.655 | 0.724   (per-line avg)
+    K562   : 0.096 | 0.793 | 0.771 | 0.990
+    JURKAT : 0.040 | 0.675 | 0.661 | 0.996
+    A549   : 0.047 | 0.329 | 0.296 | 0.929
+    HELA   : 0.195 | 0.944 | 0.930 | 0.991
+    A375   : 0.410 | 0.997 | 0.995 | 0.998
+    293T   : 0.156 | 0.650 | 0.585 | 0.912
+    PC9    : 0.051 | 0.068 | 0.017 | -1.024
+    OTHER  : 0.320 | 0.990 | 0.985 | 0.997
+
+Early stopping at epoch 330
+
+  selected on val (auprg_any=0.9755 @ epoch 30); test scored once
+  selection split (9,279 pairs, f1e49c2f6293): auprg_any=0.9704
+
+Fold 2 Best (epoch 30): AUROC=0.9621, AUPR=0.8778, F1=0.8033
+  Params: 116,098/123,585 nonzero | Weights: 112,545/120,032 nonzero (6.24% sparse)
+    head_proj_bias: 256/256 nonzero (0.0% sparse)
+    cell_emb.weight: 192/192 nonzero (0.0% sparse)
+    encoder.hidden_blocks.0.0.weight: 103,942/111,360 nonzero (6.7% sparse)
+    encoder.hidden_blocks.1.0.weight: 977/1,024 nonzero (4.6% sparse)
+    encoder.hidden_blocks.2.0.weight: 1,008/1,024 nonzero (1.6% sparse)
+    encoder.hidden_blocks.3.0.weight: 1,022/1,024 nonzero (0.2% sparse)
+    encoder.hidden_blocks.4.0.weight: 1,021/1,024 nonzero (0.3% sparse)
+    encoder.hidden_blocks.5.0.weight: 1,023/1,024 nonzero (0.1% sparse)
+    encoder.projection.weight: 1,024/1,024 nonzero (0.0% sparse)
+    pair_fc1.weight: 2,048/2,048 nonzero (0.0% sparse)
+    pair_fc2.weight: 32/32 nonzero (0.0% sparse)
+  [retrieval] index space: n=19397 num_genes=19397 num_p_genes=8844 (P-space differs from full space)
+  Saved 8844x8844 shared-space score matrix -> fold_1_cv1_predictions.npy
+  [retrieval] universe 19,397 genes (peers rank vs 8,844), 2,243 scored rows, 4,433 test-pos, 17,733 known SL pairs suppressed | fwd-check 6.32e-06 | NDCG@10 0.0497 NDCG@50 0.1300 R@50 0.3958 MAP@50 0.0507
+
+============================================================
+Training Fold 3
+============================================================
+
+[fold 2] fitting preprocessing [method=plain: mean → col-standardize+SVD → mean/std; scope=train]
+[fold 2] modalities (per-fold selection): ['scgpt', 'go', 'kg_complex', 'esm2', 'text_embed']
+  Fit subset: 17806/19397 rows (91.8%)
+  [scgpt] 512d, 19397 genes, 130 missing
+    mean-imputed 130/19397 genes (66560 NaN cells; locations fit on 17806 fit rows)
+  [go] 200d, 19397 genes, 606 missing
+    mean-imputed 606/19397 genes (121200 NaN cells; locations fit on 17806 fit rows)
+  [kg_complex] 512d, 19397 genes, 394 missing
+    mean-imputed 394/19397 genes (201728 NaN cells; locations fit on 17806 fit rows)
+  [esm2] 1280d, 19397 genes, 56 missing
+    mean-imputed 56/19397 genes (71680 NaN cells; locations fit on 17806 fit rows)
+  [text_embed] 1024d, 19397 genes, 0 missing
+[fold 2] fold embeddings: (19397, 3528)
+Fold 3 input_dim: 3528
+  Trainable parameters: 125,961 (total 125,961) [SiameseSLMultiCell]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  L1 λ=0.01 for encoder.hidden_blocks.0.0.weight
+  L1 λ=0.0075 for encoder.hidden_blocks.1.0.weight
+  L1 λ=0.005 for encoder.hidden_blocks.2.0.weight
+  L1 λ=0.004 for encoder.hidden_blocks.3.0.weight
+  L1 λ=0.0025 for encoder.hidden_blocks.4.0.weight
+  L1 λ=0.0015 for encoder.hidden_blocks.5.0.weight
+  L1 λ=0.001 for encoder.projection.weight
+
+  cell-line metrics  [baseline | raw AUPR | norm AUPR | AUPRG]
+    strat : 0.112 | 0.874 | 0.858 | 0.993
+    any   : 0.172 | 0.820 | 0.782 | 0.972   (AUROC 0.909)   <- AUPRG selects
+    macro : 0.165 | 0.641 | 0.610 | 0.652   (per-line avg)
+    K562   : 0.095 | 0.770 | 0.746 | 0.988
+    JURKAT : 0.041 | 0.658 | 0.644 | 0.996
+    A549   : 0.047 | 0.346 | 0.314 | 0.915
+    HELA   : 0.220 | 0.900 | 0.872 | 0.974
+    A375   : 0.410 | 0.997 | 0.994 | 0.998
+    293T   : 0.134 | 0.410 | 0.318 | 0.796
+    PC9    : 0.053 | 0.059 | 0.006 | -1.445
+    OTHER  : 0.320 | 0.992 | 0.988 | 0.998
+
+Early stopping at epoch 330
+
+  selected on val (auprg_any=0.9725 @ epoch 30); test scored once
+  selection split (9,279 pairs, 4ade903da816): auprg_any=0.9740
+
+Fold 3 Best (epoch 30): AUROC=0.9598, AUPR=0.8726, F1=0.8018
+  Params: 116,692/125,961 nonzero | Weights: 113,067/122,336 nonzero (7.58% sparse)
+    head_proj_bias: 256/256 nonzero (0.0% sparse)
+    cell_emb.weight: 192/192 nonzero (0.0% sparse)
+    encoder.hidden_blocks.0.0.weight: 104,494/113,664 nonzero (8.1% sparse)
+    encoder.hidden_blocks.1.0.weight: 953/1,024 nonzero (6.9% sparse)
+    encoder.hidden_blocks.2.0.weight: 1,004/1,024 nonzero (2.0% sparse)
+    encoder.hidden_blocks.3.0.weight: 1,018/1,024 nonzero (0.6% sparse)
+    encoder.hidden_blocks.4.0.weight: 1,022/1,024 nonzero (0.2% sparse)
+    encoder.hidden_blocks.5.0.weight: 1,024/1,024 nonzero (0.0% sparse)
+    encoder.projection.weight: 1,024/1,024 nonzero (0.0% sparse)
+    pair_fc1.weight: 2,048/2,048 nonzero (0.0% sparse)
+    pair_fc2.weight: 32/32 nonzero (0.0% sparse)
+  [retrieval] index space: n=19397 num_genes=19397 num_p_genes=8844 (P-space differs from full space)
+  Saved 8844x8844 shared-space score matrix -> fold_2_cv1_predictions.npy
+  [retrieval] universe 19,397 genes (peers rank vs 8,844), 2,197 scored rows, 4,433 test-pos, 17,733 known SL pairs suppressed | fwd-check 7.15e-06 | NDCG@10 0.0858 NDCG@50 0.1676 R@50 0.4876 MAP@50 0.0673
+
+============================================================
+Training Fold 4
+============================================================
+
+[fold 3] fitting preprocessing [method=plain: mean → col-standardize+SVD → mean/std; scope=train]
+[fold 3] modalities (per-fold selection): ['geneformer', 'go2vec', 'kg_complex', 'prot_t5', 'text_embed']
+  Fit subset: 17811/19397 rows (91.8%)
+  [geneformer] 1152d, 19397 genes, 135 missing
+    mean-imputed 135/19397 genes (155520 NaN cells; locations fit on 17811 fit rows)
+  [go2vec] 128d, 19397 genes, 606 missing
+    mean-imputed 606/19397 genes (77568 NaN cells; locations fit on 17811 fit rows)
+  [kg_complex] 512d, 19397 genes, 394 missing
+    mean-imputed 394/19397 genes (201728 NaN cells; locations fit on 17811 fit rows)
+  [prot_t5] 1024d, 19397 genes, 56 missing
+    mean-imputed 56/19397 genes (57344 NaN cells; locations fit on 17811 fit rows)
+  [text_embed] 1024d, 19397 genes, 0 missing
+[fold 3] fold embeddings: (19397, 3840)
+Fold 4 input_dim: 3840
+  Trainable parameters: 136,257 (total 136,257) [SiameseSLMultiCell]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  L1 λ=0.01 for encoder.hidden_blocks.0.0.weight
+  L1 λ=0.0075 for encoder.hidden_blocks.1.0.weight
+  L1 λ=0.005 for encoder.hidden_blocks.2.0.weight
+  L1 λ=0.004 for encoder.hidden_blocks.3.0.weight
+  L1 λ=0.0025 for encoder.hidden_blocks.4.0.weight
+  L1 λ=0.0015 for encoder.hidden_blocks.5.0.weight
+  L1 λ=0.001 for encoder.projection.weight
+
+  cell-line metrics  [baseline | raw AUPR | norm AUPR | AUPRG]
+    strat : 0.112 | 0.875 | 0.859 | 0.993
+    any   : 0.172 | 0.798 | 0.756 | 0.965   (AUROC 0.906)   <- AUPRG selects
+    macro : 0.157 | 0.650 | 0.622 | 0.692   (per-line avg)
+    K562   : 0.094 | 0.790 | 0.768 | 0.990
+    JURKAT : 0.042 | 0.614 | 0.597 | 0.994
+    A549   : 0.045 | 0.381 | 0.351 | 0.943
+    HELA   : 0.174 | 0.890 | 0.866 | 0.983
+    A375   : 0.387 | 1.000 | 1.000 | 1.000
+    293T   : 0.147 | 0.473 | 0.382 | 0.835
+    PC9    : 0.039 | 0.061 | 0.023 | -1.203
+    OTHER  : 0.325 | 0.991 | 0.986 | 0.996
+
+  cell-line metrics  [baseline | raw AUPR | norm AUPR | AUPRG]
+    strat : 0.112 | 0.865 | 0.848 | 0.992
+    any   : 0.172 | 0.801 | 0.760 | 0.969   (AUROC 0.903)   <- AUPRG selects
+    macro : 0.157 | 0.644 | 0.616 | 0.890   (per-line avg)
+    K562   : 0.094 | 0.773 | 0.749 | 0.988
+    JURKAT : 0.042 | 0.561 | 0.542 | 0.992
+    A549   : 0.045 | 0.328 | 0.296 | 0.960
+    HELA   : 0.174 | 0.898 | 0.877 | 0.985
+    A375   : 0.387 | 1.000 | 1.000 | 1.000
+    293T   : 0.147 | 0.518 | 0.435 | 0.878
+    PC9    : 0.039 | 0.085 | 0.047 | 0.325
+    OTHER  : 0.325 | 0.988 | 0.982 | 0.995
+
+Early stopping at epoch 360
+
+  selected on val (auprg_any=0.9688 @ epoch 60); test scored once
+  selection split (9,279 pairs, e9ebae54473c): auprg_any=0.9668
+
+Fold 4 Best (epoch 60): AUROC=0.9588, AUPR=0.8782, F1=0.8137
+  Params: 123,538/136,257 nonzero | Weights: 119,601/132,320 nonzero (9.61% sparse)
+    head_proj_bias: 256/256 nonzero (0.0% sparse)
+    cell_emb.weight: 192/192 nonzero (0.0% sparse)
+    encoder.hidden_blocks.0.0.weight: 110,998/123,648 nonzero (10.2% sparse)
+    encoder.hidden_blocks.1.0.weight: 982/1,024 nonzero (4.1% sparse)
+    encoder.hidden_blocks.2.0.weight: 1,010/1,024 nonzero (1.4% sparse)
+    encoder.hidden_blocks.3.0.weight: 1,014/1,024 nonzero (1.0% sparse)
+    encoder.hidden_blocks.4.0.weight: 1,022/1,024 nonzero (0.2% sparse)
+    encoder.hidden_blocks.5.0.weight: 1,023/1,024 nonzero (0.1% sparse)
+    encoder.projection.weight: 1,024/1,024 nonzero (0.0% sparse)
+    pair_fc1.weight: 2,048/2,048 nonzero (0.0% sparse)
+    pair_fc2.weight: 32/32 nonzero (0.0% sparse)
+  [retrieval] index space: n=19397 num_genes=19397 num_p_genes=8844 (P-space differs from full space)
+  Saved 8844x8844 shared-space score matrix -> fold_3_cv1_predictions.npy
+  [retrieval] universe 19,397 genes (peers rank vs 8,844), 2,275 scored rows, 4,433 test-pos, 17,733 known SL pairs suppressed | fwd-check 6.68e-06 | NDCG@10 0.0555 NDCG@50 0.1306 R@50 0.3775 MAP@50 0.0506
+
+============================================================
+Training Fold 5
+============================================================
+
+[fold 4] fitting preprocessing [method=plain: mean → col-standardize+SVD → mean/std; scope=train]
+[fold 4] modalities (per-fold selection): ['scgpt', 'go2vec', 'kg_complex', 'esm1b', 'text_embed']
+  Fit subset: 17839/19397 rows (92.0%)
+  [scgpt] 512d, 19397 genes, 130 missing
+    mean-imputed 130/19397 genes (66560 NaN cells; locations fit on 17839 fit rows)
+  [go2vec] 128d, 19397 genes, 606 missing
+    mean-imputed 606/19397 genes (77568 NaN cells; locations fit on 17839 fit rows)
+  [kg_complex] 512d, 19397 genes, 394 missing
+    mean-imputed 394/19397 genes (201728 NaN cells; locations fit on 17839 fit rows)
+  [esm1b] 1280d, 19397 genes, 56 missing
+    mean-imputed 56/19397 genes (71680 NaN cells; locations fit on 17839 fit rows)
+  [text_embed] 1024d, 19397 genes, 0 missing
+[fold 4] fold embeddings: (19397, 3456)
+Fold 5 input_dim: 3456
+  Trainable parameters: 123,585 (total 123,585) [SiameseSLMultiCell]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  L1 λ=0.01 for encoder.hidden_blocks.0.0.weight
+  L1 λ=0.0075 for encoder.hidden_blocks.1.0.weight
+  L1 λ=0.005 for encoder.hidden_blocks.2.0.weight
+  L1 λ=0.004 for encoder.hidden_blocks.3.0.weight
+  L1 λ=0.0025 for encoder.hidden_blocks.4.0.weight
+  L1 λ=0.0015 for encoder.hidden_blocks.5.0.weight
+  L1 λ=0.001 for encoder.projection.weight
+
+  cell-line metrics  [baseline | raw AUPR | norm AUPR | AUPRG]
+    strat : 0.112 | 0.877 | 0.861 | 0.994
+    any   : 0.172 | 0.837 | 0.803 | 0.977   (AUROC 0.921)   <- AUPRG selects
+    macro : 0.164 | 0.634 | 0.599 | 0.836   (per-line avg)
+    K562   : 0.094 | 0.784 | 0.761 | 0.990
+    JURKAT : 0.043 | 0.653 | 0.637 | 0.995
+    A549   : 0.043 | 0.237 | 0.203 | 0.860
+    HELA   : 0.211 | 0.890 | 0.860 | 0.978
+    A375   : 0.383 | 1.000 | 1.000 | 1.000
+    293T   : 0.146 | 0.384 | 0.279 | 0.749
+    PC9    : 0.071 | 0.130 | 0.064 | 0.121
+    OTHER  : 0.323 | 0.991 | 0.987 | 0.997
+
+Early stopping at epoch 330
+
+  selected on val (auprg_any=0.9768 @ epoch 30); test scored once
+  selection split (9,279 pairs, f6cfc7ccfd38): auprg_any=0.9750
+
+Fold 5 Best (epoch 30): AUROC=0.9591, AUPR=0.8757, F1=0.8117
+  Params: 118,406/123,585 nonzero | Weights: 114,853/120,032 nonzero (4.31% sparse)
+    head_proj_bias: 256/256 nonzero (0.0% sparse)
+    cell_emb.weight: 192/192 nonzero (0.0% sparse)
+    encoder.hidden_blocks.0.0.weight: 106,241/111,360 nonzero (4.6% sparse)
+    encoder.hidden_blocks.1.0.weight: 985/1,024 nonzero (3.8% sparse)
+    encoder.hidden_blocks.2.0.weight: 1,017/1,024 nonzero (0.7% sparse)
+    encoder.hidden_blocks.3.0.weight: 1,013/1,024 nonzero (1.1% sparse)
+    encoder.hidden_blocks.4.0.weight: 1,021/1,024 nonzero (0.3% sparse)
+    encoder.hidden_blocks.5.0.weight: 1,024/1,024 nonzero (0.0% sparse)
+    encoder.projection.weight: 1,024/1,024 nonzero (0.0% sparse)
+    pair_fc1.weight: 2,048/2,048 nonzero (0.0% sparse)
+    pair_fc2.weight: 32/32 nonzero (0.0% sparse)
+  [retrieval] index space: n=19397 num_genes=19397 num_p_genes=8844 (P-space differs from full space)
+  Saved 8844x8844 shared-space score matrix -> fold_4_cv1_predictions.npy
+  [retrieval] universe 19,397 genes (peers rank vs 8,844), 2,170 scored rows, 4,433 test-pos, 17,733 known SL pairs suppressed | fwd-check 4.77e-06 | NDCG@10 0.0920 NDCG@50 0.1663 R@50 0.4358 MAP@50 0.0805
+
+============================================================
+Cross-Validation Results: CV1 (edge-based)
+============================================================
+
+Fold        AUROC       AUPR         F1
+----------------------------------------
+1          0.9653     0.8868     0.8159
+2          0.9621     0.8778     0.8033
+3          0.9598     0.8726     0.8018
+4          0.9588     0.8782     0.8137
+5          0.9591     0.8757     0.8117
+----------------------------------------
+Mean       0.9610     0.8782     0.8093
+Std        0.0025     0.0047     0.0057
+
+============================================================
+Summary:
+  AUROC: 0.9610 ± 0.0025
+  AUPR:  0.8782 ± 0.0047
+  F1:    0.8093 ± 0.0057
+  Params: 120,708.0/129,129.0 nonzero (weight sparsity: 6.67%)
+============================================================
+
+Cell-line metrics (mean over folds):
+  STRATIFIED (pooled per-cell-line obs):
+    baseline(pi) 0.1122  AUPR 0.8782  normAUPR 0.8628  AUPRG 0.9937  AUROC 0.9610
+  GLOBAL (SL in any cell line; headline; SELECTION basis):
+    AUPRG 0.9737 ± 0.0022   AUPR 0.8244   AUROC 0.9146
+  PER-LINE macro (equal weight/line; diagnostic):
+    AUPRG 0.8127  AUPR 0.6356
+  RETRIEVAL (rank vs the whole 19,397-gene universe; peers rank vs 8,844 -- NOT strictly comparable):
+    NDCG@10 0.0681  NDCG@50 0.1433  R@50 0.4027  MAP@50 0.0601
+
+Results saved to results/ablate_no_ppi_cv1
+  Checkpoints removed (ABLATION_PURGE_CHECKPOINTS=1)
+
+SUCCESS: cv1 without 'ppi' [pd:per_head; PCA arm none]  AUPRG=0.9937 +/- 0.0003  AUPR=0.8782 +/- 0.0047
+Completed at: Mon Nov 16 13:59:35 EST 2026

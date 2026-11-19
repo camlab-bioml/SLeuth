@@ -1,0 +1,16 @@
+============================================================================
+Job: bestcat_emb | ID: 1268279 | Node: gpu3
+Array task: 81 (of job 1265114)
+PCA arm: none (no PCA) | results: results/
+Start: Sun Nov 15 03:19:13 EST 2026
+NVIDIA L40, 46068 MiB, 3348 MiB
+NVIDIA L40, 46068 MiB, 579 MiB
+NVIDIA L40, 46068 MiB, 615 MiB
+NVIDIA L40, 46068 MiB, 615 MiB
+============================================================================
+
+Task 81: seqvec (protein_seq) / cv1  [PCA arm none: --no_post_pca; dir tag pcavar0.8]
+  Embedding: <repo>/data/all_genes_seqvec.pt
+  Variant block 1: pd:per_head (BESTCAT_EXTRA_VARIANTS=1; reporting only, never ranked)
+
+SKIP: all_genes_seqvec.pt not found in <repo>/data

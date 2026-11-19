@@ -4,9 +4,12 @@ Adapted PyTorch implementation of SLGNN (factor-aware GNN for synthetic
 lethality; Zhu et al., Bioinformatics 2023).
 
 The original SLGNN is a *disentangled, factor-aware knowledge-graph* GNN built
-on SynLethKG (h/r/t triples) using DGL's GATConv + torch_scatter. This repo has
-neither the raw KG nor those dependencies, so this is a faithful **adaptation**
-that keeps SLGNN's distinctive ideas while running on the plain PyTorch stack:
+on SynLethKG (h/r/t triples) using DGL's GATConv + torch_scatter. This module
+is the earlier KG-free **adaptation** (train_slgnn.py --arch port), kept so
+results produced with it stay reproducible; the published model over SynLethKG
+(built by build_synlethkg.py) is slgnn_orig_model.SLGNNOriginal (--arch
+original, the default). The adaptation keeps SLGNN's distinctive ideas while
+running on the plain PyTorch stack:
 
   * per-gene input features (any all_genes_*.pt; default kg_complex) projected
     to the model dimension as the initial node embedding;
@@ -19,8 +22,9 @@ that keeps SLGNN's distinctive ideas while running on the plain PyTorch stack:
     labeled pairs (the reference's classification objective).
 
 What is dropped vs. the paper: the external knowledge graph and its relational
-entity aggregation (no KG available here). Attention is computed on the sparse
-SL edge list (no DGL / torch_scatter needed).
+entity aggregation (this adaptation does not read SynLethKG; --arch original
+does). Attention is computed on the sparse SL edge list (no DGL /
+torch_scatter needed).
 """
 
 import numpy as np

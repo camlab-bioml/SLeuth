@@ -2,10 +2,10 @@
 #SBATCH --job-name=bestcat_emb
 #SBATCH --partition=gpu_Prosmn
 #SBATCH --nodes=1
-# Pinned to gpu3 (2026-08-10, by request). gpu3 threw a transient "CUDA
-# unknown error" at torch init in 2026-07 and the whole tree was moved to
-# gpu2 for that; if it recurs, the symptom is a torch.cuda init failure in
-# the very first seconds of the job, not a training-time error.
+# Pinned to gpu3 (2026-10-01, by request). GPU_NODES
+# (siamese_sl/slurm/config.conf) moves a whole orchestrated submission: both
+# orchestrators pass it as --nodelist on the command line, which replaces this
+# line (GPU_EXCLUDE only adds --exclude and cannot lift it).
 #SBATCH --nodelist=gpu3
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
@@ -17,27 +17,50 @@
 # ============================================================================
 # Best-per-Category Step 1 — SLURM Array Worker
 # ============================================================================
-# Each array task trains the siamese model on ONE (embedding, CV) combination
-# with robust PCA variance-based reduction (PCA_VARIANCE from the .conf file).
+# Each array task trains the siamese model on ONE (embedding, CV) combination,
+# under one variant, with its PCA arm's single-embedding PCA (config.conf
+# pca_single_args: native dimension in arms none and joint, --pca_variance
+# PCA_MODALITY_VARIANCE in per_modality and both; PCA_VARIANCE from the .conf
+# file only names the output directory), into the arm's Step-1 root STEP1_ROOT:
+# the results root of the arm that owns its pair's runs, the first arm of
+# (none, joint) or (per_modality, both) that PCA_ARMS lists (config.conf
+# pca_step1_arm). With all four arms that is results/ and
+# results/pca_per_modality/; PCA_ARMS="joint both" puts them in
+# results/pca_joint/ and results/pca_both/. Both arms of a pair rank the same
+# runs. The orchestrators submit one array per owner, with PCA_ARM=<owner> and
+# the submission's PCA_ARMS exported.
 #
-# SLURM_ARRAY_TASK_ID is mapped to (embedding_index, cv_index) using:
-#   embedding_index = task_id / num_cvs
-#   cv_index        = task_id % num_cvs
+# SLURM_ARRAY_TASK_ID is mapped to (variant block, embedding_index, cv_index):
+#   task = (block * num_embeddings + embedding_index) * num_cvs + cv_index
+# Block 0 is SELECTION_VARIANT (the runs Step 2 ranks); with
+# BESTCAT_EXTRA_VARIANTS=1 blocks 1.. are the other SIAMESE_VARIANTS, trained
+# for the single-modality table only (bestcat_task_variants in
+# run_best_per_category.conf). With the default 0 there is one block, i.e.
+#   embedding_index = task_id / num_cvs,  cv_index = task_id % num_cvs
 #
-# Array size is set dynamically by submit_pipeline.sh based on the number of
-# embeddings in EMB_CATALOG[] and CV types in CV_TYPES[].
-#
-# NOTE: --array is NOT set here. It is passed by submit_pipeline.sh:
-#   sbatch --array=0-<N-1>%<MAX_CONCURRENT> slurm/run_best_per_category.sh
+# NOTE: --array is NOT set here. Launchers size it with bestcat_n_tasks
+# (run_best_per_category.conf):
+#   sbatch --array=0-$(( $(bestcat_n_tasks) - 1 ))[%N] slurm/run_best_per_category.sh
+#   ([%N] only when MAX_CONCURRENT is set: config.conf array_throttle)
 #
 # After all array tasks complete, run_best_per_category_combo.sh picks the
 # best embedding per category and trains multi-modal combinations.
 #
 # Prerequisites:
 #   - Embedding .pt files must exist (run_generate_embeddings.sh)
-#   - Submit via submit_pipeline.sh, not directly
+#   - Submitted as an array by submit_pipeline.sh and by the repo-root
+#     run_benchmarking_siamese_vs_others.sh. A direct sbatch is supported too
+#     (slurm/README.md "Change SLURM partition/node", ../README.md Step 2b):
+#     `export RUN_TOKEN=...` first — config.conf otherwise mints one per array
+#     task and the combo's Step 2 refuses every directory as another
+#     submission's — and the submission's PCA_ARM and PCA_ARMS (together they
+#     decide STEP1_ROOT, where the combo of each arm of the pair looks), pass
+#     --array as above, and submit
+#     slurm/run_best_per_category_combo.sh yourself with --export=ALL
+#     --dependency=afterany:<array job id>
 #
-# Output: results/pcavar<variance>_<embedding_type>_<cv_type>/results.json
+# Output: $STEP1_ROOT/pcavar<variance>_<embedding_type>_<cv_type>/results.json
+#         (+ run_token.txt); other variants under $STEP1_ROOT/<solo prefix>pcavar...
 # ============================================================================
 
 set -e
@@ -56,20 +79,24 @@ if [ -z "$SLURM_ARRAY_TASK_ID" ]; then
 fi
 
 # ============================================================================
-# Map task ID → (embedding, CV)
+# Map task ID → (variant, embedding, CV)
 # ============================================================================
-# The task ID encodes both the embedding index and CV index:
-#   task_id = embedding_index * num_cvs + cv_index
+#   task_id = (block * num_embeddings + embedding_index) * num_cvs + cv_index
+# (the same layout bestcat_n_tasks sizes the array for).
 
+bestcat_task_variants
 NUM_CVS=${#CV_TYPES[@]}
-EMB_INDEX=$((SLURM_ARRAY_TASK_ID / NUM_CVS))
-CV_INDEX=$((SLURM_ARRAY_TASK_ID % NUM_CVS))
-
-# Bounds check (in case --array range exceeds catalog size)
-if [ "$EMB_INDEX" -ge "${#EMB_CATALOG[@]}" ]; then
-    echo "SKIP: task $SLURM_ARRAY_TASK_ID exceeds catalog size (${#EMB_CATALOG[@]})"
+NUM_EMB=${#EMB_CATALOG[@]}
+N_TASKS=$(bestcat_n_tasks)
+if [ "$SLURM_ARRAY_TASK_ID" -ge "$N_TASKS" ]; then
+    echo "SKIP: task $SLURM_ARRAY_TASK_ID is beyond the $N_TASKS configured tasks"
     exit 0
 fi
+BLOCK=$((SLURM_ARRAY_TASK_ID / (NUM_EMB * NUM_CVS)))
+EMB_INDEX=$(((SLURM_ARRAY_TASK_ID % (NUM_EMB * NUM_CVS)) / NUM_CVS))
+CV_INDEX=$((SLURM_ARRAY_TASK_ID % NUM_CVS))
+VARIANT="${BESTCAT_TASK_VARIANTS[$BLOCK]}"
+SOLO_PREFIX=$(bestcat_solo_prefix "$VARIANT")
 
 # Extract embedding info and CV type
 ENTRY="${EMB_CATALOG[$EMB_INDEX]}"
@@ -77,25 +104,35 @@ CV="${CV_TYPES[$CV_INDEX]}"
 IFS=':' read -r ETYPE EFILE ECAT <<< "$ENTRY"
 EMB_PATH="$DATA_DIR/$EFILE"
 
-echo "Task $SLURM_ARRAY_TASK_ID: $ETYPE ($ECAT) / $CV  [PCA=$PCA_VARIANCE]"
+echo "Task $SLURM_ARRAY_TASK_ID: $ETYPE ($ECAT) / $CV  [PCA arm $PCA_ARM: $PCA_SINGLE_ARGS; dir tag pcavar$PCA_VARIANCE]"
 echo "  Embedding: $EMB_PATH"
+if [ "$BLOCK" -gt 0 ]; then
+    echo "  Variant block $BLOCK: $VARIANT (BESTCAT_EXTRA_VARIANTS=1; reporting only, never ranked)"
+fi
 echo ""
 
 # ============================================================================
-# Clean previous results for this (embedding, CV, PCA) combination
+# Clean previous results for this (variant, embedding, CV, PCA) combination
 # ============================================================================
 # BEFORE the missing-embedding skip below, not after.
 #
 # run_generate_embeddings.sh deletes every all_genes_*.pt at job start and
-# tolerates per-modality failure, so an embedding CAN vanish between runs. If
+# tolerates a failed OPTIONAL_TYPES modality (run_generate_embeddings.conf), so
+# an embedding CAN vanish between runs. If
 # the skip came first, this task would exit 0 with the PREVIOUS run's
-# results.json still on disk — and collect_siamese.py rglobs all of
-# siamese_sl/results and takes the argmax over val_auprg_mean, so a stale entry
-# is a live candidate to become the published siamese row. Its checkpoint was
-# trained on a different fold set, so pairs it trained on are now test
-# positives. Clearing first makes a missing embedding produce NO row instead of
-# an old one.
-OUTPUT_DIR="results/pcavar${PCA_VARIANCE}_${ETYPE}_${CV}"
+# results.json still on disk. The combo's Step 2
+# (run_best_per_category_combo.sh) ranks only
+# <Step-1 root>/pcavar<v>_<type>_<SELECTION_CV>/results.json whose run_token.txt is
+# this submission's (written below, after a successful train). A candidate with
+# this run's token but another variant / signature / fold stamp always stops
+# the job; a missing score (failed task, or embedding present but no result) or
+# another run's token stops it unless BEST_CAT_ALLOW_MISSING=1; a
+# never-generated embedding only warns.
+# Clearing first makes a missing embedding produce NO candidate (a logged
+# "not generated") instead of an old one, and a failed train leaves no token.
+# (sl_comparison reads only this run's latest_combo markers; only the opt-in
+# SIAMESE_BASELINE_DISCOVER=all sweep still rglobs results/.)
+OUTPUT_DIR="$STEP1_ROOT/${SOLO_PREFIX}pcavar${PCA_VARIANCE}_${ETYPE}_${CV}"
 
 if [ -d "$OUTPUT_DIR" ]; then
     echo "Cleaning previous results: $OUTPUT_DIR"
@@ -113,21 +150,26 @@ if [ ! -f "$EMB_PATH" ]; then
 fi
 
 # ============================================================================
-# Train with PCA
+# Train (the arm's single-embedding PCA)
 # ============================================================================
 
 # Create output directory
 $PYTHON_PATH -c "from pathlib import Path; Path('$OUTPUT_DIR/checkpoints').mkdir(parents=True, exist_ok=True)"
 
-echo "Training: $ETYPE / $CV  (PCA=$PCA_VARIANCE)"
+echo "Training: $ETYPE / $CV  ($PCA_SINGLE_ARGS: $([ "$PCA_SINGLE_ARGS" = --no_post_pca ] && echo "native dim, no PCA" || echo "PCA within the modality"))"
 echo "  Output: $OUTPUT_DIR"
 echo "  Config: encoder=[$ENCODER_DIMS], epochs=$EPOCHS, patience=$PATIENCE"
+# Modality selection happens once, on SELECTION_VARIANT (config.conf), and its
+# winners are reused by every variant's combo; other variants reach this script
+# only as BESTCAT_EXTRA_VARIANTS=1 reporting runs.
+echo "  Variant: $VARIANT$([ "$VARIANT" = "$SELECTION_VARIANT" ] && echo " (SELECTION_VARIANT)")  ARCH_ARGS: ${ARCH_ARGS:-(none; train.py defaults)}"
+echo "  Selection split: ${SELECTION_ARGS:-(off: SELECTION_FRAC empty)}"
 echo ""
 
-# Single-embedding ranking uses NO PCA (native dim): per-modality PCA is
-# removed pipeline-wide, and post-concat PCA is meaningless for one modality.
-# The matrix-wise (global-scalar) normalize still applies. POST_PCA_VARIANCE
-# from config.conf applies only to the multi-modal combo script.
+# Single-embedding runs get the per-modality stage of the arm's PCA only
+# (PCA_SINGLE_ARGS, config.conf): the joint PCA acts on a concatenation, and on
+# one modality it would repeat the per-modality PCA or, after it, see a flat
+# spectrum. The matrix-wise (global-scalar) normalize always applies.
 set +e
 $PYTHON_PATH train.py \
     --embeddings_paths "$EMB_PATH" \
@@ -155,7 +197,10 @@ $PYTHON_PATH train.py \
     --preprocessing_fit_scope "${PREPROCESSING_FIT_SCOPE:-train}" \
     --pca_method "${PCA_METHOD:-plain}" \
     --siamese_encoder_type "${SIAMESE_ENCODER_TYPE:-residual}" \
-    --no_post_pca
+    $PCA_SINGLE_ARGS \
+    $(siamese_variant_args "$VARIANT") \
+    $SELECTION_ARGS \
+    $ARCH_ARGS
 TRAIN_EXIT=$?
 set -e
 
@@ -167,6 +212,17 @@ if [ $TRAIN_EXIT -ne 0 ] || [ ! -f "$OUTPUT_DIR/results.json" ]; then
     echo "FAILED: $ETYPE / $CV (exit code $TRAIN_EXIT)"
     exit 1
 fi
+# This submission's stamp: combo Step 2 ranks only candidates carrying it.
+printf '%s\n' "$RUN_TOKEN" > "$OUTPUT_DIR/run_token.txt"
+
+# Reporting-only runs (block > 0) are read for their results.json alone, and
+# their 313 MB-per-fold prediction matrices would add up to ~270 GB. Deleted
+# only now: nonzero-parameter counting reloads the checkpoints during the run.
+if [ "$BLOCK" -gt 0 ] && [ "${BESTCAT_X_KEEP_PREDICTIONS:-0}" != "1" ]; then
+    rm -rf "$OUTPUT_DIR/checkpoints"
+    rm -f "$OUTPUT_DIR"/fold_*_predictions.npy
+    echo "  Checkpoints + prediction matrices removed (BESTCAT_X_KEEP_PREDICTIONS=1 keeps them)"
+fi
 
 AUROC=$($PYTHON_PATH -c "
 import json
@@ -175,7 +231,9 @@ v, s = d['auroc_mean'], d['auroc_std']
 print(f'{v:.4f} +/- {s:.4f}' if v is not None else 'N/A')
 " 2>/dev/null || echo "N/A")
 
-# AUPRG: cell-line selection metric; .get() -> 'N/A' in single-output mode.
+# AUPRG: the stratified test AUPRG (cell-line mode; the checkpoint metric only
+# under --select_metric auprg); .get() -> 'N/A' for an older results.json
+# without it.
 AUPRG=$($PYTHON_PATH -c "
 import json
 d = json.load(open('$OUTPUT_DIR/results.json'))['summary']
@@ -189,6 +247,6 @@ d = json.load(open('$OUTPUT_DIR/results.json'))['summary']
 print(f\"{d.get('nonzero_params',0):,}/{d.get('total_params',0):,} ({d.get('weight_sparsity',0):.1f}% sparse)\")
 " 2>/dev/null || echo "N/A")
 
-echo "SUCCESS: $ETYPE / $CV  (PCA=$PCA_VARIANCE)"
-echo "  AUROC=$AUROC  AUPRG=$AUPRG  Params=$PARAMS"
+echo "SUCCESS: $ETYPE / $CV  ($PCA_SINGLE_ARGS)  [$VARIANT; PCA arm $PCA_ARM]"
+echo "  AUROC(strat)=$AUROC  AUPRG(strat)=$AUPRG  Params=$PARAMS"
 echo "  Completed at: $(date)"

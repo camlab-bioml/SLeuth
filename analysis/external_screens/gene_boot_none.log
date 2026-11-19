@@ -1,0 +1,102 @@
+Adamson/cv1 [6.1s]
+Adamson/cv2 [12.9s]
+Adamson/cv3 [1.1s]
+AdamsonGI/cv1 [5.8s]
+AdamsonGI/cv2 [12.9s]
+AdamsonGI/cv3 [1.2s]
+Corn/cv1 [6.6s]
+Corn/cv2 [14.2s]
+Corn/cv3 [1.2s]
+Gilbert/cv1 [0.6s]
+Gilbert/cv2 [1.1s]
+<repo>/sl_comparison/bootstrap_ci.py:493: RuntimeWarning: invalid value encountered in divide
+  mt = (Wf * rt).sum(axis=1) / self.N
+<repo>/sl_comparison/bootstrap_ci.py:505: RuntimeWarning: invalid value encountered in divide
+  ms = Wrs.sum(axis=1) / tc.N
+Gilbert/cv3 [0.3s]
+table    screen split                       quantity  n_rows  n_genes  point          pair_ci          gene_ci  se_ratio  gene_ci_excludes_0
+    5   Adamson   cv1           siamese_sl zero-shot   14727      398 -0.207 [-0.219, -0.195] [-0.272, -0.138]     5.887                True
+    5   Adamson   cv1 siamese_sl_pd_pooled zero-shot   14727      398 -0.084 [-0.096, -0.072] [-0.152, -0.017]     5.488                True
+    5   Adamson   cv1          DegreePrior zero-shot   14727      398  0.212   [0.202, 0.223]   [0.150, 0.274]     5.799                True
+    5   Adamson   cv1       siamese_sl - DegreePrior   14727      398 -0.419 [-0.433, -0.407] [-0.485, -0.343]     5.918                True
+    6   Adamson   cv1                siamese_sl Full   28375      542  0.986   [0.986, 0.987]   [0.983, 0.989]     5.695                True
+    6   Adamson   cv1             siamese_sl Scratch   28375      542  0.985   [0.985, 0.986]   [0.981, 0.988]     5.791                True
+    6   Adamson   cv1      siamese_sl Full - Scratch   28375      542  0.001   [0.001, 0.001]   [0.001, 0.002]     2.859                True
+    5   Adamson   cv2           siamese_sl zero-shot   25782      398 -0.211 [-0.219, -0.202] [-0.295, -0.127]     9.982                True
+    5   Adamson   cv2 siamese_sl_pd_pooled zero-shot   25782      398 -0.079 [-0.088, -0.070] [-0.155, -0.004]     8.006                True
+    5   Adamson   cv2          DegreePrior zero-shot   25782      398  0.250   [0.243, 0.258]   [0.179, 0.314]     9.093                True
+    5   Adamson   cv2       siamese_sl - DegreePrior   25782      398 -0.460 [-0.471, -0.450] [-0.561, -0.346]    10.366                True
+    6   Adamson   cv2                siamese_sl Full   51107      542  0.626   [0.620, 0.633]   [0.518, 0.722]    16.093                True
+    6   Adamson   cv2             siamese_sl Scratch   51107      542  0.606   [0.599, 0.612]   [0.495, 0.705]    16.041                True
+    6   Adamson   cv2      siamese_sl Full - Scratch   51107      542  0.021   [0.019, 0.023]  [-0.006, 0.048]    16.069               False
+    5   Adamson   cv3           siamese_sl zero-shot    2709       76 -0.238 [-0.263, -0.212] [-0.368, -0.080]     5.547                True
+    5   Adamson   cv3 siamese_sl_pd_pooled zero-shot    2709       76 -0.088 [-0.114, -0.062]  [-0.211, 0.040]     4.912               False
+    5   Adamson   cv3          DegreePrior zero-shot    2709       76  0.295   [0.272, 0.319]   [0.168, 0.411]     5.641                True
+    5   Adamson   cv3       siamese_sl - DegreePrior    2709       76 -0.534 [-0.569, -0.496] [-0.727, -0.309]     5.744                True
+    6   Adamson   cv3                siamese_sl Full    5637      108  0.380   [0.358, 0.402]   [0.215, 0.536]     6.941                True
+    6   Adamson   cv3             siamese_sl Scratch    5637      108  0.292   [0.272, 0.312]   [0.151, 0.423]     6.918                True
+    6   Adamson   cv3      siamese_sl Full - Scratch    5637      108  0.088   [0.079, 0.097]   [0.028, 0.145]     6.568                True
+    5 AdamsonGI   cv1           siamese_sl zero-shot   14586      394  0.064   [0.052, 0.076]   [0.027, 0.100]     2.988                True
+    5 AdamsonGI   cv1 siamese_sl_pd_pooled zero-shot   14586      394  0.062   [0.051, 0.074]   [0.030, 0.094]     2.746                True
+    5 AdamsonGI   cv1          DegreePrior zero-shot   14586      394  0.017   [0.007, 0.028]  [-0.012, 0.046]     2.707               False
+    5 AdamsonGI   cv1       siamese_sl - DegreePrior   14586      394  0.047   [0.032, 0.063]   [0.006, 0.089]     2.756                True
+    6 AdamsonGI   cv1                siamese_sl Full   27730      536  0.459   [0.450, 0.469]   [0.427, 0.495]     3.268                True
+    6 AdamsonGI   cv1             siamese_sl Scratch   27730      536  0.449   [0.439, 0.459]   [0.416, 0.484]     3.302                True
+    6 AdamsonGI   cv1      siamese_sl Full - Scratch   27730      536  0.011   [0.008, 0.014]   [0.005, 0.017]     2.012                True
+    5 AdamsonGI   cv2           siamese_sl zero-shot   27404      394  0.067   [0.058, 0.076]   [0.033, 0.101]     3.846                True
+    5 AdamsonGI   cv2 siamese_sl_pd_pooled zero-shot   27404      394  0.066   [0.057, 0.075]   [0.036, 0.100]     3.554                True
+    5 AdamsonGI   cv2          DegreePrior zero-shot   27404      394  0.005  [-0.002, 0.013]  [-0.023, 0.036]     4.000               False
+    5 AdamsonGI   cv2       siamese_sl - DegreePrior   27404      394  0.061   [0.051, 0.072]   [0.022, 0.096]     3.583                True
+    6 AdamsonGI   cv2                siamese_sl Full   50069      536  0.204   [0.196, 0.211]   [0.166, 0.245]     5.202                True
+    6 AdamsonGI   cv2             siamese_sl Scratch   50069      536  0.193   [0.186, 0.200]   [0.154, 0.235]     5.233                True
+    6 AdamsonGI   cv2      siamese_sl Full - Scratch   50069      536  0.011   [0.008, 0.014]  [-0.003, 0.027]     4.679               False
+    5 AdamsonGI   cv3           siamese_sl zero-shot    3181       82  0.077   [0.051, 0.101]   [0.001, 0.142]     2.845                True
+    5 AdamsonGI   cv3 siamese_sl_pd_pooled zero-shot    3181       82  0.074   [0.048, 0.100]   [0.005, 0.141]     2.578                True
+    5 AdamsonGI   cv3          DegreePrior zero-shot    3181       82 -0.007  [-0.031, 0.016]  [-0.069, 0.061]     2.713               False
+    5 AdamsonGI   cv3       siamese_sl - DegreePrior    3181       82  0.084   [0.054, 0.114]   [0.001, 0.164]     2.672                True
+    6 AdamsonGI   cv3                siamese_sl Full    5531      107  0.070   [0.050, 0.090]   [0.016, 0.123]     2.676                True
+    6 AdamsonGI   cv3             siamese_sl Scratch    5531      107  0.063   [0.046, 0.079]   [0.018, 0.106]     2.607                True
+    6 AdamsonGI   cv3      siamese_sl Full - Scratch    5531      107  0.008  [-0.014, 0.028]  [-0.054, 0.067]     2.944               False
+    5      Corn   cv1           siamese_sl zero-shot   16614      411  0.046   [0.035, 0.058]   [0.004, 0.084]     3.520                True
+    5      Corn   cv1 siamese_sl_pd_pooled zero-shot   16614      411  0.041   [0.030, 0.051]   [0.005, 0.082]     3.514                True
+    5      Corn   cv1          DegreePrior zero-shot   16614      411  0.053   [0.042, 0.063]   [0.012, 0.091]     3.788                True
+    5      Corn   cv1       siamese_sl - DegreePrior   16614      411 -0.006  [-0.017, 0.004]  [-0.039, 0.030]     3.114               False
+    6      Corn   cv1                siamese_sl Full   29707      548  0.464   [0.454, 0.473]   [0.430, 0.497]     3.580                True
+    6      Corn   cv1             siamese_sl Scratch   29707      548  0.461   [0.452, 0.471]   [0.428, 0.493]     3.590                True
+    6      Corn   cv1      siamese_sl Full - Scratch   29707      548  0.003   [0.001, 0.005]  [-0.000, 0.006]     1.994               False
+    5      Corn   cv2           siamese_sl zero-shot   29200      411  0.052   [0.044, 0.061]   [0.007, 0.094]     5.347                True
+    5      Corn   cv2 siamese_sl_pd_pooled zero-shot   29200      411  0.047   [0.039, 0.055]   [0.006, 0.089]     5.008                True
+    5      Corn   cv2          DegreePrior zero-shot   29200      411  0.071   [0.064, 0.078]   [0.030, 0.111]     5.645                True
+    5      Corn   cv2       siamese_sl - DegreePrior   29200      411 -0.019 [-0.027, -0.011]  [-0.057, 0.022]     4.613               False
+    6      Corn   cv2                siamese_sl Full   53732      548  0.224   [0.217, 0.232]   [0.175, 0.272]     6.342                True
+    6      Corn   cv2             siamese_sl Scratch   53732      548  0.237   [0.230, 0.245]   [0.188, 0.286]     6.473                True
+    6      Corn   cv2      siamese_sl Full - Scratch   53732      548 -0.013 [-0.016, -0.011]  [-0.029, 0.003]     6.324               False
+    5      Corn   cv3           siamese_sl zero-shot    3117       80  0.054   [0.028, 0.080]  [-0.024, 0.133]     3.089               False
+    5      Corn   cv3 siamese_sl_pd_pooled zero-shot    3117       80  0.066   [0.042, 0.092]  [-0.004, 0.136]     2.695               False
+    5      Corn   cv3          DegreePrior zero-shot    3117       80  0.098   [0.073, 0.123]   [0.027, 0.168]     2.941                True
+    5      Corn   cv3       siamese_sl - DegreePrior    3117       80 -0.044 [-0.070, -0.020]  [-0.110, 0.023]     2.772               False
+    6      Corn   cv3                siamese_sl Full    5952      110  0.034   [0.017, 0.051]  [-0.024, 0.092]     3.571               False
+    6      Corn   cv3             siamese_sl Scratch    5952      110  0.046   [0.023, 0.068]  [-0.030, 0.119]     3.459               False
+    6      Corn   cv3      siamese_sl Full - Scratch    5952      110 -0.012  [-0.026, 0.004]  [-0.062, 0.041]     3.318               False
+    5   Gilbert   cv1           siamese_sl zero-shot    1383      421  0.022  [-0.015, 0.060]  [-0.062, 0.110]     2.276               False
+    5   Gilbert   cv1 siamese_sl_pd_pooled zero-shot    1383      421  0.016  [-0.019, 0.055]  [-0.058, 0.100]     2.086               False
+    5   Gilbert   cv1          DegreePrior zero-shot    1383      421 -0.026  [-0.058, 0.004]  [-0.080, 0.038]     1.809               False
+    5   Gilbert   cv1       siamese_sl - DegreePrior    1383      421  0.048   [0.021, 0.075]  [-0.019, 0.129]     2.673               False
+    6   Gilbert   cv1                siamese_sl Full    2533      447  0.537   [0.507, 0.563]   [0.431, 0.620]     3.278                True
+    6   Gilbert   cv1             siamese_sl Scratch    2533      447  0.531   [0.500, 0.558]   [0.431, 0.618]     3.229                True
+    6   Gilbert   cv1      siamese_sl Full - Scratch    2533      447  0.006  [-0.003, 0.015]  [-0.010, 0.024]     1.778               False
+    5   Gilbert   cv2           siamese_sl zero-shot    2590      434  0.031   [0.004, 0.058]  [-0.039, 0.111]     2.593               False
+    5   Gilbert   cv2 siamese_sl_pd_pooled zero-shot    2590      434  0.038   [0.011, 0.066]  [-0.028, 0.116]     2.645               False
+    5   Gilbert   cv2          DegreePrior zero-shot    2590      434  0.008  [-0.016, 0.032]  [-0.040, 0.062]     2.197               False
+    5   Gilbert   cv2       siamese_sl - DegreePrior    2590      434  0.024   [0.005, 0.041]  [-0.016, 0.080]     2.564               False
+    6   Gilbert   cv2                siamese_sl Full    5482      447  0.242   [0.220, 0.265]   [0.148, 0.337]     4.056                True
+    6   Gilbert   cv2             siamese_sl Scratch    5482      447  0.260   [0.237, 0.284]   [0.164, 0.360]     4.041                True
+    6   Gilbert   cv2      siamese_sl Full - Scratch    5482      447 -0.018 [-0.030, -0.007]  [-0.060, 0.020]     3.435               False
+    5   Gilbert   cv3           siamese_sl zero-shot     299       84  0.078   [0.002, 0.153]  [-0.164, 0.229]     2.559               False
+    5   Gilbert   cv3 siamese_sl_pd_pooled zero-shot     299       84  0.101   [0.020, 0.173]  [-0.128, 0.270]     2.418               False
+    5   Gilbert   cv3          DegreePrior zero-shot     299       84  0.048  [-0.022, 0.118]  [-0.126, 0.157]     1.968               False
+    5   Gilbert   cv3       siamese_sl - DegreePrior     299       84  0.030  [-0.013, 0.073]  [-0.100, 0.119]     2.399               False
+    6   Gilbert   cv3                siamese_sl Full     729       89  0.157   [0.096, 0.214]  [-0.032, 0.314]     2.847               False
+    6   Gilbert   cv3             siamese_sl Scratch     729       89  0.094   [0.041, 0.148]  [-0.052, 0.237]     2.792               False
+    6   Gilbert   cv3      siamese_sl Full - Scratch     729       89  0.063   [0.018, 0.109]  [-0.053, 0.175]     2.554               False
+exit 0

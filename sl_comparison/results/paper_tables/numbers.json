@@ -1,0 +1,3548 @@
+{
+  "verdict": "PAPER COMPLETE",
+  "generated_at": "2026-11-16T20:50:02",
+  "root": "<repo>",
+  "run": {
+    "pca_arm": "none",
+    "pca": "no PCA",
+    "pca_targets": {
+      "PCA_MODALITY_VARIANCE": "0.8",
+      "PCA_JOINT_VARIANCE": "0.8",
+      "PCA_JOINT_DIM": null
+    },
+    "pca_settings": {
+      "modality": "no",
+      "joint": "no"
+    },
+    "pca_arms": [
+      "none",
+      "joint"
+    ],
+    "sia_results": "siamese_sl/results",
+    "cmp_results": "sl_comparison/results",
+    "shared_results": "sl_comparison/results",
+    "step1_results": "siamese_sl/results",
+    "step1_pca": "single-embedding runs at native dimension (no PCA), shared by arms none and joint",
+    "variants": [
+      "pd:pooled",
+      "pd:per_head"
+    ],
+    "selection_variant": "pd:pooled",
+    "run_token": "20261113T113339-1225758",
+    "solo_run_token": "20261113T113339-1225758",
+    "ablation_run_token": "20261113T113339-1225758",
+    "bestcat_extra_variants": true,
+    "allmod_combo": true,
+    "pca_variance_dir_tag": "0.8",
+    "ARCH_ARGS_env": "",
+    "code_manifest": "<repo>/sl_comparison/slurm/logs/code_20261113T113339-1225758_20261113T113540.sha256",
+    "code_drift": []
+  },
+  "tables": {
+    "tab_tiers": {
+      "status": "ok",
+      "rows": 30
+    },
+    "tab_solo": {
+      "status": "ok",
+      "rows": 114
+    },
+    "tab_loco": {
+      "status": "ok",
+      "rows": 42
+    },
+    "tab_cellline": {
+      "status": "ok",
+      "rows": 21
+    },
+    "tab_external": {
+      "status": "ok",
+      "rows": 252
+    },
+    "tab_external_ft": {
+      "status": "ok",
+      "rows": 240
+    },
+    "tab_sldb_agreement": {
+      "status": "ok",
+      "rows": 20
+    }
+  },
+  "items": {
+    "data_stats": {
+      "paper": "I1 (L63), E1 (L401-403)",
+      "value": {
+        "num_nodes": 8844,
+        "num_positives": 22166,
+        "num_negatives": 106704,
+        "all_pairs": 39103746,
+        "positive_pct_of_all_pairs": 0.05668510633226801,
+        "negative_pct_of_all_pairs": 0.27287411287910884
+      },
+      "status": "ok"
+    },
+    "folds_meta": {
+      "paper": "E2 (L407-408, L862-866), M8 (L317-331)",
+      "value": {
+        "seed": 42,
+        "num_folds": 5,
+        "val_frac": 0.1,
+        "conflict_policy": "or_collapse",
+        "cv_types": [
+          "cv1",
+          "cv2",
+          "cv3"
+        ],
+        "split_digest": {
+          "cv1": "ab7fa412096e50a6",
+          "cv2": "fa2b804fe6b091f6",
+          "cv3": "b7755da88f20a9db"
+        },
+        "source_sha256": {
+          "pos": "88525fd4fff10e776d5743fd31c1057941091dce30fde92509b4629d4a147ae3",
+          "neg": "457e63dfc306d56d6bf1c44d373dc9c656669e8ef1151548c86704e44c4d096a",
+          "pos_sources": "5574c5bae893ef9591dc70edfa5728419aec40ca9f071543713513b77f865801",
+          "neg_sources": "9642b21566f072ee5d083115d35febfab72ee9d1e7d72a9661d49e4b513fd43a",
+          "cell_line_vocab": "a1b22fd03ddd2184775fc91ee01ed790d51cf174d7d49eb22431e7a8ed3c4587"
+        },
+        "num_conflicts": 5542,
+        "num_conflicts_kept_positive": 5542,
+        "num_conflicts_same_line": 1783,
+        "num_conflicts_cross_line": 3759,
+        "num_conflicts_same_head": 1877,
+        "num_conflicts_missing_cell_line": 107,
+        "max_genes": null
+      },
+      "status": "ok"
+    },
+    "fold_provenance": {
+      "paper": "E2 / Reproducibility (L863-866: folds shared byte-identically across all four models)",
+      "value": {
+        "current": {
+          "genes.txt": "42ff034debb48f84",
+          "all_pos.npy": "20be58a407d6aa9a",
+          "meta.json": "1a5aa49fb909a0e1"
+        },
+        "rows": {
+          "BilinearProbe/cv1": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "DegreePrior/cv1": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": null,
+            "problems": []
+          },
+          "ELISL/cv1": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "NSF4SL/cv1": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "SLGNN/cv1": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "SLMGAE/cv1": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "siamese_sl/cv1": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "siamese_sl_allmod/cv1": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "siamese_sl_allmod_pd_pooled/cv1": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "siamese_sl_nocell/cv1": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "siamese_sl_pd_pooled/cv1": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "BilinearProbe/cv2": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "DegreePrior/cv2": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": null,
+            "problems": []
+          },
+          "ELISL/cv2": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "NSF4SL/cv2": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "SLGNN/cv2": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "SLMGAE/cv2": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "siamese_sl/cv2": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "siamese_sl_allmod/cv2": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "siamese_sl_allmod_pd_pooled/cv2": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "siamese_sl_nocell/cv2": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "siamese_sl_pd_pooled/cv2": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "BilinearProbe/cv3": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "DegreePrior/cv3": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": null,
+            "problems": []
+          },
+          "ELISL/cv3": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "NSF4SL/cv3": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "SLGNN/cv3": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "SLMGAE/cv3": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "siamese_sl/cv3": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "siamese_sl_allmod/cv3": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "siamese_sl_allmod_pd_pooled/cv3": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "siamese_sl_nocell/cv3": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          },
+          "siamese_sl_pd_pooled/cv3": {
+            "source": "comparison.csv",
+            "graded_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "trained_on": {
+              "genes.txt": "42ff034debb48f84",
+              "all_pos.npy": "20be58a407d6aa9a",
+              "meta.json": "1a5aa49fb909a0e1"
+            },
+            "problems": []
+          }
+        },
+        "rows_without_training_stamp": [
+          "DegreePrior/cv1",
+          "DegreePrior/cv2",
+          "DegreePrior/cv3"
+        ],
+        "all_rows_same_folds": true
+      },
+      "status": "ok"
+    },
+    "inputs": {
+      "paper": "R2 (L152-153), D3 (L808-811), AP1 (L891-896), AP2 (L917-922)",
+      "value": {
+        "synlethkg": {
+          "n_relations": 24,
+          "relations": [
+            "PARTICIPATES_GpCC",
+            "PARTICIPATES_GpBP",
+            "EXPRESSES_AeG",
+            "REGULATES_GrG",
+            "INTERACTS_GiG",
+            "ASSOCIATES_DaG",
+            "PARTICIPATES_GpMF",
+            "COVARIES_GcG",
+            "PARTICIPATES_GpPW",
+            "UPREGULATES_DuG",
+            "CAUSES_CcSE",
+            "BINDS_CbG",
+            "UPREGULATES_AuG",
+            "PRESENTS_DpS",
+            "LOCALIZES_DlA",
+            "TREATS_CtD",
+            "RESEMBLES_DrD",
+            "DOWNREGULATES_DdG",
+            "UPREGULATES_CuG",
+            "DOWNREGULATES_CdG",
+            "RESEMBLES_CrC",
+            "INCLUDES_PCiC",
+            "PALLIATES_CpD",
+            "DOWNREGULATES_AdG"
+          ],
+          "removed_label_relations": [
+            "SL_GsG",
+            "SR_GsrG",
+            "NONSL_GnsG"
+          ],
+          "n_entities": 54012,
+          "n_triples": 2231921,
+          "entity_types_from_relations": [
+            "A",
+            "BP",
+            "C",
+            "CC",
+            "D",
+            "G",
+            "MF",
+            "PC",
+            "PW",
+            "S",
+            "SE"
+          ],
+          "n_entity_types": 11
+        },
+        "training_seeds": {
+          "BilinearProbe/cv1": 42,
+          "DegreePrior/cv1": null,
+          "ELISL/cv1": 42,
+          "NSF4SL/cv1": 42,
+          "SLGNN/cv1": 42,
+          "SLMGAE/cv1": 42,
+          "siamese_sl/cv1": 42,
+          "siamese_sl_allmod/cv1": 42,
+          "siamese_sl_allmod_pd_pooled/cv1": 42,
+          "siamese_sl_nocell/cv1": 42,
+          "siamese_sl_pd_pooled/cv1": 42,
+          "BilinearProbe/cv2": 42,
+          "DegreePrior/cv2": null,
+          "ELISL/cv2": 42,
+          "NSF4SL/cv2": 42,
+          "SLGNN/cv2": 42,
+          "SLMGAE/cv2": 42,
+          "siamese_sl/cv2": 42,
+          "siamese_sl_allmod/cv2": 42,
+          "siamese_sl_allmod_pd_pooled/cv2": 42,
+          "siamese_sl_nocell/cv2": 42,
+          "siamese_sl_pd_pooled/cv2": 42,
+          "BilinearProbe/cv3": 42,
+          "DegreePrior/cv3": null,
+          "ELISL/cv3": 42,
+          "NSF4SL/cv3": 42,
+          "SLGNN/cv3": 42,
+          "SLMGAE/cv3": 42,
+          "siamese_sl/cv3": 42,
+          "siamese_sl_allmod/cv3": 42,
+          "siamese_sl_allmod_pd_pooled/cv3": 42,
+          "siamese_sl_nocell/cv3": 42,
+          "siamese_sl_pd_pooled/cv3": 42
+        },
+        "single_training_seed": true,
+        "rows_without_seed": [
+          "DegreePrior/cv1",
+          "DegreePrior/cv2",
+          "DegreePrior/cv3"
+        ],
+        "native_dims": {
+          "geneformer": 1152,
+          "scgpt": 512,
+          "gene2vec": 200,
+          "esm2": 1280,
+          "esm1b": 1280,
+          "prot_t5": 1024,
+          "text_embed": 1024,
+          "bioconceptvec": 100,
+          "node2vec_ppi": 128,
+          "ppi_svd": 256,
+          "ppi_raw": 1024,
+          "mashup": 500,
+          "go": 200,
+          "go2vec": 128,
+          "onto2vec": 128,
+          "kg_complex": 512
+        }
+      },
+      "status": "ok"
+    },
+    "fold_geometry": {
+      "paper": "D1 (L803), D7-D10 (L820-835), TT1 (L544-547)",
+      "value": {
+        "labelled_pairs": 128870,
+        "D7_analytic_gene_split": {
+          "p_both_train": 0.6400000000000001,
+          "p_both_test": 0.04000000000000001,
+          "p_mixed": 0.32000000000000006
+        },
+        "cv1": {
+          "per_fold": [
+            {
+              "fold": 0,
+              "n_train_pos": 15959,
+              "n_val_pos": 1773,
+              "n_test_pos": 4434,
+              "n_train_neg": 76827,
+              "n_val_neg": 8536,
+              "n_test_neg": 21341,
+              "test_share": 0.20000775975789556,
+              "train_share": 0.7199968960968418,
+              "val_share": 0.07999534414526267,
+              "discarded_share": 0.0,
+              "test_prevalence": 0.17202715809893307,
+              "test_both_genes_in_train": 0.9680310378273521,
+              "test_both_genes_in_train_val": 0.9700484966052376,
+              "n_test": 25775
+            },
+            {
+              "fold": 1,
+              "n_train_pos": 15960,
+              "n_val_pos": 1773,
+              "n_test_pos": 4433,
+              "n_train_neg": 76827,
+              "n_val_neg": 8536,
+              "n_test_neg": 21341,
+              "test_share": 0.2,
+              "train_share": 0.7200046558547374,
+              "val_share": 0.07999534414526267,
+              "discarded_share": 0.0,
+              "test_prevalence": 0.17199503375494685,
+              "test_both_genes_in_train": 0.9673314192597191,
+              "test_both_genes_in_train_val": 0.9698921393652518,
+              "n_test": 25774
+            },
+            {
+              "fold": 2,
+              "n_train_pos": 15960,
+              "n_val_pos": 1773,
+              "n_test_pos": 4433,
+              "n_train_neg": 76827,
+              "n_val_neg": 8536,
+              "n_test_neg": 21341,
+              "test_share": 0.2,
+              "train_share": 0.7200046558547374,
+              "val_share": 0.07999534414526267,
+              "discarded_share": 0.0,
+              "test_prevalence": 0.17199503375494685,
+              "test_both_genes_in_train": 0.9683789865756188,
+              "test_both_genes_in_train_val": 0.9707457127337628,
+              "n_test": 25774
+            },
+            {
+              "fold": 3,
+              "n_train_pos": 15960,
+              "n_val_pos": 1773,
+              "n_test_pos": 4433,
+              "n_train_neg": 76827,
+              "n_val_neg": 8536,
+              "n_test_neg": 21341,
+              "test_share": 0.2,
+              "train_share": 0.7200046558547374,
+              "val_share": 0.07999534414526267,
+              "discarded_share": 0.0,
+              "test_prevalence": 0.17199503375494685,
+              "test_both_genes_in_train": 0.9677970047334523,
+              "test_both_genes_in_train_val": 0.9701249321021184,
+              "n_test": 25774
+            },
+            {
+              "fold": 4,
+              "n_train_pos": 15960,
+              "n_val_pos": 1773,
+              "n_test_pos": 4433,
+              "n_train_neg": 76828,
+              "n_val_neg": 8536,
+              "n_test_neg": 21340,
+              "test_share": 0.19999224024210444,
+              "train_share": 0.7200124156126329,
+              "val_share": 0.07999534414526267,
+              "discarded_share": 0.0,
+              "test_prevalence": 0.1720017072129748,
+              "test_both_genes_in_train": 0.9709385791332014,
+              "test_both_genes_in_train_val": 0.972800993287549,
+              "n_test": 25773
+            }
+          ],
+          "test_share": {
+            "mean": 0.2,
+            "min": 0.19999224024210444,
+            "max": 0.20000775975789556
+          },
+          "discarded_share": {
+            "mean": 0.0,
+            "min": 0.0,
+            "max": 0.0
+          },
+          "test_prevalence": {
+            "mean": 0.17200279331534968,
+            "min": 0.17199503375494685,
+            "max": 0.17202715809893307
+          },
+          "test_both_genes_in_train": {
+            "mean": 0.9684954055058688,
+            "min": 0.9673314192597191,
+            "max": 0.9709385791332014
+          },
+          "test_both_genes_in_train_val": {
+            "mean": 0.9707224548187838,
+            "min": 0.9698921393652518,
+            "max": 0.972800993287549
+          },
+          "n_test": {
+            "mean": 25774.0,
+            "min": 25773.0,
+            "max": 25775.0
+          },
+          "n_test_pos": {
+            "mean": 4433.2,
+            "min": 4433.0,
+            "max": 4434.0
+          }
+        },
+        "cv2": {
+          "per_fold": [
+            {
+              "fold": 0,
+              "n_train_pos": 13369,
+              "n_val_pos": 2772,
+              "n_test_pos": 6025,
+              "n_train_neg": 55161,
+              "n_val_neg": 11815,
+              "n_test_neg": 39728,
+              "test_share": 0.35503220299526655,
+              "train_share": 0.5317762085822922,
+              "val_share": 0.11319158842244122,
+              "discarded_share": 0.0,
+              "test_prevalence": 0.13168535396586017,
+              "test_both_genes_in_train": 0.0,
+              "test_both_genes_in_train_val": 0.0,
+              "n_test": 45753
+            },
+            {
+              "fold": 1,
+              "n_train_pos": 9745,
+              "n_val_pos": 2037,
+              "n_test_pos": 10384,
+              "n_train_neg": 53347,
+              "n_val_neg": 15111,
+              "n_test_neg": 38246,
+              "test_share": 0.3773570264607744,
+              "train_share": 0.4895786451462714,
+              "val_share": 0.13306432839295415,
+              "discarded_share": 0.0,
+              "test_prevalence": 0.21353074234011926,
+              "test_both_genes_in_train": 0.0,
+              "test_both_genes_in_train_val": 0.0,
+              "n_test": 48630
+            },
+            {
+              "fold": 2,
+              "n_train_pos": 9031,
+              "n_val_pos": 3407,
+              "n_test_pos": 9728,
+              "n_train_neg": 54664,
+              "n_val_neg": 11230,
+              "n_test_neg": 40810,
+              "test_share": 0.3921626445254908,
+              "train_share": 0.4942577791572903,
+              "val_share": 0.1135795763172189,
+              "discarded_share": 0.0,
+              "test_prevalence": 0.19248882029364042,
+              "test_both_genes_in_train": 0.0,
+              "test_both_genes_in_train_val": 0.0,
+              "n_test": 50538
+            },
+            {
+              "fold": 3,
+              "n_train_pos": 11416,
+              "n_val_pos": 3532,
+              "n_test_pos": 7218,
+              "n_train_neg": 57071,
+              "n_val_neg": 15039,
+              "n_test_neg": 34594,
+              "test_share": 0.3244509971288896,
+              "train_share": 0.5314425389927834,
+              "val_share": 0.14410646387832698,
+              "discarded_share": 0.0,
+              "test_prevalence": 0.1726298670238209,
+              "test_both_genes_in_train": 0.0,
+              "test_both_genes_in_train_val": 0.0,
+              "n_test": 41812
+            },
+            {
+              "fold": 4,
+              "n_train_pos": 11309,
+              "n_val_pos": 4340,
+              "n_test_pos": 6517,
+              "n_train_neg": 56214,
+              "n_val_neg": 11757,
+              "n_test_neg": 38733,
+              "test_share": 0.3511290447738031,
+              "train_share": 0.5239621323814697,
+              "val_share": 0.12490882284472725,
+              "discarded_share": 0.0,
+              "test_prevalence": 0.14402209944751382,
+              "test_both_genes_in_train": 0.0,
+              "test_both_genes_in_train_val": 0.0,
+              "n_test": 45250
+            }
+          ],
+          "test_share": {
+            "mean": 0.36002638317684493,
+            "min": 0.3244509971288896,
+            "max": 0.3921626445254908
+          },
+          "discarded_share": {
+            "mean": 0.0,
+            "min": 0.0,
+            "max": 0.0
+          },
+          "test_prevalence": {
+            "mean": 0.17087137661419088,
+            "min": 0.13168535396586017,
+            "max": 0.21353074234011926
+          },
+          "test_both_genes_in_train": {
+            "mean": 0.0,
+            "min": 0.0,
+            "max": 0.0
+          },
+          "test_both_genes_in_train_val": {
+            "mean": 0.0,
+            "min": 0.0,
+            "max": 0.0
+          },
+          "n_test": {
+            "mean": 46396.6,
+            "min": 41812.0,
+            "max": 50538.0
+          },
+          "n_test_pos": {
+            "mean": 7974.4,
+            "min": 6025.0,
+            "max": 10384.0
+          }
+        },
+        "cv3": {
+          "per_fold": [
+            {
+              "fold": 0,
+              "n_train_pos": 13369,
+              "n_val_pos": 153,
+              "n_test_pos": 422,
+              "n_train_neg": 55161,
+              "n_val_neg": 544,
+              "n_test_neg": 4584,
+              "test_share": 0.03884534802514161,
+              "train_share": 0.5317762085822922,
+              "val_share": 0.0054085512532009005,
+              "discarded_share": 0.4239698921393652,
+              "test_prevalence": 0.0842988413903316,
+              "test_both_genes_in_train": 0.0,
+              "test_both_genes_in_train_val": 0.0,
+              "n_test": 5006
+            },
+            {
+              "fold": 1,
+              "n_train_pos": 9745,
+              "n_val_pos": 87,
+              "n_test_pos": 1502,
+              "n_train_neg": 53347,
+              "n_val_neg": 925,
+              "n_test_neg": 4187,
+              "test_share": 0.04414526266780477,
+              "train_share": 0.4895786451462714,
+              "val_share": 0.007852874990300303,
+              "discarded_share": 0.4584232171956235,
+              "test_prevalence": 0.2640182808929513,
+              "test_both_genes_in_train": 0.0,
+              "test_both_genes_in_train_val": 0.0,
+              "n_test": 5689
+            },
+            {
+              "fold": 2,
+              "n_train_pos": 9031,
+              "n_val_pos": 245,
+              "n_test_pos": 1307,
+              "n_train_neg": 54664,
+              "n_val_neg": 533,
+              "n_test_neg": 4835,
+              "test_share": 0.04766043299449057,
+              "train_share": 0.4942577791572903,
+              "val_share": 0.0060370916427407465,
+              "discarded_share": 0.4520446962054784,
+              "test_prevalence": 0.21279713448388146,
+              "test_both_genes_in_train": 0.0,
+              "test_both_genes_in_train_val": 0.0,
+              "n_test": 6142
+            },
+            {
+              "fold": 3,
+              "n_train_pos": 11416,
+              "n_val_pos": 208,
+              "n_test_pos": 711,
+              "n_train_neg": 57071,
+              "n_val_neg": 849,
+              "n_test_neg": 3400,
+              "test_share": 0.03190036470862109,
+              "train_share": 0.5314425389927834,
+              "val_share": 0.008202064095600217,
+              "discarded_share": 0.4284550322029953,
+              "test_prevalence": 0.17295062028703478,
+              "test_both_genes_in_train": 0.0,
+              "test_both_genes_in_train_val": 0.0,
+              "n_test": 4111
+            },
+            {
+              "fold": 4,
+              "n_train_pos": 11309,
+              "n_val_pos": 350,
+              "n_test_pos": 518,
+              "n_train_neg": 56214,
+              "n_val_neg": 540,
+              "n_test_neg": 4291,
+              "test_share": 0.03731667571971754,
+              "train_share": 0.5239621323814697,
+              "val_share": 0.006906184527042756,
+              "discarded_share": 0.43181500737177003,
+              "test_prevalence": 0.10771470160116449,
+              "test_both_genes_in_train": 0.0,
+              "test_both_genes_in_train_val": 0.0,
+              "n_test": 4809
+            }
+          ],
+          "test_share": {
+            "mean": 0.039973616823155124,
+            "min": 0.03190036470862109,
+            "max": 0.04766043299449057
+          },
+          "discarded_share": {
+            "mean": 0.43894156902304654,
+            "min": 0.4239698921393652,
+            "max": 0.4584232171956235
+          },
+          "test_prevalence": {
+            "mean": 0.16835591573107273,
+            "min": 0.0842988413903316,
+            "max": 0.2640182808929513
+          },
+          "test_both_genes_in_train": {
+            "mean": 0.0,
+            "min": 0.0,
+            "max": 0.0
+          },
+          "test_both_genes_in_train_val": {
+            "mean": 0.0,
+            "min": 0.0,
+            "max": 0.0
+          },
+          "n_test": {
+            "mean": 5151.4,
+            "min": 4111.0,
+            "max": 6142.0
+          },
+          "n_test_pos": {
+            "mean": 892.0,
+            "min": 422.0,
+            "max": 1502.0
+          }
+        }
+      },
+      "status": "ok"
+    },
+    "pca_width": {
+      "paper": "R5 (L568-574), M12 (L387-394)",
+      "value": {
+        "per_variant": {
+          "pd:pooled": {
+            "per_cv": {
+              "cv1": [
+                4864,
+                4480,
+                4552,
+                4864,
+                4480
+              ],
+              "cv2": [
+                4668,
+                3656,
+                4936,
+                3968,
+                5192
+              ],
+              "cv3": [
+                3700,
+                4936,
+                4668,
+                5120,
+                4352
+              ]
+            },
+            "min": 3656,
+            "max": 5192,
+            "n_splits": 15
+          },
+          "pd:per_head": {
+            "per_cv": {
+              "cv1": [
+                4864,
+                4480,
+                4552,
+                4864,
+                4480
+              ],
+              "cv2": [
+                4668,
+                3656,
+                4936,
+                3968,
+                5192
+              ],
+              "cv3": [
+                3700,
+                4936,
+                4668,
+                5120,
+                4352
+              ]
+            },
+            "min": 3656,
+            "max": 5192,
+            "n_splits": 15
+          }
+        },
+        "equal_across_variants": true,
+        "variants_differing_from_first": [],
+        "variants_incomplete": []
+      },
+      "status": "ok"
+    },
+    "param_ratio": {
+      "paper": "I2 (L109-111)",
+      "value": {
+        "pd:pooled": {
+          "per_cv": {
+            "cv1": {
+              "slmgae": 253547952,
+              "sleuth_fold_mean": 161706.0,
+              "ratio": 1567.9563652554637
+            },
+            "cv2": {
+              "slmgae": 253547952,
+              "sleuth_fold_mean": 156294.0,
+              "ratio": 1622.2500671810817
+            },
+            "cv3": {
+              "slmgae": 253547952,
+              "sleuth_fold_mean": 158643.6,
+              "ratio": 1598.2236409158643
+            }
+          },
+          "min_ratio": 1567.9563652554637
+        },
+        "pd:per_head": {
+          "per_cv": {
+            "cv1": {
+              "slmgae": 253547952,
+              "sleuth_fold_mean": 162921.0,
+              "ratio": 1556.2631704936748
+            },
+            "cv2": {
+              "slmgae": 253547952,
+              "sleuth_fold_mean": 157509.0,
+              "ratio": 1609.7362817362816
+            },
+            "cv3": {
+              "slmgae": 253547952,
+              "sleuth_fold_mean": 159858.6,
+              "ratio": 1586.0763950140936
+            }
+          },
+          "min_ratio": 1556.2631704936748
+        }
+      },
+      "status": "ok"
+    },
+    "heads": {
+      "paper": "M7 (L306-309), M9 (L343-346)",
+      "value": {
+        "heads": [
+          "K562",
+          "JURKAT",
+          "A549",
+          "HELA",
+          "A375",
+          "293T",
+          "PC9",
+          "OTHER"
+        ],
+        "num_heads": 8,
+        "cell_line_dim_per_variant": {
+          "pd:per_head": 24
+        },
+        "max_heads_per_pair": 5,
+        "pairs_by_n_heads": {
+          "1": 55866,
+          "2": 69796,
+          "3": 2585,
+          "4": 486,
+          "5": 137
+        }
+      },
+      "status": "ok"
+    },
+    "arch": {
+      "paper": "M3-M6, M10, D3 (L180-374)",
+      "value": {
+        "ARCH_ARGS_env": "",
+        "pd:pooled": {
+          "arch_signature": {
+            "cell_lines": "pooled",
+            "kernel": "pd",
+            "layernorm": false,
+            "log_temperature": false,
+            "per_head_last_layer_bias": true,
+            "per_head_input_bias": false,
+            "per_head_temperature": false,
+            "inner_norm": "none",
+            "select_metric": "auprg_any",
+            "gene_term": true,
+            "pair_features": true,
+            "input_bias": true,
+            "use_cell_lines": true,
+            "model_type": null,
+            "cell_line_dim": null,
+            "siamese_encoder_type": "residual",
+            "encoder_dims": [
+              32.0,
+              32.0,
+              32.0,
+              32.0,
+              32.0,
+              32.0,
+              32.0
+            ],
+            "last_layer_bias": false,
+            "dropout": 0.2,
+            "pd_epsilon": 0.001,
+            "l1_lambdas": [
+              0.01,
+              0.0075,
+              0.005,
+              0.004,
+              0.0025,
+              0.0015,
+              0.001
+            ],
+            "pca_method": "plain",
+            "preprocessing_fit_scope": "train",
+            "pca_variance": null,
+            "pca_dims": null,
+            "post_pca": null,
+            "post_pca_dim": null,
+            "learning_rate": 0.001,
+            "weight_decay": 1e-05,
+            "batch_size": 256,
+            "epochs": 2000,
+            "eval_interval": 30,
+            "patience": 10,
+            "warmrestart_T0": 50,
+            "warmrestart_Tmult": 2,
+            "seed": 42,
+            "selection_frac": 0.1,
+            "selection_seed": 42,
+            "all_modalities": false
+          },
+          "same_across_cvs": true,
+          "pca_arm": "none",
+          "pca_settings": {
+            "modality": "no",
+            "joint": "no"
+          },
+          "post_pca_variance": null,
+          "post_pca": null,
+          "embeddings": [
+            "all_genes_geneformer.pt",
+            "all_genes_scgpt.pt",
+            "all_genes_go.pt",
+            "all_genes_go2vec.pt",
+            "all_genes_kg_complex.pt",
+            "all_genes_ppi_raw.pt",
+            "all_genes_esm2.pt",
+            "all_genes_esm1b.pt",
+            "all_genes_prot_t5.pt",
+            "all_genes_text_embed.pt"
+          ],
+          "embeddings_per_cv": {
+            "cv1": [
+              "all_genes_esm1b.pt",
+              "all_genes_esm2.pt",
+              "all_genes_geneformer.pt",
+              "all_genes_go.pt",
+              "all_genes_go2vec.pt",
+              "all_genes_kg_complex.pt",
+              "all_genes_ppi_raw.pt",
+              "all_genes_prot_t5.pt",
+              "all_genes_scgpt.pt",
+              "all_genes_text_embed.pt"
+            ],
+            "cv2": [
+              "all_genes_esm1b.pt",
+              "all_genes_geneformer.pt",
+              "all_genes_go.pt",
+              "all_genes_go2vec.pt",
+              "all_genes_kg_complex.pt",
+              "all_genes_mashup.pt",
+              "all_genes_node2vec_ppi.pt",
+              "all_genes_ppi_raw.pt",
+              "all_genes_prot_t5.pt",
+              "all_genes_scgpt.pt",
+              "all_genes_text_embed.pt"
+            ],
+            "cv3": [
+              "all_genes_esm1b.pt",
+              "all_genes_geneformer.pt",
+              "all_genes_go.pt",
+              "all_genes_go2vec.pt",
+              "all_genes_kg_complex.pt",
+              "all_genes_mashup.pt",
+              "all_genes_ppi_raw.pt",
+              "all_genes_ppi_svd.pt",
+              "all_genes_prot_t5.pt",
+              "all_genes_scgpt.pt",
+              "all_genes_text_embed.pt"
+            ]
+          },
+          "embeddings_match_winners": {
+            "cv1": true,
+            "cv2": true,
+            "cv3": true
+          }
+        },
+        "pd:per_head": {
+          "arch_signature": {
+            "cell_lines": "per_head",
+            "kernel": "pd",
+            "layernorm": false,
+            "log_temperature": false,
+            "per_head_last_layer_bias": true,
+            "per_head_input_bias": false,
+            "per_head_temperature": false,
+            "inner_norm": "none",
+            "select_metric": "auprg_any",
+            "gene_term": true,
+            "pair_features": true,
+            "input_bias": true,
+            "use_cell_lines": true,
+            "model_type": null,
+            "cell_line_dim": 24,
+            "siamese_encoder_type": "residual",
+            "encoder_dims": [
+              32.0,
+              32.0,
+              32.0,
+              32.0,
+              32.0,
+              32.0,
+              32.0
+            ],
+            "last_layer_bias": false,
+            "dropout": 0.2,
+            "pd_epsilon": 0.001,
+            "l1_lambdas": [
+              0.01,
+              0.0075,
+              0.005,
+              0.004,
+              0.0025,
+              0.0015,
+              0.001
+            ],
+            "pca_method": "plain",
+            "preprocessing_fit_scope": "train",
+            "pca_variance": null,
+            "pca_dims": null,
+            "post_pca": null,
+            "post_pca_dim": null,
+            "learning_rate": 0.001,
+            "weight_decay": 1e-05,
+            "batch_size": 256,
+            "epochs": 2000,
+            "eval_interval": 30,
+            "patience": 10,
+            "warmrestart_T0": 50,
+            "warmrestart_Tmult": 2,
+            "seed": 42,
+            "selection_frac": 0.1,
+            "selection_seed": 42,
+            "all_modalities": false
+          },
+          "same_across_cvs": true,
+          "pca_arm": "none",
+          "pca_settings": {
+            "modality": "no",
+            "joint": "no"
+          },
+          "post_pca_variance": null,
+          "post_pca": null,
+          "embeddings": [
+            "all_genes_geneformer.pt",
+            "all_genes_scgpt.pt",
+            "all_genes_go.pt",
+            "all_genes_go2vec.pt",
+            "all_genes_kg_complex.pt",
+            "all_genes_ppi_raw.pt",
+            "all_genes_esm2.pt",
+            "all_genes_esm1b.pt",
+            "all_genes_prot_t5.pt",
+            "all_genes_text_embed.pt"
+          ],
+          "embeddings_per_cv": {
+            "cv1": [
+              "all_genes_esm1b.pt",
+              "all_genes_esm2.pt",
+              "all_genes_geneformer.pt",
+              "all_genes_go.pt",
+              "all_genes_go2vec.pt",
+              "all_genes_kg_complex.pt",
+              "all_genes_ppi_raw.pt",
+              "all_genes_prot_t5.pt",
+              "all_genes_scgpt.pt",
+              "all_genes_text_embed.pt"
+            ],
+            "cv2": [
+              "all_genes_esm1b.pt",
+              "all_genes_geneformer.pt",
+              "all_genes_go.pt",
+              "all_genes_go2vec.pt",
+              "all_genes_kg_complex.pt",
+              "all_genes_mashup.pt",
+              "all_genes_node2vec_ppi.pt",
+              "all_genes_ppi_raw.pt",
+              "all_genes_prot_t5.pt",
+              "all_genes_scgpt.pt",
+              "all_genes_text_embed.pt"
+            ],
+            "cv3": [
+              "all_genes_esm1b.pt",
+              "all_genes_geneformer.pt",
+              "all_genes_go.pt",
+              "all_genes_go2vec.pt",
+              "all_genes_kg_complex.pt",
+              "all_genes_mashup.pt",
+              "all_genes_ppi_raw.pt",
+              "all_genes_ppi_svd.pt",
+              "all_genes_prot_t5.pt",
+              "all_genes_scgpt.pt",
+              "all_genes_text_embed.pt"
+            ]
+          },
+          "embeddings_match_winners": {
+            "cv1": true,
+            "cv2": true,
+            "cv3": true
+          }
+        }
+      },
+      "status": "ok"
+    },
+    "selection": {
+      "paper": "E3 (L408-413), M11 (L376-385)",
+      "value": {
+        "winners": {
+          "expression": "geneformer/scgpt",
+          "go": "go/go2vec",
+          "kg": "kg_complex",
+          "ppi": "ppi_raw/node2vec_ppi/mashup/ppi_svd",
+          "protein_seq": "esm2/esm1b/prot_t5",
+          "text": "text_embed"
+        },
+        "differs_from_paper": {
+          "expression": {
+            "run": "geneformer/scgpt",
+            "paper": "geneformer"
+          },
+          "go": {
+            "run": "go/go2vec",
+            "paper": "go2vec"
+          },
+          "ppi": {
+            "run": "ppi_raw/node2vec_ppi/mashup/ppi_svd",
+            "paper": "ppi_raw"
+          },
+          "protein_seq": {
+            "run": "esm2/esm1b/prot_t5",
+            "paper": "prot_t5"
+          }
+        },
+        "missing_categories": [],
+        "selection_meta": {
+          "selection_cv": "cv1",
+          "selection_variant": "pd:pooled",
+          "selection_metric": "sel_auprg_any",
+          "selection_label": "AUPRG_any",
+          "selection_basis": "selection_split",
+          "n_scored_on_val": 48,
+          "n_scored_on_test": 0,
+          "unranked_not_generated": [
+            "esmc",
+            "scprint",
+            "seqvec"
+          ],
+          "unranked_required_missing": [],
+          "unranked_failed": [],
+          "unranked_foreign_token": [],
+          "run_token": "20261113T113339-1225758",
+          "pca_arm": "none",
+          "pca": "no PCA",
+          "pca_args": "--no_post_pca",
+          "step1_root": "results",
+          "step1_pca": "single-embedding runs at native dimension (no PCA), shared by arms none and joint",
+          "step1_pca_args": "--no_post_pca",
+          "missing_categories": [],
+          "rationale": "per (CV, fold): each category's argmax of fold_metrics[k][sel_<select_metric>] on fold k's own selection split (a random SELECTION_FRAC of its training pairs, never trained on); each CV's combo trains on the union of its folds' winners, fold k on its own (--fold_modalities). selection_cv is not used.",
+          "selection_mode": "per_fold",
+          "selection_frac": 0.1,
+          "selection_seed": 42,
+          "num_folds": 5,
+          "sel_digests": {
+            "cv1": {
+              "0": "d3ec97a6f6df83d3b5d7448fb52dab98186c305fd7c037f150576eadfb6322f0",
+              "1": "f1e49c2f6293ce6abeec947e93cd8dbe96add161ba4d24ff6f33316a6b7ea288",
+              "2": "4ade903da816fe6b47619d7965dc57abfbd7f7806593658e0b063f475fc7f35e",
+              "3": "e9ebae54473c8f3d33d128a773b342ae5c9759b91acb537b49e3bbd012b2e25d",
+              "4": "f6cfc7ccfd38e2a7dab1b0ce645ec12eb6ff7968468862a4bfe34d939efa0feb"
+            },
+            "cv2": {
+              "0": "3dcaee7c69edc13f740a69e4c927b087a53eea50736e97090cdf004c9accc776",
+              "1": "d8c3b8702e9012ec4183cf1135231368b980bb1d46c1543882f7cdf2398dfb87",
+              "2": "eac16a45c3f63e396069658ede906bf91e2ee949380d907fc83fd98de9d5671b",
+              "3": "d6c32dae3bc069cc298410564fe49ff001535cc9a3b598ee99c1457773da34bc",
+              "4": "cac5e4dca159d80c89d278650eeaf0652d256a086dd2d5460d7f3a00638d3db4"
+            },
+            "cv3": {
+              "0": "4e4635155d10f4b80e939512bcc22cc47f2a1bef916495aa2b4a196374d8b4df",
+              "1": "7d44b3c2acbe0f28a21e9eba878ba9b4c5153e5e8f68184c16729a562dec4bc3",
+              "2": "96fd3aba8c4d65f787bc8e6735f06395fe93bd7be13862abae0df42b7ac4b667",
+              "3": "c895a0f16773b7a0bb7f386af4a90f4d5289b454faa7d7aedad6ca4a48a6c89d",
+              "4": "338228aef8bcae1bfe8b160351a82f365526a6cc7e8a9625322e5afb1633d7e6"
+            }
+          }
+        },
+        "catalog_size": 19,
+        "paper_catalog_size": 16,
+        "catalog_not_in_paper": [
+          "esmc",
+          "scprint",
+          "seqvec"
+        ],
+        "selection_mode": "per_fold",
+        "winners_per_cv": {
+          "cv1": {
+            "expression": "geneformer/scgpt",
+            "go": "go/go2vec",
+            "kg": "kg_complex",
+            "ppi": "ppi_raw",
+            "protein_seq": "esm2/esm1b/prot_t5",
+            "text": "text_embed"
+          },
+          "cv2": {
+            "expression": "geneformer/scgpt",
+            "go": "go/go2vec",
+            "kg": "kg_complex",
+            "ppi": "node2vec_ppi/ppi_raw/mashup",
+            "protein_seq": "esm1b/prot_t5",
+            "text": "text_embed"
+          },
+          "cv3": {
+            "expression": "geneformer/scgpt",
+            "go": "go/go2vec",
+            "kg": "kg_complex",
+            "ppi": "ppi_svd/ppi_raw/mashup",
+            "protein_seq": "esm1b/prot_t5",
+            "text": "text_embed"
+          }
+        },
+        "per_fold": {
+          "cv1": {
+            "expression": {
+              "0": "geneformer",
+              "1": "scgpt",
+              "2": "scgpt",
+              "3": "geneformer",
+              "4": "scgpt"
+            },
+            "go": {
+              "0": "go2vec",
+              "1": "go2vec",
+              "2": "go",
+              "3": "go2vec",
+              "4": "go2vec"
+            },
+            "kg": {
+              "0": "kg_complex",
+              "1": "kg_complex",
+              "2": "kg_complex",
+              "3": "kg_complex",
+              "4": "kg_complex"
+            },
+            "ppi": {
+              "0": "ppi_raw",
+              "1": "ppi_raw",
+              "2": "ppi_raw",
+              "3": "ppi_raw",
+              "4": "ppi_raw"
+            },
+            "protein_seq": {
+              "0": "prot_t5",
+              "1": "esm1b",
+              "2": "esm2",
+              "3": "prot_t5",
+              "4": "esm1b"
+            },
+            "text": {
+              "0": "text_embed",
+              "1": "text_embed",
+              "2": "text_embed",
+              "3": "text_embed",
+              "4": "text_embed"
+            }
+          },
+          "cv2": {
+            "expression": {
+              "0": "geneformer",
+              "1": "scgpt",
+              "2": "geneformer",
+              "3": "geneformer",
+              "4": "geneformer"
+            },
+            "go": {
+              "0": "go",
+              "1": "go",
+              "2": "go",
+              "3": "go2vec",
+              "4": "go"
+            },
+            "kg": {
+              "0": "kg_complex",
+              "1": "kg_complex",
+              "2": "kg_complex",
+              "3": "kg_complex",
+              "4": "kg_complex"
+            },
+            "ppi": {
+              "0": "mashup",
+              "1": "node2vec_ppi",
+              "2": "ppi_raw",
+              "3": "node2vec_ppi",
+              "4": "ppi_raw"
+            },
+            "protein_seq": {
+              "0": "esm1b",
+              "1": "esm1b",
+              "2": "prot_t5",
+              "3": "prot_t5",
+              "4": "esm1b"
+            },
+            "text": {
+              "0": "text_embed",
+              "1": "text_embed",
+              "2": "text_embed",
+              "3": "text_embed",
+              "4": "text_embed"
+            }
+          },
+          "cv3": {
+            "expression": {
+              "0": "scgpt",
+              "1": "geneformer",
+              "2": "geneformer",
+              "3": "geneformer",
+              "4": "geneformer"
+            },
+            "go": {
+              "0": "go2vec",
+              "1": "go",
+              "2": "go",
+              "3": "go2vec",
+              "4": "go2vec"
+            },
+            "kg": {
+              "0": "kg_complex",
+              "1": "kg_complex",
+              "2": "kg_complex",
+              "3": "kg_complex",
+              "4": "kg_complex"
+            },
+            "ppi": {
+              "0": "mashup",
+              "1": "ppi_raw",
+              "2": "mashup",
+              "3": "ppi_raw",
+              "4": "ppi_svd"
+            },
+            "protein_seq": {
+              "0": "prot_t5",
+              "1": "prot_t5",
+              "2": "esm1b",
+              "3": "esm1b",
+              "4": "esm1b"
+            },
+            "text": {
+              "0": "text_embed",
+              "1": "text_embed",
+              "2": "text_embed",
+              "3": "text_embed",
+              "4": "text_embed"
+            }
+          }
+        },
+        "pick_counts": {
+          "cv1": {
+            "geneformer": 2,
+            "scgpt": 3,
+            "go": 1,
+            "go2vec": 4,
+            "kg_complex": 5,
+            "ppi_raw": 5,
+            "esm2": 1,
+            "esm1b": 2,
+            "prot_t5": 2,
+            "text_embed": 5
+          },
+          "cv2": {
+            "geneformer": 4,
+            "scgpt": 1,
+            "go": 4,
+            "go2vec": 1,
+            "kg_complex": 5,
+            "node2vec_ppi": 2,
+            "ppi_raw": 2,
+            "mashup": 1,
+            "esm1b": 3,
+            "prot_t5": 2,
+            "text_embed": 5
+          },
+          "cv3": {
+            "geneformer": 4,
+            "scgpt": 1,
+            "go": 2,
+            "go2vec": 3,
+            "kg_complex": 5,
+            "ppi_svd": 1,
+            "ppi_raw": 2,
+            "mashup": 2,
+            "esm1b": 3,
+            "prot_t5": 2,
+            "text_embed": 5
+          }
+        }
+      },
+      "status": "ok"
+    },
+    "solo": {
+      "paper": "AB2 (L625-630), AB3 (L632-638), D4 (L812-814)",
+      "value": {
+        "pd:pooled": {
+          "per_cv": {
+            "cv1": {
+              "category_means": {
+                "expression": 0.9864719556360958,
+                "protein_seq": 0.9860857462818737,
+                "text": 0.9860142084687604,
+                "ppi": 0.9854662839269597,
+                "go": 0.9807763403530401,
+                "kg": 0.9876753462079518
+              },
+              "best_category": "kg",
+              "category_means_paper16": {
+                "expression": 0.9864719556360958,
+                "protein_seq": 0.9860857462818737,
+                "text": 0.9860142084687604,
+                "ppi": 0.9854662839269597,
+                "go": 0.9807763403530401,
+                "kg": 0.9876753462079518
+              },
+              "best_category_paper16": "kg",
+              "paper16_absent": [],
+              "n_embeddings": 16,
+              "n_embeddings_in_paper16": 16,
+              "above_combo_shared": [],
+              "n_above_combo_shared": 0,
+              "n_above_combo_shared_paper16": 0,
+              "combo_auprg_shared": 0.9896960005752501,
+              "above_combo_self": [],
+              "n_above_combo_self": 0,
+              "n_above_combo_self_paper16": 0,
+              "combo_auprg_self": 0.9896960014255534
+            },
+            "cv2": {
+              "category_means": {
+                "expression": 0.8253158527207423,
+                "protein_seq": 0.9251371385352791,
+                "text": 0.9385367966477749,
+                "ppi": 0.9300987352995592,
+                "go": 0.9271267106015024,
+                "kg": 0.8722383495472925
+              },
+              "best_category": "text",
+              "category_means_paper16": {
+                "expression": 0.8253158527207423,
+                "protein_seq": 0.9251371385352791,
+                "text": 0.9385367966477749,
+                "ppi": 0.9300987352995592,
+                "go": 0.9271267106015024,
+                "kg": 0.8722383495472925
+              },
+              "best_category_paper16": "text",
+              "paper16_absent": [],
+              "n_embeddings": 16,
+              "n_embeddings_in_paper16": 16,
+              "above_combo_shared": [
+                "text_embed"
+              ],
+              "n_above_combo_shared": 1,
+              "n_above_combo_shared_paper16": 1,
+              "combo_auprg_shared": 0.9426227855723022,
+              "above_combo_self": [
+                "text_embed"
+              ],
+              "n_above_combo_self": 1,
+              "n_above_combo_self_paper16": 1,
+              "combo_auprg_self": 0.9426227846952946
+            },
+            "cv3": {
+              "category_means": {
+                "expression": 0.2921620544245755,
+                "protein_seq": 0.8268081716982668,
+                "text": 0.8529404785174812,
+                "ppi": 0.8232989117694653,
+                "go": 0.8528593179813487,
+                "kg": 0.43196801851772565
+              },
+              "best_category": "text",
+              "category_means_paper16": {
+                "expression": 0.2921620544245755,
+                "protein_seq": 0.8268081716982668,
+                "text": 0.8529404785174812,
+                "ppi": 0.8232989117694653,
+                "go": 0.8528593179813487,
+                "kg": 0.43196801851772565
+              },
+              "best_category_paper16": "text",
+              "paper16_absent": [],
+              "n_embeddings": 16,
+              "n_embeddings_in_paper16": 16,
+              "above_combo_shared": [
+                "go2vec",
+                "node2vec_ppi",
+                "text_embed"
+              ],
+              "n_above_combo_shared": 3,
+              "n_above_combo_shared_paper16": 3,
+              "combo_auprg_shared": 0.8674219093443203,
+              "above_combo_self": [
+                "go2vec",
+                "node2vec_ppi",
+                "text_embed"
+              ],
+              "n_above_combo_self": 3,
+              "n_above_combo_self_paper16": 3,
+              "combo_auprg_self": 0.8674218359340541
+            }
+          },
+          "above_combo_at_every_tier_shared": [],
+          "above_combo_at_every_tier_shared_undecided": [
+            "esmc",
+            "scprint",
+            "seqvec"
+          ],
+          "above_combo_at_every_tier_self": [],
+          "above_combo_at_every_tier_self_undecided": [
+            "esmc",
+            "scprint",
+            "seqvec"
+          ]
+        },
+        "pd:per_head": {
+          "per_cv": {
+            "cv1": {
+              "category_means": {
+                "expression": 0.9582515908395033,
+                "protein_seq": 0.9637540066811793,
+                "text": 0.9677465172899476,
+                "ppi": 0.963521958706492,
+                "go": 0.9570988744721939,
+                "kg": 0.9741507174578794
+              },
+              "best_category": "kg",
+              "category_means_paper16": {
+                "expression": 0.9582515908395033,
+                "protein_seq": 0.9637540066811793,
+                "text": 0.9677465172899476,
+                "ppi": 0.963521958706492,
+                "go": 0.9570988744721939,
+                "kg": 0.9741507174578794
+              },
+              "best_category_paper16": "kg",
+              "paper16_absent": [],
+              "n_embeddings": 16,
+              "n_embeddings_in_paper16": 16,
+              "above_combo_shared": [],
+              "n_above_combo_shared": 0,
+              "n_above_combo_shared_paper16": 0,
+              "combo_auprg_shared": 0.9748106577213699,
+              "above_combo_self": [],
+              "n_above_combo_self": 0,
+              "n_above_combo_self_paper16": 0,
+              "combo_auprg_self": 0.9748106581133401
+            },
+            "cv2": {
+              "category_means": {
+                "expression": 0.8004967786013489,
+                "protein_seq": 0.8907424155093385,
+                "text": 0.8995462853728119,
+                "ppi": 0.8766985454884486,
+                "go": 0.8884832142996015,
+                "kg": 0.8465630964941606
+              },
+              "best_category": "text",
+              "category_means_paper16": {
+                "expression": 0.8004967786013489,
+                "protein_seq": 0.8907424155093385,
+                "text": 0.8995462853728119,
+                "ppi": 0.8766985454884486,
+                "go": 0.8884832142996015,
+                "kg": 0.8465630964941606
+              },
+              "best_category_paper16": "text",
+              "paper16_absent": [],
+              "n_embeddings": 16,
+              "n_embeddings_in_paper16": 16,
+              "above_combo_shared": [
+                "go2vec",
+                "node2vec_ppi",
+                "prot_t5"
+              ],
+              "n_above_combo_shared": 3,
+              "n_above_combo_shared_paper16": 3,
+              "combo_auprg_shared": 0.9004681159338283,
+              "above_combo_self": [
+                "go2vec",
+                "node2vec_ppi",
+                "prot_t5"
+              ],
+              "n_above_combo_self": 3,
+              "n_above_combo_self_paper16": 3,
+              "combo_auprg_self": 0.9004681310389138
+            },
+            "cv3": {
+              "category_means": {
+                "expression": 0.5306889324439271,
+                "protein_seq": 0.8074366605150517,
+                "text": 0.8304868772448284,
+                "ppi": 0.758155763671307,
+                "go": 0.8094276745641732,
+                "kg": 0.37929454492903836
+              },
+              "best_category": "text",
+              "category_means_paper16": {
+                "expression": 0.5306889324439271,
+                "protein_seq": 0.8074366605150517,
+                "text": 0.8304868772448284,
+                "ppi": 0.758155763671307,
+                "go": 0.8094276745641732,
+                "kg": 0.37929454492903836
+              },
+              "best_category_paper16": "text",
+              "paper16_absent": [],
+              "n_embeddings": 16,
+              "n_embeddings_in_paper16": 16,
+              "above_combo_shared": [
+                "bioconceptvec",
+                "node2vec_ppi"
+              ],
+              "n_above_combo_shared": 2,
+              "n_above_combo_shared_paper16": 2,
+              "combo_auprg_shared": 0.823709451224017,
+              "above_combo_self": [
+                "bioconceptvec",
+                "node2vec_ppi"
+              ],
+              "n_above_combo_self": 2,
+              "n_above_combo_self_paper16": 2,
+              "combo_auprg_self": 0.823709155707728
+            }
+          },
+          "above_combo_at_every_tier_shared": [],
+          "above_combo_at_every_tier_shared_undecided": [
+            "esmc",
+            "scprint",
+            "seqvec"
+          ],
+          "above_combo_at_every_tier_self": [],
+          "above_combo_at_every_tier_self_undecided": [
+            "esmc",
+            "scprint",
+            "seqvec"
+          ]
+        }
+      },
+      "status": "ok"
+    },
+    "loco": {
+      "paper": "AB5 (L674-681)",
+      "value": {
+        "pd:pooled": {
+          "cv1": {
+            "deltas": {
+              "expression": -0.0003252208595352357,
+              "protein_seq": 4.3311120606959186e-05,
+              "text": -0.0004484842936502975,
+              "ppi": -0.00017981813371537037,
+              "go": -0.0002287237851230639,
+              "kg": -0.00016074279208133646
+            },
+            "paired": {
+              "expression": {
+                "mean": -0.00032522085953525794,
+                "sd": 0.000322229701801271,
+                "n": 5
+              },
+              "protein_seq": {
+                "mean": 4.331112060682596e-05,
+                "sd": 0.0002707239301269055,
+                "n": 5
+              },
+              "text": {
+                "mean": -0.00044848429365036414,
+                "sd": 0.0001944091597338227,
+                "n": 5
+              },
+              "ppi": {
+                "mean": -0.00017981813371552579,
+                "sd": 0.00022052597631071078,
+                "n": 5
+              },
+              "go": {
+                "mean": -0.0002287237851230639,
+                "sd": 0.00025229031473164516,
+                "n": 5
+              },
+              "kg": {
+                "mean": -0.00016074279208138086,
+                "sd": 0.00020029810000025437,
+                "n": 5
+              }
+            },
+            "categories_missing": [],
+            "largest_drop": "text",
+            "no_drop": [
+              "protein_seq"
+            ]
+          },
+          "cv2": {
+            "deltas": {
+              "expression": -0.001364706159103557,
+              "protein_seq": -0.00791366746545985,
+              "text": -0.019559694844169306,
+              "ppi": -0.0007291837796350453,
+              "go": 0.0017127241761564216,
+              "kg": -0.0013207861636634899
+            },
+            "paired": {
+              "expression": {
+                "mean": -0.0013647061591034904,
+                "sd": 0.0059721638620963335,
+                "n": 5
+              },
+              "protein_seq": {
+                "mean": -0.007913667465459939,
+                "sd": 0.008379525062252025,
+                "n": 5
+              },
+              "text": {
+                "mean": -0.01955969484416935,
+                "sd": 0.015740780738916386,
+                "n": 5
+              },
+              "ppi": {
+                "mean": -0.0007291837796350676,
+                "sd": 0.007620874705624776,
+                "n": 5
+              },
+              "go": {
+                "mean": 0.0017127241761563327,
+                "sd": 0.01609802103429197,
+                "n": 5
+              },
+              "kg": {
+                "mean": -0.001320786163663734,
+                "sd": 0.005006463540071885,
+                "n": 5
+              }
+            },
+            "categories_missing": [],
+            "largest_drop": "text",
+            "no_drop": [
+              "go"
+            ]
+          },
+          "cv3": {
+            "deltas": {
+              "expression": -0.015087281278677422,
+              "protein_seq": -0.03735723947613112,
+              "text": -0.017688197366936498,
+              "ppi": -0.007319201544778053,
+              "go": -0.010001637932117169,
+              "kg": -0.0011635779909100474
+            },
+            "paired": {
+              "expression": {
+                "mean": -0.015087281278677311,
+                "sd": 0.026443859053443083,
+                "n": 5
+              },
+              "protein_seq": {
+                "mean": -0.0373572394761309,
+                "sd": 0.03604511081113582,
+                "n": 5
+              },
+              "text": {
+                "mean": -0.017688197366936453,
+                "sd": 0.033857805892607715,
+                "n": 5
+              },
+              "ppi": {
+                "mean": -0.007319201544777965,
+                "sd": 0.02691013775998545,
+                "n": 5
+              },
+              "go": {
+                "mean": -0.010001637932117124,
+                "sd": 0.020447525936548732,
+                "n": 5
+              },
+              "kg": {
+                "mean": -0.0011635779909099143,
+                "sd": 0.013350884252353748,
+                "n": 5
+              }
+            },
+            "categories_missing": [],
+            "largest_drop": "protein_seq",
+            "no_drop": []
+          }
+        },
+        "pd:per_head": {
+          "cv1": {
+            "deltas": {
+              "expression": -0.000510248075367592,
+              "protein_seq": -0.0017259082761790223,
+              "text": -0.0035794951640929495,
+              "ppi": -0.0011327144496597885,
+              "go": -0.0004977361967215543,
+              "kg": -0.0013460765554837995
+            },
+            "paired": {
+              "expression": {
+                "mean": -0.0005102480753676364,
+                "sd": 0.0005699789958717746,
+                "n": 5
+              },
+              "protein_seq": {
+                "mean": -0.0017259082761789557,
+                "sd": 0.005184290903212358,
+                "n": 5
+              },
+              "text": {
+                "mean": -0.0035794951640927717,
+                "sd": 0.002534906479072227,
+                "n": 5
+              },
+              "ppi": {
+                "mean": -0.0011327144496597885,
+                "sd": 0.001606331666598626,
+                "n": 5
+              },
+              "go": {
+                "mean": -0.0004977361967215543,
+                "sd": 0.002045274278078068,
+                "n": 5
+              },
+              "kg": {
+                "mean": -0.0013460765554836884,
+                "sd": 0.002630415722347301,
+                "n": 5
+              }
+            },
+            "categories_missing": [],
+            "largest_drop": "text",
+            "no_drop": []
+          },
+          "cv2": {
+            "deltas": {
+              "expression": 0.004217381175191992,
+              "protein_seq": -0.022210814628951026,
+              "text": -0.01212442282337145,
+              "ppi": -0.011155081826997315,
+              "go": 0.002438829920113572,
+              "kg": -0.021188992560220665
+            },
+            "paired": {
+              "expression": {
+                "mean": 0.004217381175191948,
+                "sd": 0.017006053368647734,
+                "n": 5
+              },
+              "protein_seq": {
+                "mean": -0.022210814628950935,
+                "sd": 0.029776806758268767,
+                "n": 5
+              },
+              "text": {
+                "mean": -0.01212442282337145,
+                "sd": 0.052258785003155804,
+                "n": 5
+              },
+              "ppi": {
+                "mean": -0.011155081826997182,
+                "sd": 0.009536890238554122,
+                "n": 5
+              },
+              "go": {
+                "mean": 0.002438829920113683,
+                "sd": 0.0237804693272347,
+                "n": 5
+              },
+              "kg": {
+                "mean": -0.021188992560220686,
+                "sd": 0.03216597680141319,
+                "n": 5
+              }
+            },
+            "categories_missing": [],
+            "largest_drop": "protein_seq",
+            "no_drop": [
+              "expression",
+              "go"
+            ]
+          },
+          "cv3": {
+            "deltas": {
+              "expression": -0.020683022484868863,
+              "protein_seq": -0.02547847434212447,
+              "text": -0.04669700587380299,
+              "ppi": 0.018929912962213025,
+              "go": -0.022300227275834694,
+              "kg": 0.013475502737986367
+            },
+            "paired": {
+              "expression": {
+                "mean": -0.020683022484869064,
+                "sd": 0.02782348342221393,
+                "n": 5
+              },
+              "protein_seq": {
+                "mean": -0.025478474342124736,
+                "sd": 0.0280272331754078,
+                "n": 5
+              },
+              "text": {
+                "mean": -0.04669700587380306,
+                "sd": 0.041307147184191574,
+                "n": 5
+              },
+              "ppi": {
+                "mean": 0.018929912962213004,
+                "sd": 0.02711977521490509,
+                "n": 5
+              },
+              "go": {
+                "mean": -0.022300227275834694,
+                "sd": 0.03404106766418209,
+                "n": 5
+              },
+              "kg": {
+                "mean": 0.013475502737986367,
+                "sd": 0.03104750733395539,
+                "n": 5
+              }
+            },
+            "categories_missing": [],
+            "largest_drop": "text",
+            "no_drop": [
+              "kg",
+              "ppi"
+            ]
+          }
+        }
+      },
+      "status": "ok"
+    },
+    "cellline": {
+      "paper": "CL1 (L685, L702-704)",
+      "value": {
+        "pd:per_head": {
+          "cv1": {
+            "auroc": -0.002933107973339455,
+            "ap": -0.004449926473557464,
+            "auprg": -0.0010938901662035372
+          },
+          "cv2": {
+            "auroc": -8.089316233672594e-05,
+            "ap": 0.00033905515669663266,
+            "auprg": 0.001229853896254851
+          },
+          "cv3": {
+            "auroc": 0.008074785703067522,
+            "ap": 0.010567487969497691,
+            "auprg": 0.017115019787289687
+          }
+        }
+      },
+      "status": "ok"
+    },
+    "margins": {
+      "paper": "R4 (L557-561), D2 (L802-806)",
+      "value": {
+        "pd:pooled": {
+          "cv1": {
+            "auroc": {
+              "sleuth": 0.961244290345536,
+              "sleuth_sd": 0.0016239785517758855,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "SLGNN",
+              "best_peer_mean": 0.9493251754853004,
+              "margin_vs_best_peer": 0.011919114860235669,
+              "leads": true,
+              "slmgae_minus_sleuth": -0.04023562239018763,
+              "slmgae_sd": 0.0021202345297353323
+            },
+            "ap": {
+              "sleuth": 0.9048259364547026,
+              "sleuth_sd": 0.004125627890109536,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "SLGNN",
+              "best_peer_mean": 0.8850406568142428,
+              "margin_vs_best_peer": 0.01978527964045973,
+              "leads": true,
+              "slmgae_minus_sleuth": -0.049953459575433734,
+              "slmgae_sd": 0.003454195861410276
+            },
+            "auprg": {
+              "sleuth": 0.9896960005752501,
+              "sleuth_sd": 0.0005048278427268705,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "SLGNN",
+              "best_peer_mean": 0.9859420956141024,
+              "margin_vs_best_peer": 0.0037539049611476916,
+              "leads": true,
+              "slmgae_minus_sleuth": -0.01219459047839866,
+              "slmgae_sd": 0.0004729292478052911
+            }
+          },
+          "cv2": {
+            "auroc": {
+              "sleuth": 0.8657903427255149,
+              "sleuth_sd": 0.02274125180331593,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "SLGNN",
+              "best_peer_mean": 0.8405538248369705,
+              "margin_vs_best_peer": 0.02523651788854442,
+              "leads": true,
+              "slmgae_minus_sleuth": -0.10059700221277601,
+              "slmgae_sd": 0.0220350084037096
+            },
+            "ap": {
+              "sleuth": 0.7275375795270558,
+              "sleuth_sd": 0.03844304645529154,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "SLGNN",
+              "best_peer_mean": 0.6664136080908915,
+              "margin_vs_best_peer": 0.061123971436164326,
+              "leads": true,
+              "slmgae_minus_sleuth": -0.152001419891308,
+              "slmgae_sd": 0.02849072440066085
+            },
+            "auprg": {
+              "sleuth": 0.9426227855723022,
+              "sleuth_sd": 0.028650043170801456,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "SLGNN",
+              "best_peer_mean": 0.915301959442082,
+              "margin_vs_best_peer": 0.027320826130220133,
+              "leads": true,
+              "slmgae_minus_sleuth": -0.07946414908314448,
+              "slmgae_sd": 0.06093428194680071
+            }
+          },
+          "cv3": {
+            "auroc": {
+              "sleuth": 0.767074847021257,
+              "sleuth_sd": 0.012747252271635458,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "ELISL",
+              "best_peer_mean": 0.7151840896536095,
+              "margin_vs_best_peer": 0.05189075736764748,
+              "leads": true,
+              "slmgae_minus_sleuth": -0.07069776842197129,
+              "slmgae_sd": 0.050444329210693285
+            },
+            "ap": {
+              "sleuth": 0.5523073883162732,
+              "sleuth_sd": 0.09660079027471032,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "ELISL",
+              "best_peer_mean": 0.4165879539562821,
+              "margin_vs_best_peer": 0.13571943435999112,
+              "leads": true,
+              "slmgae_minus_sleuth": -0.164929452620461,
+              "slmgae_sd": 0.12482942749464826
+            },
+            "auprg": {
+              "sleuth": 0.8674219093443203,
+              "sleuth_sd": 0.057508532071468964,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "ELISL",
+              "best_peer_mean": 0.7560412658400782,
+              "margin_vs_best_peer": 0.11138064350424204,
+              "leads": true,
+              "slmgae_minus_sleuth": -0.16461215663746454,
+              "slmgae_sd": 0.09723073041843139
+            }
+          },
+          "tier3_auroc_gap_slmgae_minus_sleuth": -0.07069776842197129,
+          "tier3_auroc_gap_inside_spread": false,
+          "tier1_auroc_margin_slmgae_minus_sleuth": -0.04023562239018763,
+          "tier3_gap_not_smaller_than_tier1_margin": false
+        },
+        "pd:per_head": {
+          "cv1": {
+            "auroc": {
+              "sleuth": 0.9180308071662717,
+              "sleuth_sd": 0.007273858367750686,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "SLGNN",
+              "best_peer_mean": 0.9493251754853004,
+              "margin_vs_best_peer": -0.031294368319028654,
+              "leads": false,
+              "slmgae_minus_sleuth": 0.0029778607890766917,
+              "slmgae_sd": 0.0021202345297353323
+            },
+            "ap": {
+              "sleuth": 0.8292481969829864,
+              "sleuth_sd": 0.008376834195587672,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "SLGNN",
+              "best_peer_mean": 0.8850406568142428,
+              "margin_vs_best_peer": -0.05579245983125647,
+              "leads": false,
+              "slmgae_minus_sleuth": 0.025624279896282465,
+              "slmgae_sd": 0.003454195861410276
+            },
+            "auprg": {
+              "sleuth": 0.9748106577213699,
+              "sleuth_sd": 0.0018763604033363004,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "SLGNN",
+              "best_peer_mean": 0.9859420956141024,
+              "margin_vs_best_peer": -0.01113143789273252,
+              "leads": false,
+              "slmgae_minus_sleuth": 0.002690752375481553,
+              "slmgae_sd": 0.0004729292478052911
+            }
+          },
+          "cv2": {
+            "auroc": {
+              "sleuth": 0.819786681584396,
+              "sleuth_sd": 0.02423513900681388,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "SLGNN",
+              "best_peer_mean": 0.8405538248369705,
+              "margin_vs_best_peer": -0.02076714325257445,
+              "leads": false,
+              "slmgae_minus_sleuth": -0.05459334107165714,
+              "slmgae_sd": 0.0220350084037096
+            },
+            "ap": {
+              "sleuth": 0.650275727030482,
+              "sleuth_sd": 0.05938693964314787,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "SLGNN",
+              "best_peer_mean": 0.6664136080908915,
+              "margin_vs_best_peer": -0.016137881060409476,
+              "leads": false,
+              "slmgae_minus_sleuth": -0.0747395673947342,
+              "slmgae_sd": 0.02849072440066085
+            },
+            "auprg": {
+              "sleuth": 0.9004681159338283,
+              "sleuth_sd": 0.05876785725108479,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "SLGNN",
+              "best_peer_mean": 0.915301959442082,
+              "margin_vs_best_peer": -0.014833843508253786,
+              "leads": false,
+              "slmgae_minus_sleuth": -0.03730947944467056,
+              "slmgae_sd": 0.06093428194680071
+            }
+          },
+          "cv3": {
+            "auroc": {
+              "sleuth": 0.7345708171612613,
+              "sleuth_sd": 0.05838731485472782,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "ELISL",
+              "best_peer_mean": 0.7151840896536095,
+              "margin_vs_best_peer": 0.019386727507651802,
+              "leads": true,
+              "slmgae_minus_sleuth": -0.03819373856197561,
+              "slmgae_sd": 0.050444329210693285
+            },
+            "ap": {
+              "sleuth": 0.5227470355672045,
+              "sleuth_sd": 0.09423234877364532,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "ELISL",
+              "best_peer_mean": 0.4165879539562821,
+              "margin_vs_best_peer": 0.10615908161092236,
+              "leads": true,
+              "slmgae_minus_sleuth": -0.13536909987139223,
+              "slmgae_sd": 0.12482942749464826
+            },
+            "auprg": {
+              "sleuth": 0.823709451224017,
+              "sleuth_sd": 0.08318053103779662,
+              "peers_compared": [
+                "ELISL",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "best_peer": "ELISL",
+              "best_peer_mean": 0.7560412658400782,
+              "margin_vs_best_peer": 0.0676681853839387,
+              "leads": true,
+              "slmgae_minus_sleuth": -0.1208996985171612,
+              "slmgae_sd": 0.09723073041843139
+            }
+          },
+          "tier3_auroc_gap_slmgae_minus_sleuth": -0.03819373856197561,
+          "tier3_auroc_gap_inside_spread": true,
+          "tier1_auroc_margin_slmgae_minus_sleuth": 0.0029778607890766917,
+          "tier3_gap_not_smaller_than_tier1_margin": false
+        }
+      },
+      "status": "ok"
+    },
+    "external": {
+      "paper": "X5 (L743-747), F2 (L776-780), F3 (L780-783)",
+      "value": {
+        "pd:pooled": {
+          "X5_rank_on_matched_rows": {
+            "Adamson/cv1": {
+              "rank": 3,
+              "of": 4,
+              "order": [
+                "NSF4SL",
+                "SLMGAE",
+                "siamese_sl_pd_pooled",
+                "SLGNN"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "Adamson/cv2": {
+              "rank": 3,
+              "of": 4,
+              "order": [
+                "NSF4SL",
+                "SLMGAE",
+                "siamese_sl_pd_pooled",
+                "SLGNN"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "Adamson/cv3": {
+              "rank": 3,
+              "of": 4,
+              "order": [
+                "NSF4SL",
+                "SLMGAE",
+                "siamese_sl_pd_pooled",
+                "SLGNN"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "AdamsonGI/cv1": {
+              "rank": 2,
+              "of": 4,
+              "order": [
+                "SLGNN",
+                "siamese_sl_pd_pooled",
+                "SLMGAE",
+                "NSF4SL"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "AdamsonGI/cv2": {
+              "rank": 1,
+              "of": 4,
+              "order": [
+                "siamese_sl_pd_pooled",
+                "SLGNN",
+                "SLMGAE",
+                "NSF4SL"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "AdamsonGI/cv3": {
+              "rank": 2,
+              "of": 4,
+              "order": [
+                "SLMGAE",
+                "siamese_sl_pd_pooled",
+                "SLGNN",
+                "NSF4SL"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "Corn/cv1": {
+              "rank": 2,
+              "of": 4,
+              "order": [
+                "SLMGAE",
+                "siamese_sl_pd_pooled",
+                "SLGNN",
+                "NSF4SL"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "Corn/cv2": {
+              "rank": 2,
+              "of": 4,
+              "order": [
+                "SLMGAE",
+                "siamese_sl_pd_pooled",
+                "SLGNN",
+                "NSF4SL"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "Corn/cv3": {
+              "rank": 2,
+              "of": 4,
+              "order": [
+                "SLMGAE",
+                "siamese_sl_pd_pooled",
+                "SLGNN",
+                "NSF4SL"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "Gilbert/cv1": {
+              "rank": 1,
+              "of": 4,
+              "order": [
+                "siamese_sl_pd_pooled",
+                "NSF4SL",
+                "SLMGAE",
+                "SLGNN"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "Gilbert/cv2": {
+              "rank": 1,
+              "of": 4,
+              "order": [
+                "siamese_sl_pd_pooled",
+                "SLGNN",
+                "NSF4SL",
+                "SLMGAE"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "Gilbert/cv3": {
+              "rank": 1,
+              "of": 4,
+              "order": [
+                "siamese_sl_pd_pooled",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            }
+          },
+          "F2_F3_all_sldb_filtered": {
+            "Adamson/cv1": {
+              "zero_shot_raw": -0.06166104247673586,
+              "zero_shot_ols": 0.06166104247673586,
+              "LP_last": 0.7386758766672268,
+              "Full": 0.9873086988561509,
+              "Scratch": 0.9822029955488748,
+              "full_minus_zero_shot_raw": 1.0489697413328867,
+              "lp_last_minus_zero_shot_raw": 0.8003369191439627,
+              "full_minus_zero_shot_ols": 0.925647656379415,
+              "lp_last_minus_zero_shot_ols": 0.6770148341904909,
+              "full_minus_scratch": 0.0051057033072761104
+            },
+            "Adamson/cv2": {
+              "zero_shot_raw": -0.06249402501093058,
+              "zero_shot_ols": 0.06840148948600736,
+              "LP_last": 0.44039297141788014,
+              "Full": 0.629715259409964,
+              "Scratch": 0.6000027829797858,
+              "full_minus_zero_shot_raw": 0.6922092844208946,
+              "lp_last_minus_zero_shot_raw": 0.5028869964288107,
+              "full_minus_zero_shot_ols": 0.5613137699239567,
+              "lp_last_minus_zero_shot_ols": 0.3719914819318728,
+              "full_minus_scratch": 0.02971247643017816
+            },
+            "Adamson/cv3": {
+              "zero_shot_raw": -0.07293243730955083,
+              "zero_shot_ols": 0.07837474146944674,
+              "LP_last": 0.34978001166664385,
+              "Full": 0.20712024662434597,
+              "Scratch": 0.2701834255720445,
+              "full_minus_zero_shot_raw": 0.2800526839338968,
+              "lp_last_minus_zero_shot_raw": 0.4227124489761947,
+              "full_minus_zero_shot_ols": 0.12874550515489924,
+              "lp_last_minus_zero_shot_ols": 0.2714052701971971,
+              "full_minus_scratch": -0.06306317894769853
+            },
+            "AdamsonGI/cv1": {
+              "zero_shot_raw": 0.048179905400667127,
+              "zero_shot_ols": 0.048179905400667127,
+              "LP_last": 0.21912104073978805,
+              "Full": 0.44879138571400706,
+              "Scratch": 0.44335463549096754,
+              "full_minus_zero_shot_raw": 0.40061148031333993,
+              "lp_last_minus_zero_shot_raw": 0.17094113533912092,
+              "full_minus_zero_shot_ols": 0.40061148031333993,
+              "lp_last_minus_zero_shot_ols": 0.17094113533912092,
+              "full_minus_scratch": 0.0054367502230395215
+            },
+            "AdamsonGI/cv2": {
+              "zero_shot_raw": 0.04369444816544677,
+              "zero_shot_ols": 0.04369444816544677,
+              "LP_last": 0.1127628925592983,
+              "Full": 0.20053825266092912,
+              "Scratch": 0.20230240370335323,
+              "full_minus_zero_shot_raw": 0.15684380449548235,
+              "lp_last_minus_zero_shot_raw": 0.06906844439385154,
+              "full_minus_zero_shot_ols": 0.15684380449548235,
+              "lp_last_minus_zero_shot_ols": 0.06906844439385154,
+              "full_minus_scratch": -0.0017641510424241114
+            },
+            "AdamsonGI/cv3": {
+              "zero_shot_raw": 0.04436891358076122,
+              "zero_shot_ols": 0.04436891358076122,
+              "LP_last": 0.0625530976785504,
+              "Full": 0.04436891358076122,
+              "Scratch": 0.06648665265290112,
+              "full_minus_zero_shot_raw": 0.0,
+              "lp_last_minus_zero_shot_raw": 0.01818418409778918,
+              "full_minus_zero_shot_ols": 0.0,
+              "lp_last_minus_zero_shot_ols": 0.01818418409778918,
+              "full_minus_scratch": -0.022117739072139896
+            },
+            "Corn/cv1": {
+              "zero_shot_raw": 0.035553288181735344,
+              "zero_shot_ols": 0.035553288181735344,
+              "LP_last": 0.2630927377906427,
+              "Full": 0.46550863307658163,
+              "Scratch": 0.45982139137647027,
+              "full_minus_zero_shot_raw": 0.42995534489484627,
+              "lp_last_minus_zero_shot_raw": 0.22753944960890735,
+              "full_minus_zero_shot_ols": 0.42995534489484627,
+              "lp_last_minus_zero_shot_ols": 0.22753944960890735,
+              "full_minus_scratch": 0.005687241700111367
+            },
+            "Corn/cv2": {
+              "zero_shot_raw": 0.041454840928158466,
+              "zero_shot_ols": 0.03317858523865149,
+              "LP_last": 0.11712968257275706,
+              "Full": 0.21661255266892093,
+              "Scratch": 0.22466918286841375,
+              "full_minus_zero_shot_raw": 0.17515771174076247,
+              "lp_last_minus_zero_shot_raw": 0.07567484164459859,
+              "full_minus_zero_shot_ols": 0.18343396743026943,
+              "lp_last_minus_zero_shot_ols": 0.08395109733410558,
+              "full_minus_scratch": -0.00805663019949282
+            },
+            "Corn/cv3": {
+              "zero_shot_raw": 0.06000778083582141,
+              "zero_shot_ols": 0.049588422317596095,
+              "LP_last": 0.06607424341344846,
+              "Full": 0.03984047179578648,
+              "Scratch": 0.03362897021978105,
+              "full_minus_zero_shot_raw": -0.020167309040034928,
+              "lp_last_minus_zero_shot_raw": 0.006066462577627052,
+              "full_minus_zero_shot_ols": -0.009747950521809615,
+              "lp_last_minus_zero_shot_ols": 0.016485821095852365,
+              "full_minus_scratch": 0.006211501576005432
+            },
+            "Gilbert/cv1": {
+              "zero_shot_raw": 0.05464326332955368,
+              "zero_shot_ols": 0.05464326332955368,
+              "LP_last": 0.3109027600215072,
+              "Full": 0.5322165649584343,
+              "Scratch": 0.5270472192905661,
+              "full_minus_zero_shot_raw": 0.4775733016288806,
+              "lp_last_minus_zero_shot_raw": 0.2562594966919535,
+              "full_minus_zero_shot_ols": 0.4775733016288806,
+              "lp_last_minus_zero_shot_ols": 0.2562594966919535,
+              "full_minus_scratch": 0.005169345667868197
+            },
+            "Gilbert/cv2": {
+              "zero_shot_raw": 0.11413865686300792,
+              "zero_shot_ols": 0.11413865686300792,
+              "LP_last": 0.20547927934601554,
+              "Full": 0.270967322275935,
+              "Scratch": 0.2381949094544779,
+              "full_minus_zero_shot_raw": 0.1568286654129271,
+              "lp_last_minus_zero_shot_raw": 0.09134062248300762,
+              "full_minus_zero_shot_ols": 0.1568286654129271,
+              "lp_last_minus_zero_shot_ols": 0.09134062248300762,
+              "full_minus_scratch": 0.0327724128214571
+            },
+            "Gilbert/cv3": {
+              "zero_shot_raw": 0.17533997543129964,
+              "zero_shot_ols": 0.17533997543129964,
+              "LP_last": 0.19458875303624165,
+              "Full": 0.1784908957663905,
+              "Scratch": 0.10307636554211899,
+              "full_minus_zero_shot_raw": 0.0031509203350908455,
+              "lp_last_minus_zero_shot_raw": 0.019248777604942008,
+              "full_minus_zero_shot_ols": 0.0031509203350908455,
+              "lp_last_minus_zero_shot_ols": 0.019248777604942008,
+              "full_minus_scratch": 0.0754145302242715
+            }
+          }
+        },
+        "pd:per_head": {
+          "X5_rank_on_matched_rows": {
+            "Adamson/cv1": {
+              "rank": 4,
+              "of": 4,
+              "order": [
+                "NSF4SL",
+                "SLMGAE",
+                "SLGNN",
+                "siamese_sl"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "Adamson/cv2": {
+              "rank": 4,
+              "of": 4,
+              "order": [
+                "NSF4SL",
+                "SLMGAE",
+                "SLGNN",
+                "siamese_sl"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "Adamson/cv3": {
+              "rank": 4,
+              "of": 4,
+              "order": [
+                "NSF4SL",
+                "SLMGAE",
+                "SLGNN",
+                "siamese_sl"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "AdamsonGI/cv1": {
+              "rank": 2,
+              "of": 4,
+              "order": [
+                "SLGNN",
+                "siamese_sl",
+                "SLMGAE",
+                "NSF4SL"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "AdamsonGI/cv2": {
+              "rank": 1,
+              "of": 4,
+              "order": [
+                "siamese_sl",
+                "SLGNN",
+                "SLMGAE",
+                "NSF4SL"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "AdamsonGI/cv3": {
+              "rank": 1,
+              "of": 4,
+              "order": [
+                "siamese_sl",
+                "SLMGAE",
+                "SLGNN",
+                "NSF4SL"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "Corn/cv1": {
+              "rank": 1,
+              "of": 4,
+              "order": [
+                "siamese_sl",
+                "SLMGAE",
+                "SLGNN",
+                "NSF4SL"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "Corn/cv2": {
+              "rank": 1,
+              "of": 4,
+              "order": [
+                "siamese_sl",
+                "SLMGAE",
+                "SLGNN",
+                "NSF4SL"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "Corn/cv3": {
+              "rank": 2,
+              "of": 4,
+              "order": [
+                "SLMGAE",
+                "siamese_sl",
+                "SLGNN",
+                "NSF4SL"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "Gilbert/cv1": {
+              "rank": 1,
+              "of": 4,
+              "order": [
+                "siamese_sl",
+                "NSF4SL",
+                "SLMGAE",
+                "SLGNN"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "Gilbert/cv2": {
+              "rank": 1,
+              "of": 4,
+              "order": [
+                "siamese_sl",
+                "SLGNN",
+                "NSF4SL",
+                "SLMGAE"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            },
+            "Gilbert/cv3": {
+              "rank": 1,
+              "of": 4,
+              "order": [
+                "siamese_sl",
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ],
+              "peers_compared": [
+                "NSF4SL",
+                "SLGNN",
+                "SLMGAE"
+              ]
+            }
+          },
+          "F2_F3_all_sldb_filtered": {
+            "Adamson/cv1": {
+              "zero_shot_raw": -0.19868843618709178,
+              "zero_shot_ols": 0.19868843618709178,
+              "LP_last": 0.7100727384086849,
+              "Full": 0.9862506570060077,
+              "Scratch": 0.9851579723231421,
+              "full_minus_zero_shot_raw": 1.1849390931930994,
+              "lp_last_minus_zero_shot_raw": 0.9087611745957767,
+              "full_minus_zero_shot_ols": 0.7875622208189159,
+              "lp_last_minus_zero_shot_ols": 0.5113843022215931,
+              "full_minus_scratch": 0.0010926846828656078
+            },
+            "Adamson/cv2": {
+              "zero_shot_raw": -0.213524962875118,
+              "zero_shot_ols": 0.213524962875118,
+              "LP_last": 0.38594227048976953,
+              "Full": 0.6264769825032748,
+              "Scratch": 0.60561550186086,
+              "full_minus_zero_shot_raw": 0.8400019453783928,
+              "lp_last_minus_zero_shot_raw": 0.5994672333648875,
+              "full_minus_zero_shot_ols": 0.41295201962815675,
+              "lp_last_minus_zero_shot_ols": 0.17241730761465154,
+              "full_minus_scratch": 0.020861480642414776
+            },
+            "Adamson/cv3": {
+              "zero_shot_raw": -0.2430878153814588,
+              "zero_shot_ols": 0.2430878153814588,
+              "LP_last": 0.2387175761532438,
+              "Full": 0.3800389255514377,
+              "Scratch": 0.2923575357834801,
+              "full_minus_zero_shot_raw": 0.6231267409328964,
+              "lp_last_minus_zero_shot_raw": 0.4818053915347026,
+              "full_minus_zero_shot_ols": 0.1369511101699789,
+              "lp_last_minus_zero_shot_ols": -0.0043702392282150004,
+              "full_minus_scratch": 0.08768138976795758
+            },
+            "AdamsonGI/cv1": {
+              "zero_shot_raw": 0.05866190536632916,
+              "zero_shot_ols": 0.05866190536632916,
+              "LP_last": 0.2032062673029355,
+              "Full": 0.45939846419698294,
+              "Scratch": 0.4486032111755973,
+              "full_minus_zero_shot_raw": 0.4007365588306538,
+              "lp_last_minus_zero_shot_raw": 0.14454436193660636,
+              "full_minus_zero_shot_ols": 0.4007365588306538,
+              "lp_last_minus_zero_shot_ols": 0.14454436193660636,
+              "full_minus_scratch": 0.01079525302138562
+            },
+            "AdamsonGI/cv2": {
+              "zero_shot_raw": 0.05776521987575578,
+              "zero_shot_ols": 0.05776521987575578,
+              "LP_last": 0.09214144560670016,
+              "Full": 0.20384324709486573,
+              "Scratch": 0.19275359588428725,
+              "full_minus_zero_shot_raw": 0.14607802721910995,
+              "lp_last_minus_zero_shot_raw": 0.034376225730944385,
+              "full_minus_zero_shot_ols": 0.14607802721910995,
+              "lp_last_minus_zero_shot_ols": 0.034376225730944385,
+              "full_minus_scratch": 0.011089651210578477
+            },
+            "AdamsonGI/cv3": {
+              "zero_shot_raw": 0.07040944151587583,
+              "zero_shot_ols": 0.07040944151587583,
+              "LP_last": 0.0746412289827907,
+              "Full": 0.07023874662651124,
+              "Scratch": 0.06271102991568873,
+              "full_minus_zero_shot_raw": -0.00017069488936459487,
+              "lp_last_minus_zero_shot_raw": 0.004231787466914869,
+              "full_minus_zero_shot_ols": -0.00017069488936459487,
+              "lp_last_minus_zero_shot_ols": 0.004231787466914869,
+              "full_minus_scratch": 0.007527716710822502
+            },
+            "Corn/cv1": {
+              "zero_shot_raw": 0.04516230271128498,
+              "zero_shot_ols": 0.04516230271128498,
+              "LP_last": 0.2459414797398411,
+              "Full": 0.4638639143377114,
+              "Scratch": 0.4609991098199031,
+              "full_minus_zero_shot_raw": 0.41870161162642644,
+              "lp_last_minus_zero_shot_raw": 0.20077917702855613,
+              "full_minus_zero_shot_ols": 0.41870161162642644,
+              "lp_last_minus_zero_shot_ols": 0.20077917702855613,
+              "full_minus_scratch": 0.002864804517808295
+            },
+            "Corn/cv2": {
+              "zero_shot_raw": 0.053427212452303884,
+              "zero_shot_ols": 0.053427212452303884,
+              "LP_last": 0.09537051385891902,
+              "Full": 0.22393307928014283,
+              "Scratch": 0.23706188910638012,
+              "full_minus_zero_shot_raw": 0.17050586682783894,
+              "lp_last_minus_zero_shot_raw": 0.04194330140661514,
+              "full_minus_zero_shot_ols": 0.17050586682783894,
+              "lp_last_minus_zero_shot_ols": 0.04194330140661514,
+              "full_minus_scratch": -0.013128809826237292
+            },
+            "Corn/cv3": {
+              "zero_shot_raw": 0.058819380317643596,
+              "zero_shot_ols": 0.058819380317643596,
+              "LP_last": 0.0577832547076997,
+              "Full": 0.034190838769106446,
+              "Scratch": 0.04595344948452207,
+              "full_minus_zero_shot_raw": -0.02462854154853715,
+              "lp_last_minus_zero_shot_raw": -0.0010361256099438998,
+              "full_minus_zero_shot_ols": -0.02462854154853715,
+              "lp_last_minus_zero_shot_ols": -0.0010361256099438998,
+              "full_minus_scratch": -0.011762610715415622
+            },
+            "Gilbert/cv1": {
+              "zero_shot_raw": 0.03135574968354229,
+              "zero_shot_ols": 0.03135574968354229,
+              "LP_last": 0.2503242440106016,
+              "Full": 0.5369327052649,
+              "Scratch": 0.530776254921918,
+              "full_minus_zero_shot_raw": 0.5055769555813577,
+              "lp_last_minus_zero_shot_raw": 0.2189684943270593,
+              "full_minus_zero_shot_ols": 0.5055769555813577,
+              "lp_last_minus_zero_shot_ols": 0.2189684943270593,
+              "full_minus_scratch": 0.006156450342981956
+            },
+            "Gilbert/cv2": {
+              "zero_shot_raw": 0.07925319438792197,
+              "zero_shot_ols": 0.07925319438792197,
+              "LP_last": 0.13203302725517188,
+              "Full": 0.24223249898679983,
+              "Scratch": 0.2603725910257205,
+              "full_minus_zero_shot_raw": 0.16297930459887786,
+              "lp_last_minus_zero_shot_raw": 0.05277983286724991,
+              "full_minus_zero_shot_ols": 0.16297930459887786,
+              "lp_last_minus_zero_shot_ols": 0.05277983286724991,
+              "full_minus_scratch": -0.018140092038920697
+            },
+            "Gilbert/cv3": {
+              "zero_shot_raw": 0.1224467538774997,
+              "zero_shot_ols": 0.1224467538774997,
+              "LP_last": 0.09621126604383837,
+              "Full": 0.15654717456848358,
+              "Scratch": 0.09395881304557106,
+              "full_minus_zero_shot_raw": 0.034100420690983874,
+              "lp_last_minus_zero_shot_raw": -0.026235487833661336,
+              "full_minus_zero_shot_ols": 0.034100420690983874,
+              "lp_last_minus_zero_shot_ols": -0.026235487833661336,
+              "full_minus_scratch": 0.06258836152291251
+            }
+          }
+        }
+      },
+      "status": "ok"
+    },
+    "screens": {
+      "paper": "X2 (L715-716), X3 (L717-719), F4 (L783-785), D11 (L835)",
+      "value": {
+        "per_variant": {
+          "pd:pooled": {
+            "eval_dir": {
+              "Adamson": "siamese_sl/results/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/eval_finetuning_cv1",
+              "AdamsonGI": "siamese_sl/results/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/eval_finetuning_cv1",
+              "Corn": "siamese_sl/results/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/eval_finetuning_cv1",
+              "Gilbert": "siamese_sl/results/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/eval_finetuning_cv1"
+            },
+            "sldb_overlap_sources": {
+              "Adamson": [
+                "<repo>/data/SL_SynLethDB_experimental.txt",
+                "<repo>/data/SL_SynLethDB_experimental_negatives.txt"
+              ],
+              "AdamsonGI": [
+                "<repo>/data/SL_SynLethDB_experimental.txt",
+                "<repo>/data/SL_SynLethDB_experimental_negatives.txt"
+              ],
+              "Corn": [
+                "<repo>/data/SL_SynLethDB_experimental.txt",
+                "<repo>/data/SL_SynLethDB_experimental_negatives.txt"
+              ],
+              "Gilbert": [
+                "<repo>/data/SL_SynLethDB_experimental.txt",
+                "<repo>/data/SL_SynLethDB_experimental_negatives.txt"
+              ]
+            },
+            "Adamson": {
+              "n_pairs": 146583,
+              "n_both_in_genes_txt": 78985,
+              "X2_share_both_in_genes_txt": 0.5388414754780568,
+              "X3_sldb_overlap_share_among_both": 0.06069506868392733,
+              "recomputed_share_in_pos_or_neg_among_both": 0.06069506868392733,
+              "recomputed_share_in_pos_only_among_both": 0.007748306640501361,
+              "F4_additive_r2": {
+                "r2": 0.9012898707015877,
+                "n_pairs": 146583,
+                "n_genes": 542
+              },
+              "D11_sldb_agreement": {
+                "n_overlap": 4794,
+                "n_sldb_pos": 612,
+                "n_sldb_neg": 4182,
+                "auroc_target_vs_sldb_label": 0.41833581830627997
+              }
+            },
+            "AdamsonGI": {
+              "n_pairs": 143354,
+              "n_both_in_genes_txt": 77405,
+              "X2_share_both_in_genes_txt": 0.5399570294515674,
+              "X3_sldb_overlap_share_among_both": 0.060784187068018865,
+              "recomputed_share_in_pos_or_neg_among_both": 0.060784187068018865,
+              "recomputed_share_in_pos_only_among_both": 0.007906465990569085,
+              "F4_additive_r2": {
+                "r2": 0.1288433582339158,
+                "n_pairs": 143354,
+                "n_genes": 536
+              },
+              "D11_sldb_agreement": {
+                "n_overlap": 4705,
+                "n_sldb_pos": 612,
+                "n_sldb_neg": 4093,
+                "auroc_target_vs_sldb_label": 0.5559396003698328
+              }
+            },
+            "Corn": {
+              "n_pairs": 149787,
+              "n_both_in_genes_txt": 84182,
+              "X2_share_both_in_genes_txt": 0.5620113895064325,
+              "X3_sldb_overlap_share_among_both": 0.014860659048252596,
+              "recomputed_share_in_pos_or_neg_among_both": 0.014860659048252596,
+              "recomputed_share_in_pos_only_among_both": 0.002850965764652776,
+              "F4_additive_r2": {
+                "r2": 0.25377883061338746,
+                "n_pairs": 149787,
+                "n_genes": 548
+              },
+              "D11_sldb_agreement": {
+                "n_overlap": 1251,
+                "n_sldb_pos": 240,
+                "n_sldb_neg": 1011,
+                "auroc_target_vs_sldb_label": 0.5437644246620508
+              }
+            },
+            "Gilbert": {
+              "n_pairs": 99681,
+              "n_both_in_genes_txt": 93961,
+              "X2_share_both_in_genes_txt": 0.9426169480643252,
+              "X3_sldb_overlap_share_among_both": 0.9271186981832888,
+              "recomputed_share_in_pos_or_neg_among_both": 0.9271186981832888,
+              "recomputed_share_in_pos_only_among_both": 0.06407977778014283,
+              "F4_additive_r2": {
+                "r2": 0.1232071524296795,
+                "n_pairs": 99681,
+                "n_genes": 447
+              },
+              "D11_sldb_agreement": {
+                "n_overlap": 87113,
+                "n_sldb_pos": 6021,
+                "n_sldb_neg": 81092,
+                "auroc_target_vs_sldb_label": 0.7424749679743122
+              }
+            }
+          },
+          "pd:per_head": {
+            "eval_dir": {
+              "Adamson": "siamese_sl/results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/eval_finetuning_cv1",
+              "AdamsonGI": "siamese_sl/results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/eval_finetuning_cv1",
+              "Corn": "siamese_sl/results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/eval_finetuning_cv1",
+              "Gilbert": "siamese_sl/results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/eval_finetuning_cv1"
+            },
+            "sldb_overlap_sources": {
+              "Adamson": [
+                "<repo>/data/SL_SynLethDB_experimental.txt",
+                "<repo>/data/SL_SynLethDB_experimental_negatives.txt"
+              ],
+              "AdamsonGI": [
+                "<repo>/data/SL_SynLethDB_experimental.txt",
+                "<repo>/data/SL_SynLethDB_experimental_negatives.txt"
+              ],
+              "Corn": [
+                "<repo>/data/SL_SynLethDB_experimental.txt",
+                "<repo>/data/SL_SynLethDB_experimental_negatives.txt"
+              ],
+              "Gilbert": [
+                "<repo>/data/SL_SynLethDB_experimental.txt",
+                "<repo>/data/SL_SynLethDB_experimental_negatives.txt"
+              ]
+            },
+            "Adamson": {
+              "n_pairs": 146583,
+              "n_both_in_genes_txt": 78985,
+              "X2_share_both_in_genes_txt": 0.5388414754780568,
+              "X3_sldb_overlap_share_among_both": 0.06069506868392733,
+              "recomputed_share_in_pos_or_neg_among_both": 0.06069506868392733,
+              "recomputed_share_in_pos_only_among_both": 0.007748306640501361,
+              "F4_additive_r2": {
+                "r2": 0.9012898707015877,
+                "n_pairs": 146583,
+                "n_genes": 542
+              },
+              "D11_sldb_agreement": {
+                "n_overlap": 4794,
+                "n_sldb_pos": 612,
+                "n_sldb_neg": 4182,
+                "auroc_target_vs_sldb_label": 0.41833581830627997
+              }
+            },
+            "AdamsonGI": {
+              "n_pairs": 143354,
+              "n_both_in_genes_txt": 77405,
+              "X2_share_both_in_genes_txt": 0.5399570294515674,
+              "X3_sldb_overlap_share_among_both": 0.060784187068018865,
+              "recomputed_share_in_pos_or_neg_among_both": 0.060784187068018865,
+              "recomputed_share_in_pos_only_among_both": 0.007906465990569085,
+              "F4_additive_r2": {
+                "r2": 0.1288433582339158,
+                "n_pairs": 143354,
+                "n_genes": 536
+              },
+              "D11_sldb_agreement": {
+                "n_overlap": 4705,
+                "n_sldb_pos": 612,
+                "n_sldb_neg": 4093,
+                "auroc_target_vs_sldb_label": 0.5559396003698328
+              }
+            },
+            "Corn": {
+              "n_pairs": 149787,
+              "n_both_in_genes_txt": 84182,
+              "X2_share_both_in_genes_txt": 0.5620113895064325,
+              "X3_sldb_overlap_share_among_both": 0.014860659048252596,
+              "recomputed_share_in_pos_or_neg_among_both": 0.014860659048252596,
+              "recomputed_share_in_pos_only_among_both": 0.002850965764652776,
+              "F4_additive_r2": {
+                "r2": 0.25377883061338746,
+                "n_pairs": 149787,
+                "n_genes": 548
+              },
+              "D11_sldb_agreement": {
+                "n_overlap": 1251,
+                "n_sldb_pos": 240,
+                "n_sldb_neg": 1011,
+                "auroc_target_vs_sldb_label": 0.5437644246620508
+              }
+            },
+            "Gilbert": {
+              "n_pairs": 99681,
+              "n_both_in_genes_txt": 93961,
+              "X2_share_both_in_genes_txt": 0.9426169480643252,
+              "X3_sldb_overlap_share_among_both": 0.9271186981832888,
+              "recomputed_share_in_pos_or_neg_among_both": 0.9271186981832888,
+              "recomputed_share_in_pos_only_among_both": 0.06407977778014283,
+              "F4_additive_r2": {
+                "r2": 0.1232071524296795,
+                "n_pairs": 99681,
+                "n_genes": 447
+              },
+              "D11_sldb_agreement": {
+                "n_overlap": 87113,
+                "n_sldb_pos": 6021,
+                "n_sldb_neg": 81092,
+                "auroc_target_vs_sldb_label": 0.7424749679743122
+              }
+            }
+          }
+        },
+        "equal_across_variants": true,
+        "variants_incomplete": [],
+        "reported_variant": "pd:pooled"
+      },
+      "status": "ok"
+    }
+  },
+  "missing": [],
+  "absent_by_design": [
+    "data/all_genes_esmc.pt not generated (OPTIONAL_TYPES, siamese_sl/slurm/run_generate_embeddings.conf): tab_solo esmc rows absent (not among the paper's 16)",
+    "data/all_genes_scprint.pt not generated (OPTIONAL_TYPES, siamese_sl/slurm/run_generate_embeddings.conf): tab_solo scprint rows absent (not among the paper's 16)",
+    "data/all_genes_seqvec.pt not generated (OPTIONAL_TYPES, siamese_sl/slurm/run_generate_embeddings.conf): tab_solo seqvec rows absent (not among the paper's 16)"
+  ],
+  "notes": [
+    "tab_external_ft: column Scratch = the from-scratch baseline (eval_finetuning --ft_modes ... Scratch): Full's schedule on the same architecture and fold feature space, freshly initialised, its head warm-started by OLS on its own logits; items.external F2_F3 full_minus_scratch = Full - Scratch"
+  ]
+}

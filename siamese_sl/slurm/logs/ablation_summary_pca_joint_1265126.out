@@ -1,0 +1,102 @@
+============================================================================
+Job: ablation_summary | ID: 1265126 | Node: gpu3
+PCA arm: joint (PCA on the concatenation of all modalities (variance 0.8)) | results: results/pca_joint/
+Start: Tue Nov 17 10:11:22 EST 2026
+NVIDIA L40, 46068 MiB, 1310 MiB
+NVIDIA L40, 46068 MiB, 3 MiB
+NVIDIA L40, 46068 MiB, 689 MiB
+NVIDIA L40, 46068 MiB, 687 MiB
+============================================================================
+
+PCA arm: joint (PCA on the concatenation of all modalities (variance 0.8)); combos and ablations in results/pca_joint/, single-embedding runs in results/
+
+================================================================================================
+[pd:pooled] cv1   reference: full 6-category combo   AUPRG=0.9887  AP=0.8987  AUROC=0.9580
+================================================================================================
+  dropped        n      AUPRG        Δ       SE       AP        Δ    AUROC        Δ     solo  read as
+  -----------------------------------------------------------------------------------------------------
+  expression     5     0.9886  -0.0001   0.0001   0.8976  -0.0011   0.9576  -0.0004   0.9870  no measurable effect
+  go             5     0.9887  +0.0000   0.0001   0.8990  +0.0004   0.9580  -0.0000   0.9845  no measurable effect
+  kg             5     0.9886  -0.0001   0.0001   0.8979  -0.0008   0.9576  -0.0004   0.9877  no measurable effect
+  ppi            5     0.9887  +0.0001   0.0001   0.8983  -0.0004   0.9581  +0.0001   0.9871  no measurable effect
+  protein_seq    5     0.9886  -0.0001   0.0001   0.8981  -0.0006   0.9573  -0.0007   0.9863  no measurable effect
+  text           5     0.9886  -0.0001   0.0001   0.8977  -0.0010   0.9576  -0.0004   0.9874  no measurable effect
+
+================================================================================================
+[pd:pooled] cv2   reference: full 6-category combo   AUPRG=0.9374  AP=0.7133  AUROC=0.8558
+================================================================================================
+  dropped        n      AUPRG        Δ       SE       AP        Δ    AUROC        Δ     solo  read as
+  -----------------------------------------------------------------------------------------------------
+  expression     5     0.9264  -0.0110   0.0147   0.7040  -0.0093   0.8518  -0.0040   0.8212  within fold noise (|Δ| <= 2 SE)
+  go             5     0.9337  -0.0037   0.0027   0.7081  -0.0052   0.8530  -0.0028   0.9239  no measurable effect
+  kg             5     0.9341  -0.0033   0.0029   0.7092  -0.0041   0.8517  -0.0042   0.8722  no measurable effect
+  ppi            5     0.9329  -0.0045   0.0054   0.7025  -0.0108   0.8526  -0.0033   0.9372  no measurable effect
+  protein_seq    5     0.9295  -0.0079   0.0046   0.6979  -0.0154   0.8541  -0.0017   0.9183  within fold noise (|Δ| <= 2 SE)
+  text           5     0.9229  -0.0145   0.0076   0.6874  -0.0259   0.8367  -0.0191   0.9463  within fold noise (|Δ| <= 2 SE)
+
+================================================================================================
+[pd:pooled] cv3   reference: full 6-category combo   AUPRG=0.8176  AP=0.5032  AUROC=0.7383
+================================================================================================
+  dropped        n      AUPRG        Δ       SE       AP        Δ    AUROC        Δ     solo  read as
+  -----------------------------------------------------------------------------------------------------
+  expression     5     0.8457  +0.0281   0.0175   0.5364  +0.0332   0.7624  +0.0241   0.3776  within fold noise (|Δ| <= 2 SE)
+  go             5     0.8347  +0.0171   0.0275   0.5248  +0.0216   0.7361  -0.0022   0.8828  within fold noise (|Δ| <= 2 SE)
+  kg             5     0.8292  +0.0116   0.0241   0.5186  +0.0154   0.7437  +0.0054   0.4320  within fold noise (|Δ| <= 2 SE)
+  ppi            5     0.8195  +0.0019   0.0291   0.5078  +0.0045   0.7404  +0.0021   0.7620  no measurable effect
+  protein_seq    5     0.7728  -0.0447   0.0606   0.4792  -0.0240   0.7172  -0.0211   0.7819  within fold noise (|Δ| <= 2 SE)
+  text           5     0.7991  -0.0185   0.0499   0.4803  -0.0229   0.7242  -0.0141   0.8759  within fold noise (|Δ| <= 2 SE)
+
+================================================================================================
+[pd:per_head] cv1   reference: full 6-category combo   AUPRG=0.9737  AP=0.8272  AUROC=0.9185
+================================================================================================
+  dropped        n      AUPRG        Δ       SE       AP        Δ    AUROC        Δ     solo  read as
+  -----------------------------------------------------------------------------------------------------
+  expression     5     0.9726  -0.0011   0.0023   0.8225  -0.0047   0.9109  -0.0076   0.9617  no measurable effect
+  go             5     0.9745  +0.0008   0.0015   0.8293  +0.0021   0.9177  -0.0008   0.9637  no measurable effect
+  kg             5     0.9703  -0.0034   0.0018   0.8157  -0.0115   0.9054  -0.0130   0.9742  redundant (strong alone, free to drop)
+  ppi            5     0.9735  -0.0002   0.0020   0.8242  -0.0030   0.9147  -0.0038   0.9666  no measurable effect
+  protein_seq    5     0.9732  -0.0004   0.0022   0.8245  -0.0026   0.9166  -0.0019   0.9685  no measurable effect
+  text           5     0.9741  +0.0004   0.0014   0.8284  +0.0012   0.9194  +0.0010   0.9704  no measurable effect
+
+================================================================================================
+[pd:per_head] cv2   reference: full 6-category combo   AUPRG=0.8818  AP=0.6222  AUROC=0.7886
+================================================================================================
+  dropped        n      AUPRG        Δ       SE       AP        Δ    AUROC        Δ     solo  read as
+  -----------------------------------------------------------------------------------------------------
+  expression     5     0.8805  -0.0013   0.0075   0.6305  +0.0082   0.7897  +0.0011   0.7900  no measurable effect
+  go             5     0.8822  +0.0004   0.0067   0.6241  +0.0019   0.7869  -0.0017   0.8882  redundant (strong alone, free to drop)
+  kg             5     0.8737  -0.0080   0.0147   0.6187  -0.0035   0.7825  -0.0060   0.8466  within fold noise (|Δ| <= 2 SE)
+  ppi            5     0.8580  -0.0238   0.0136   0.6046  -0.0176   0.7604  -0.0281   0.9187  within fold noise (|Δ| <= 2 SE)
+  protein_seq    5     0.8832  +0.0014   0.0096   0.6201  -0.0022   0.7865  -0.0020   0.8793  no measurable effect
+  text           5     0.8764  -0.0054   0.0047   0.6105  -0.0117   0.7779  -0.0107   0.9004  within fold noise (|Δ| <= 2 SE)
+
+================================================================================================
+[pd:per_head] cv3   reference: full 6-category combo   AUPRG=0.6773  AP=0.4194  AUROC=0.6653
+================================================================================================
+  dropped        n      AUPRG        Δ       SE       AP        Δ    AUROC        Δ     solo  read as
+  -----------------------------------------------------------------------------------------------------
+  expression     5     0.6843  +0.0070   0.0867   0.4363  +0.0169   0.6720  +0.0067   0.4816  within fold noise (|Δ| <= 2 SE)
+  go             5     0.7353  +0.0580   0.0606   0.4427  +0.0234   0.6799  +0.0147   0.8100  within fold noise (|Δ| <= 2 SE)
+  kg             5     0.7609  +0.0836   0.0477   0.4546  +0.0352   0.6991  +0.0338   0.3793  within fold noise (|Δ| <= 2 SE)
+  ppi            5     0.7644  +0.0872   0.0556   0.4478  +0.0284   0.6985  +0.0332   0.6950  within fold noise (|Δ| <= 2 SE)
+  protein_seq    5     0.6519  -0.0254   0.0535   0.3988  -0.0206   0.6409  -0.0244   0.7823  within fold noise (|Δ| <= 2 SE)
+  text           5     0.6745  -0.0027   0.0209   0.4065  -0.0128   0.6659  +0.0006   0.8108  redundant (strong alone, free to drop)
+
+Wrote results/pca_joint/ablation_summary.csv (42 rows)
+
+Columns: Δ is the ablated score minus the full-combo reference, so a
+POSITIVE Δ means the model scored higher without the category. SE is
+the standard error of the AUPRG Δ over the paired folds (ablation fold
+k minus reference fold k, the same shared split; sample sd / sqrt(n)).
+A |Δ| above 0.005 reads as HARMFUL (Δ > 0) or contributes (Δ < 0)
+only when it also exceeds 2 SE, else as within fold noise, and as n/a
+with fewer than 2 paired folds; a smaller |Δ| is redundant when `solo`
+beats the reference, else no measurable effect. The CSV adds the
+paired population sd (delta_auprg_any_paired_sd) and n_paired.
+`solo` is that category's winning embedding trained on its own, from the
+best-per-category pass — no extra runs needed for it. It is scored
+under the row's own variant only where BESTCAT_EXTRA_VARIANTS=1 trained
+it (18 rows); otherwise under SELECTION_VARIANT
+(pd:pooled), not under the row's kernel / cell-line pooling
+(the CSV's solo_variant column says which).
+Completed at: Tue Nov 17 10:11:24 EST 2026

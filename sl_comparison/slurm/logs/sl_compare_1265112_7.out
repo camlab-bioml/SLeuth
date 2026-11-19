@@ -1,0 +1,130 @@
+==================================================
+SL comparison — task 7 of 9
+  Model: NSF4SL
+  CV:    cv3
+Start: Fri Nov 13 23:31:39 EST 2026 | Job: 1265942 | Node: gpu3
+==================================================
+  python: <home>/pytorch/bin/python3
+  inputs OK: NSF4SL
+--- training NSF4SL / cv3 ---
+Device: cuda
+Shared folds from ../sl_comparison/folds/cv3: 5 folds, 8844 genes
+Genes: 8844 | features: SynLethKG TransE 400d (raw) from ../data/nsf4sl_transe_features.pt | matched 8820/8844; 24 genes with no linked KG entity get the all-entity mean (e.g. 2574, 5259, 7795, 10834, 56260, 146723, 196913, 284379, 284898, 338399)
+Training loop: original main.py
+
+============================================================
+Fold 1/5
+============================================================
+Train positives: 13369 | Val: 153 pos, 544 neg | Test: 422 pos, 4584 neg | select on val:auprg
+  Trainable parameters: 469,760 (total 873,728) [Net]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  epoch  10 | loss 0.2605 | val auprg 0.4467 *
+  epoch  20 | loss 0.2874 | val auprg 0.4118
+  epoch  30 | loss 0.2967 | val auprg 0.4691 *
+  epoch  40 | loss 0.2991 | val auprg 0.4165
+  epoch  50 | loss 0.2978 | val auprg 0.4991 *
+  epoch  60 | loss 0.2992 | val auprg 0.4560
+  epoch  70 | loss 0.2997 | val auprg 0.4504
+  Early stopping at epoch 70
+  Selected epoch 50 (val auprg 0.4991)
+  Best fold 1: AUPR=0.0842, AUROC=0.5204, F1=0.1638
+
+============================================================
+Fold 2/5
+============================================================
+Train positives: 9745 | Val: 87 pos, 925 neg | Test: 1502 pos, 4187 neg | select on val:auprg
+  Trainable parameters: 469,760 (total 873,728) [Net]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  epoch  10 | loss 0.1938 | val auprg -0.3567 *
+  epoch  20 | loss 0.2076 | val auprg -0.3528 *
+  epoch  30 | loss 0.2101 | val auprg -0.2977 *
+  epoch  40 | loss 0.2120 | val auprg -0.2986
+  epoch  50 | loss 0.2111 | val auprg -0.2328 *
+  epoch  60 | loss 0.2137 | val auprg -0.2790
+  epoch  70 | loss 0.2120 | val auprg -0.2457
+  epoch  80 | loss 0.2138 | val auprg -0.3035
+  Early stopping at epoch 80
+  Selected epoch 50 (val auprg -0.2328)
+  Best fold 2: AUPR=0.2903, AUROC=0.5283, F1=0.4183
+
+============================================================
+Fold 3/5
+============================================================
+Train positives: 9031 | Val: 245 pos, 533 neg | Test: 1307 pos, 4835 neg | select on val:auprg
+  Trainable parameters: 469,760 (total 873,728) [Net]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  epoch  10 | loss 0.1655 | val auprg -0.0559 *
+  epoch  20 | loss 0.1799 | val auprg 0.3757 *
+  epoch  30 | loss 0.1925 | val auprg 0.3435
+  epoch  40 | loss 0.1971 | val auprg 0.4539 *
+  epoch  50 | loss 0.1980 | val auprg 0.3350
+  epoch  60 | loss 0.1988 | val auprg 0.3754
+  epoch  70 | loss 0.1975 | val auprg 0.4164
+  Early stopping at epoch 70
+  Selected epoch 40 (val auprg 0.4539)
+  Best fold 3: AUPR=0.2025, AUROC=0.5075, F1=0.3609
+
+============================================================
+Fold 4/5
+============================================================
+Train positives: 11416 | Val: 208 pos, 849 neg | Test: 711 pos, 3400 neg | select on val:auprg
+  Trainable parameters: 469,760 (total 873,728) [Net]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  epoch  10 | loss 0.2342 | val auprg 0.7335 *
+  epoch  20 | loss 0.2700 | val auprg 0.8498 *
+  epoch  30 | loss 0.2904 | val auprg 0.8355
+  epoch  40 | loss 0.2931 | val auprg 0.8220
+  epoch  50 | loss 0.2957 | val auprg 0.8191
+  epoch  60 | loss 0.2941 | val auprg 0.8374
+  Early stopping at epoch 60
+  Selected epoch 20 (val auprg 0.8498)
+  Best fold 4: AUPR=0.1537, AUROC=0.4493, F1=0.2949
+
+============================================================
+Fold 5/5
+============================================================
+Train positives: 11309 | Val: 350 pos, 540 neg | Test: 518 pos, 4291 neg | select on val:auprg
+  Trainable parameters: 469,760 (total 873,728) [Net]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  epoch  10 | loss 0.2091 | val auprg 0.1240 *
+  epoch  20 | loss 0.2323 | val auprg -0.0005
+  epoch  30 | loss 0.2444 | val auprg -0.0828
+  epoch  40 | loss 0.2465 | val auprg -0.0878
+  epoch  50 | loss 0.2459 | val auprg -0.0934
+  Early stopping at epoch 50
+  Selected epoch 10 (val auprg 0.1240)
+  Best fold 5: AUPR=0.1335, AUROC=0.5941, F1=0.2309
+
+============================================================
+Cross-validation results:
+============================================================
+  auroc         : 0.5199 +/- 0.0463
+  f1            : 0.2937 +/- 0.0904
+  aupr          : 0.1728 +/- 0.0699
+  ndcg@10       : 0.0503 +/- 0.0835
+  ndcg@20       : 0.0579 +/- 0.0833
+  ndcg@50       : 0.0695 +/- 0.0848
+  recall@10     : 0.0506 +/- 0.0903
+  recall@20     : 0.0621 +/- 0.0914
+  recall@50     : 0.0819 +/- 0.0989
+  precision@10  : 0.0511 +/- 0.0902
+  precision@20  : 0.0623 +/- 0.0914
+  precision@50  : 0.0820 +/- 0.0989
+  map@10        : 0.0453 +/- 0.0771
+  map@20        : 0.0468 +/- 0.0765
+  map@50        : 0.0479 +/- 0.0763
+
+Results saved to results/nsf4sl_cv3/results.json
+--- scoring NSF4SL / cv3 ---
+  fold 0: AUROC 0.5204 AP 0.0847 AUPRG -0.0844 NDCG@10 0.0016 (corrected 0.0010)
+  fold 1: AUROC 0.5283 AP 0.2908 AUPRG 0.1227 NDCG@10 0.2167 (corrected 0.1914)
+  fold 2: AUROC 0.5075 AP 0.2028 AUPRG -0.0546 NDCG@10 0.0123 (corrected 0.0046)
+  fold 3: AUROC 0.4493 AP 0.1542 AUPRG -0.1558 NDCG@10 0.0019 (corrected 0.0009)
+  fold 4: AUROC 0.5941 AP 0.1341 AUPRG 0.2951 NDCG@10 0.0187 (corrected 0.0110)
+
+NSF4SL(469,760)/cv3: AUROC 0.5199 | AP 0.1733 | AUPRG 0.0246 | R@50 0.0819  -> sl_comparison/results/NSF4SL_cv3.json
+
+==================================================
+SUCCESS: NSF4SL / cv3
+Completed at: Fri Nov 13 23:37:34 EST 2026
+==================================================

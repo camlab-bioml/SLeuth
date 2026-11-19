@@ -1,0 +1,199 @@
+{
+  "cv_type": "cv1",
+  "auc_mean": 0.9210086489294163,
+  "auc_std": 0.0021202419536315333,
+  "ap_mean": 0.8548725225160393,
+  "ap_std": 0.0034542088745652235,
+  "f1_mean": 0.7933013037805983,
+  "f1_std": 0.0067359218928577285,
+  "note": "Informational sklearn metrics; authoritative comparison metrics come from sl_comparison/evaluate_model.py on the saved score matrices.",
+  "select_metric": "auprg",
+  "selection": [
+    {
+      "fold": 0,
+      "selected_on": "val",
+      "select_metric": "auprg",
+      "best_epoch": 300,
+      "best_value": 0.9778555736324097,
+      "n_evals": 12,
+      "nan_evals": 0
+    },
+    {
+      "fold": 1,
+      "selected_on": "val",
+      "select_metric": "auprg",
+      "best_epoch": 275,
+      "best_value": 0.9810580413670517,
+      "n_evals": 12,
+      "nan_evals": 0
+    },
+    {
+      "fold": 2,
+      "selected_on": "val",
+      "select_metric": "auprg",
+      "best_epoch": 275,
+      "best_value": 0.9753442179353821,
+      "n_evals": 12,
+      "nan_evals": 0
+    },
+    {
+      "fold": 3,
+      "selected_on": "val",
+      "select_metric": "auprg",
+      "best_epoch": 275,
+      "best_value": 0.9789276697292352,
+      "n_evals": 12,
+      "nan_evals": 0
+    },
+    {
+      "fold": 4,
+      "selected_on": "val",
+      "select_metric": "auprg",
+      "best_epoch": 300,
+      "best_value": 0.9788332872148976,
+      "n_evals": 12,
+      "nan_evals": 0
+    }
+  ],
+  "support_views": {
+    "GO BP similarity": "../data/Human_GOsim.txt",
+    "GO CC similarity": "../data/Human_GOsim_CC.txt",
+    "BioGRID PPI": "../data/biogrid_ppi_sparse.txt"
+  },
+  "lp_mapping": {
+    "id_space": "symbol->entrez",
+    "rows": 6375,
+    "mapped": 6375,
+    "in_universe": 4587
+  },
+  "view_coverage": {
+    "note": "Upstream data coverage kept on purpose (authors' view files cover only List_Proteins_in_SL.txt = genes of SynLethDB v1 SL pairs). A positive-vs-negative gap here is label information reaching SLMGAE through its own inputs. Measured and recorded only; nothing was altered.",
+    "definition": "gene has >= 1 off-diagonal entry in at least one support view after remapping; value = share of pairs whose two genes both do",
+    "num_genes": 8844,
+    "genes_with_view_row": 4587,
+    "genes_with_row_per_view": {
+      "GO BP similarity": 4587,
+      "GO CC similarity": 4587,
+      "BioGRID PPI": 3985
+    },
+    "folds": [
+      {
+        "fold": 0,
+        "val_pos": {
+          "n": 1773,
+          "both_have_view": 0.7084038353073886
+        },
+        "val_neg": {
+          "n": 8536,
+          "both_have_view": 0.34875820056232426
+        },
+        "test_pos": {
+          "n": 4434,
+          "both_have_view": 0.7144790257104194
+        },
+        "test_neg": {
+          "n": 21341,
+          "both_have_view": 0.3456257907314559
+        }
+      },
+      {
+        "fold": 1,
+        "val_pos": {
+          "n": 1773,
+          "both_have_view": 0.7247602932882121
+        },
+        "val_neg": {
+          "n": 8536,
+          "both_have_view": 0.34430646672914716
+        },
+        "test_pos": {
+          "n": 4433,
+          "both_have_view": 0.6972704714640199
+        },
+        "test_neg": {
+          "n": 21341,
+          "both_have_view": 0.34422004592099714
+        }
+      },
+      {
+        "fold": 2,
+        "val_pos": {
+          "n": 1773,
+          "both_have_view": 0.7140439932318104
+        },
+        "val_neg": {
+          "n": 8536,
+          "both_have_view": 0.3470009372071228
+        },
+        "test_pos": {
+          "n": 4433,
+          "both_have_view": 0.7135122941574554
+        },
+        "test_neg": {
+          "n": 21341,
+          "both_have_view": 0.34314230823297875
+        }
+      },
+      {
+        "fold": 3,
+        "val_pos": {
+          "n": 1773,
+          "both_have_view": 0.7253243090806543
+        },
+        "val_neg": {
+          "n": 8536,
+          "both_have_view": 0.35028116213683225
+        },
+        "test_pos": {
+          "n": 4433,
+          "both_have_view": 0.7166704263478457
+        },
+        "test_neg": {
+          "n": 21341,
+          "both_have_view": 0.34515720912796966
+        }
+      },
+      {
+        "fold": 4,
+        "val_pos": {
+          "n": 1773,
+          "both_have_view": 0.7134799774393683
+        },
+        "val_neg": {
+          "n": 8536,
+          "both_have_view": 0.3465323336457357
+        },
+        "test_pos": {
+          "n": 4433,
+          "both_have_view": 0.7175727498308143
+        },
+        "test_neg": {
+          "n": 21340,
+          "both_have_view": 0.34484536082474226
+        }
+      }
+    ]
+  },
+  "args": {
+    "folds_dir": "../sl_comparison/folds",
+    "cv_type": "cv1",
+    "data_path": "../data",
+    "output_dir": "results/slmgae_shared_cv1",
+    "allow_missing_views": false,
+    "allow_static_lp_mapping": false,
+    "hidden1": 512,
+    "hidden2": 256,
+    "dropout": 0.2,
+    "nn_size": 45,
+    "alpha": 2.0,
+    "coe": 2.0,
+    "beta": 4.0,
+    "learning_rate": 0.001,
+    "epochs": 300,
+    "eva_epochs": 25,
+    "early_stopping": 20,
+    "select_metric": "auprg",
+    "seed": 42,
+    "num_folds": 5
+  }
+}

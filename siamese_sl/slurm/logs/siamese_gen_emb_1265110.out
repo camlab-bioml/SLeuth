@@ -1,0 +1,574 @@
+============================================================================
+Job: siamese_gen_emb | ID: 1265110 | Node: gpu3
+PCA arms: none joint (a job shared by every arm: no arm's results root)
+Start: Fri Nov 13 15:51:27 EST 2026
+NVIDIA L40, 46068 MiB, 1893 MiB
+NVIDIA L40, 46068 MiB, 3 MiB
+NVIDIA L40, 46068 MiB, 691 MiB
+NVIDIA L40, 46068 MiB, 691 MiB
+============================================================================
+
+SIAMESE SL - EMBEDDING GENERATION
+
+--- Cleaning previous generated embeddings ---
+  Removed 17 old .pt files, 0 legacy files, 13 cached .pkl embeddings, + NCBI sequence caches
+
+--- STEP 0: SynLethDB Experimental SL Pairs ---
+Already exist, skipping
+  22166 SL pairs
+Negatives already exist, skipping
+  112246 non-SL pairs
+
+--- STEP 0b: Gene universe ---
+  protein-coding: 19,296 | benchmark: 8,844 (non-coding kept: 101)
+  gene universe: 19,397 genes -> <repo>/data/gene_universe.txt
+
+--- STEP 1: ESM Embeddings ---
+Generating ESM embeddings with Pool PaRTI...
+Loaded 19397 unique gene IDs from <repo>/data/gene_universe.txt
+  Loaded canonical protein sequences for 19341/19397 genes from <repo>/data/embeddings_cache/protein_sequences_canonical.json
+
+Sequence coverage: 19341/19397 genes
+  56 genes have no protein sequence (will be NaN-imputed)
+Loading ESM model: esm2_t33_650M_UR50D
+Device: cuda:0
+Pooling method: pool_parti
+Embedding dimension: 1280
+Number of layers: 33
+
+Generating embeddings for 19397 genes...
+
+Generated 19397 embeddings
+  - Successful: 19341
+  - Failed (NaN, imputed per fold at training): 56
+  Final gene_order: 19397 Entrez IDs
+  No protein sequence (expected NaN): 56
+  ESM-2 failed on a gene that has a sequence: 0
+
+Saved embeddings to <repo>/data/all_genes_esm2.pt
+Saved gene list to <repo>/data/all_genes_esm2.genes.txt
+Shape: torch.Size([19397, 1280])
+
+--- STEP 2: GO Embeddings ---
+Using cached anc2vec: ../data/cache/anc2vec_embeddings.npz
+Loading anc2vec embeddings from ../data/cache/anc2vec_embeddings.npz...
+Loaded 44261 GO term embeddings (dim=200)
+
+Loading ESM data from <repo>/data/all_genes_esm2.pt...
+Gene universe: 19397 genes
+
+Parsing GAF: <repo>/data/embeddings_cache/goa_human.gaf.gz
+  Custom gene corrections: 86 mappings loaded from <repo>/SLMGAE-in-pytorch/gene_corrections_config.py
+  Non-coding genes: 65 listed in gene_corrections_config (informational; not applied)
+  HGNC loaded: 44981 current symbols, 59786 aliases/previous symbols, 44373 Entrez IDs
+Parsed GAF: 38815 genes with GO annotations
+  Mapped to Entrez IDs: 19663 genes
+  Unmapped (no Entrez ID): 19148
+  Excluded 1501 NOT-qualified annotations
+
+Building GO embeddings (sum pooling)...
+GO coverage: 18791/19397 genes (96.9%)
+Total GO terms mapped: 283136
+
+GO-only shape: torch.Size([19397, 200])
+
+Saved GO-only embeddings to <repo>/data/all_genes_go.pt
+  Shape: torch.Size([19397, 200])
+  Genes with GO coverage: 18791/19397
+
+--- STEP 3: Generate All Embeddings ---
+[geneformer] Generating (attempt 1/2)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating geneformer embeddings
+  Description : Geneformer token embeddings (auto-detected dim)
+  Dimension   : auto-detect
+  Source      : HuggingFace ctheodoris/Geneformer root model (Geneformer-V2-316M), pinned revision
+  Extracting Geneformer embeddings from HuggingFace (ctheodoris/Geneformer@05fcbeb8, Geneformer-V2-316M (18 layers, 1152d))...
+  Downloading token dictionary...
+  Downloading gene name dictionary...
+  Token dict: 20275 tokens
+  Gene name dict: 63675 genes
+  Downloading model (this may take a few minutes)...
+  Embedding matrix shape: (20275, 1152)
+  Mapped 20271 genes (Ensembl -> gene symbol)
+  Saved: <repo>/data/embeddings_cache/geneformer_gene_embeddings.pkl
+  Loading from: <repo>/data/embeddings_cache/geneformer_gene_embeddings.pkl
+  Loaded 20271 gene embeddings from file
+  Actual dim  : 1152
+  Custom gene corrections: 86 mappings loaded from <repo>/SLMGAE-in-pytorch/gene_corrections_config.py
+  Non-coding genes: 65 listed in gene_corrections_config (informational; not applied)
+  HGNC loaded: 44981 current symbols, 59786 aliases/previous symbols, 44373 Entrez IDs
+  Key->Entrez mapping: 19439 mapped, 831 unmapped (dropped), 1 collisions (the gene's own symbol replaced an alias in 0; the rest dropped)
+  Gene coverage: 19262/19397 (99.3%)
+  Missing Entrez IDs (first 20): ['100101629', '100129528', '100131539', '100287362', '100287569', '100302157', '100302209', '100313921', '100500855', '100500898', '100505621', '100505705', '100505841', '100533178', '100616114', '100616146', '100616202', '100616222', '100616420', '100616439']
+  ... and 115 more
+  Missing genes receive NaN vectors (imputed per dimension and per fold at training time, fit on that fold's training rows; method set by train.py --pca_method)
+
+  Saved to : <repo>/data/all_genes_geneformer.pt
+  Shape    : torch.Size([19397, 1152])
+[geneformer] Done
+[scgpt] Generating (attempt 1/2)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating scgpt embeddings
+  Description : scGPT token embeddings (512d)
+  Dimension   : 512
+  Source      : scGPT whole-human checkpoint (scGPT_human/best_model.pt + vocab.json, https://github.com/bowang-lab/scGPT)
+  Extracting scGPT embeddings from <repo>/data/embeddings_cache/scGPT_human/best_model.pt ...
+  Vocab: 60697 genes
+  Embedding key: encoder.embedding.weight, shape: (60697, 512)
+  Extracted 60697 gene embeddings
+  Saved: <repo>/data/embeddings_cache/scgpt_gene_embeddings.pkl
+  Loading from: <repo>/data/embeddings_cache/scgpt_gene_embeddings.pkl
+  Loaded 60697 gene embeddings from file
+  Actual dim  : 512
+  Custom gene corrections: 86 mappings loaded from <repo>/SLMGAE-in-pytorch/gene_corrections_config.py
+  Non-coding genes: 65 listed in gene_corrections_config (informational; not applied)
+  HGNC loaded: 44981 current symbols, 59786 aliases/previous symbols, 44373 Entrez IDs
+  Key->Entrez mapping: 39267 mapped, 21318 unmapped (dropped), 112 collisions (the gene's own symbol replaced an alias in 49; the rest dropped)
+  Gene coverage: 19267/19397 (99.3%)
+  Missing Entrez IDs (first 20): ['100101629', '100129528', '100132202', '100132285', '100133315', '100293534', '100421372', '100505705', '100505841', '100506736', '100509620', '100913187', '101059915', '101059948', '101927601', '102723623', '102724485', '102724488', '102724560', '102725191']
+  ... and 110 more
+  Missing genes receive NaN vectors (imputed per dimension and per fold at training time, fit on that fold's training rows; method set by train.py --pca_method)
+
+  Saved to : <repo>/data/all_genes_scgpt.pt
+  Shape    : torch.Size([19397, 512])
+[scgpt] Done
+[gene2vec] Generating (attempt 1/2)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating gene2vec embeddings
+  Description : Gene2Vec co-expression embeddings (200d)
+  Dimension   : 200
+  Source      : Gene2Vec (https://github.com/jingcheng-du/Gene2vec)
+  Loading from: <repo>/data/embeddings_cache/gene2vec_dim_200_iter_9_w2v.txt
+  Loaded 24447 gene embeddings from file
+  Actual dim  : 200
+  Custom gene corrections: 86 mappings loaded from <repo>/SLMGAE-in-pytorch/gene_corrections_config.py
+  Non-coding genes: 65 listed in gene_corrections_config (informational; not applied)
+  HGNC loaded: 44981 current symbols, 59786 aliases/previous symbols, 44373 Entrez IDs
+  Key->Entrez mapping: 20556 mapped, 3821 unmapped (dropped), 70 collisions (the gene's own symbol replaced an alias in 25; the rest dropped)
+  Gene coverage: 17878/19397 (92.2%)
+  Missing Entrez IDs (first 20): ['100033411', '100049587', '100101268', '100101490', '100126572', '100127206', '100128569', '100128908', '100129053', '100129216', '100129278', '100129361', '100129480', '100129515', '100129520', '100129543', '100129669', '100129842', '100129924', '100130274']
+  ... and 1499 more
+  Missing genes receive NaN vectors (imputed per dimension and per fold at training time, fit on that fold's training rows; method set by train.py --pca_method)
+
+  Saved to : <repo>/data/all_genes_gene2vec.pt
+  Shape    : torch.Size([19397, 200])
+[gene2vec] Done
+[prot_t5] Generating (attempt 1/2)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating prot_t5 embeddings
+  Description : ProtT5-XL protein sequence embeddings (1024d)
+  Dimension   : 1024
+  Source      : Rostlab (https://huggingface.co/Rostlab/prot_t5_xl_uniref50)
+  Loaded canonical protein sequences for 19341/19397 genes from <repo>/data/embeddings_cache/protein_sequences_canonical.json
+  Loading ProtT5-XL model (this downloads ~3 GB on first run)...
+  Device: cuda
+  Generated 19341 ProtT5 embeddings (1024d)
+  Saved: <repo>/data/embeddings_cache/prot_t5_gene_embeddings.pkl
+  Loading from: <repo>/data/embeddings_cache/prot_t5_gene_embeddings.pkl
+  Loaded 19341 gene embeddings from file
+  Actual dim  : 1024
+  Gene coverage: 19341/19397 (99.7%)
+  Missing Entrez IDs (first 20): ['100302157', '100302209', '100313921', '100500855', '100500898', '100528018', '100532737', '100532746', '100533955', '100616114', '100616146', '100616202', '100616222', '100616420', '100616439', '10230', '102465490', '102465537', '102466912', '10834']
+  ... and 36 more
+  Missing genes receive NaN vectors (imputed per dimension and per fold at training time, fit on that fold's training rows; method set by train.py --pca_method)
+
+  Saved to : <repo>/data/all_genes_prot_t5.pt
+  Shape    : torch.Size([19397, 1024])
+[prot_t5] Done
+[esm1b] Generating (attempt 1/2)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating esm1b embeddings
+  Description : ESM-1b protein sequence embeddings (1280d)
+  Dimension   : 1280
+  Source      : Meta/FAIR (https://github.com/facebookresearch/esm)
+  Loaded canonical protein sequences for 19341/19397 genes from <repo>/data/embeddings_cache/protein_sequences_canonical.json
+  Loading ESM-1b model...
+  Device: cuda
+  Generated 19341 ESM-1b embeddings (1280d)
+  Saved: <repo>/data/embeddings_cache/esm1b_gene_embeddings.pkl
+  Loading from: <repo>/data/embeddings_cache/esm1b_gene_embeddings.pkl
+  Loaded 19341 gene embeddings from file
+  Actual dim  : 1280
+  Gene coverage: 19341/19397 (99.7%)
+  Missing Entrez IDs (first 20): ['100302157', '100302209', '100313921', '100500855', '100500898', '100528018', '100532737', '100532746', '100533955', '100616114', '100616146', '100616202', '100616222', '100616420', '100616439', '10230', '102465490', '102465537', '102466912', '10834']
+  ... and 36 more
+  Missing genes receive NaN vectors (imputed per dimension and per fold at training time, fit on that fold's training rows; method set by train.py --pca_method)
+
+  Saved to : <repo>/data/all_genes_esm1b.pt
+  Shape    : torch.Size([19397, 1280])
+[esm1b] Done
+[scprint] Generating (attempt 1/1)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating scprint embeddings
+  Description : scPRINT gene embeddings (auto-detected dim)
+  Dimension   : auto-detect
+  Source      : cantinilab (https://github.com/cantinilab/scPRINT)
+  scprint not installed (pip install scprint)
+
+============================================================
+  Cannot auto-download: scprint
+============================================================
+  Source : cantinilab (https://github.com/cantinilab/scPRINT)
+  Place any of these files in <repo>/data/embeddings_cache/:
+    - scprint_gene_embeddings.pkl
+
+  scPRINT requires a checkpoint file placed manually:
+    <repo>/data/embeddings_cache/scprint_checkpoint.ckpt
+  Download from: https://github.com/cantinilab/scPRINT
+============================================================
+
+[scprint] Skipped (not available)
+[seqvec] Generating (attempt 1/1)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating seqvec embeddings
+  Description : SeqVec protein sequence embeddings (1024d)
+  Dimension   : 1024
+  Source      : Heinzinger et al. (https://github.com/mheinzinger/SeqVec)
+  allennlp not installed (pip install allennlp)
+
+============================================================
+  Cannot auto-download: seqvec
+============================================================
+  Source : Heinzinger et al. (https://github.com/mheinzinger/SeqVec)
+  Place any of these files in <repo>/data/embeddings_cache/:
+    - seqvec_gene_embeddings.pkl
+
+  Requires: pip install allennlp
+  Also needs GPU for practical runtime (~20k proteins).
+  Protein sequences: UniProt reviewed canonical (human_proteome_reviewed.fasta + hgnc_complete_set.txt in data/embeddings_cache or data/cache, both in git); NCBI RefSeq only for the few genes UniProt misses.
+============================================================
+
+[seqvec] Skipped (not available)
+[genept] Generating (attempt 1/1)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating genept embeddings
+  Description : GenePT (Data Leakage with SL) text embeddings (1536d)
+  Dimension   : 1536
+  Source      : Zenodo (https://zenodo.org/records/10833191)
+  Loading from: <repo>/data/embeddings_cache/GenePT_gene_embedding_ada_text.pickle
+  Loaded 93800 gene embeddings from file
+  Actual dim  : 1536
+  Custom gene corrections: 86 mappings loaded from <repo>/SLMGAE-in-pytorch/gene_corrections_config.py
+  Non-coding genes: 65 listed in gene_corrections_config (informational; not applied)
+  HGNC loaded: 44981 current symbols, 59786 aliases/previous symbols, 44373 Entrez IDs
+  Key->Entrez mapping: 33729 mapped, 20125 unmapped (dropped), 39946 collisions (the gene's own symbol replaced an alias in 64; the rest dropped)
+  Gene coverage: 19019/19397 (98.1%)
+  Missing Entrez IDs (first 20): ['100101268', '100101490', '100101629', '100128569', '100128908', '100129271', '100129528', '100129969', '100130705', '100130988', '100131539', '100132202', '100132285', '100133315', '100419780', '100505576', '100505621', '100505705', '100506540', '100506564']
+  ... and 358 more
+  Missing genes receive NaN vectors (imputed per dimension and per fold at training time, fit on that fold's training rows; method set by train.py --pca_method)
+  WARNING: GenePT (Data Leakage with SL) -- literature embeddings may encode known SL relationships
+
+  Saved to : <repo>/data/all_genes_genept.pt
+  Shape    : torch.Size([19397, 1536])
+[genept] Done
+[text_embed] Generating (attempt 1/2)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating text_embed embeddings
+  Description : Open-source text embeddings of NCBI gene names and designations (1024d)
+  Dimension   : 1024
+  Source      : mxbai-embed-large (https://huggingface.co/mixedbread-ai/mxbai-embed-large-v1)
+  Loaded 193863 gene descriptions from cache
+  Loading mxbai-embed-large-v1 model...
+  Encoding 193863 gene descriptions...
+  Generated 193863 text embeddings (1024d)
+  Saved: <repo>/data/embeddings_cache/text_embed_gene_embeddings.pkl
+  Loading from: <repo>/data/embeddings_cache/text_embed_gene_embeddings.pkl
+  Loaded 193863 gene embeddings from file
+  Actual dim  : 1024
+  Gene coverage: 19397/19397 (100.0%)
+  Missing genes receive NaN vectors (imputed per dimension and per fold at training time, fit on that fold's training rows; method set by train.py --pca_method)
+
+  Saved to : <repo>/data/all_genes_text_embed.pt
+  Shape    : torch.Size([19397, 1024])
+[text_embed] Done
+[bioconceptvec] Generating (attempt 1/2)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating bioconceptvec embeddings
+  Description : BioConceptVec PubMed concept embeddings (100d)
+  Dimension   : 100
+  Source      : NCBI (https://github.com/ncbi/BioConceptVec)
+  Loading BioConceptVec concepts...
+  NCBI gene info: 193863 genes
+  Total concepts: 402712
+  Mapped 20839 gene embeddings
+  Saved: <repo>/data/embeddings_cache/bioconceptvec_gene_embeddings.pkl
+  Loading from: <repo>/data/embeddings_cache/bioconceptvec_gene_embeddings.pkl
+  Loaded 20839 gene embeddings from file
+  Actual dim  : 100
+  Gene coverage: 17097/19397 (88.1%)
+  Missing Entrez IDs (first 20): ['100008586', '100101268', '100101467', '100127206', '100127983', '100128071', '100128569', '100128908', '100129053', '100129128', '100129216', '100129239', '100129278', '100129361', '100129407', '100129480', '100129515', '100129520', '100129543', '100129654']
+  ... and 2280 more
+  Missing genes receive NaN vectors (imputed per dimension and per fold at training time, fit on that fold's training rows; method set by train.py --pca_method)
+  NOTE: BioConceptVec is PubMed co-occurrence: genes co-mentioned in SL papers sit closer (smaller leakage risk than GenePT)
+
+  Saved to : <repo>/data/all_genes_bioconceptvec.pt
+  Shape    : torch.Size([19397, 100])
+[bioconceptvec] Done
+[node2vec_ppi] Generating (attempt 1/2)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating node2vec_ppi embeddings
+  Description : Node2Vec on STRING PPI network (128d)
+  Dimension   : 128
+  Source      : STRING v12.0 (https://string-db.org)
+  Custom gene corrections: 86 mappings loaded from <repo>/SLMGAE-in-pytorch/gene_corrections_config.py
+  Non-coding genes: 65 listed in gene_corrections_config (informational; not applied)
+  HGNC loaded: 44981 current symbols, 59786 aliases/previous symbols, 44373 Entrez IDs
+  STRING protein info: 19699 proteins
+  High-confidence edges (score >= 700): 473856
+  Building graph...
+  Graph: 16198 nodes, 236928 edges
+  Training Node2Vec (this may take 10-30 minutes)...
+  Extracted 16198 gene embeddings (128d)
+  Saved: <repo>/data/embeddings_cache/node2vec_ppi_gene_embeddings.pkl
+  Loading from: <repo>/data/embeddings_cache/node2vec_ppi_gene_embeddings.pkl
+  Loaded 16198 gene embeddings from file
+  Actual dim  : 128
+  Key->Entrez mapping: 16050 mapped, 148 unmapped (dropped), 0 collisions (the gene's own symbol replaced an alias in 0; the rest dropped)
+  Gene coverage: 15932/19397 (82.1%)
+  Missing Entrez IDs (first 20): ['100037417', '100101268', '100101629', '100113407', '100127206', '100127983', '100128071', '100128553', '100128908', '100128927', '100129053', '100129216', '100129239', '100129361', '100129407', '100129480', '100129520', '100129528', '100129543', '100129583']
+  ... and 3445 more
+  Missing genes receive NaN vectors (imputed per dimension and per fold at training time, fit on that fold's training rows; method set by train.py --pca_method)
+
+  Saved to : <repo>/data/all_genes_node2vec_ppi.pt
+  Shape    : torch.Size([19397, 128])
+[node2vec_ppi] Done
+[ppi_svd] Generating (attempt 1/2)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating ppi_svd embeddings
+  Description : PPI adjacency + SVD (256d)
+  Dimension   : 256
+  Source      : STRING v12.0 (https://string-db.org)
+  Custom gene corrections: 86 mappings loaded from <repo>/SLMGAE-in-pytorch/gene_corrections_config.py
+  Non-coding genes: 65 listed in gene_corrections_config (informational; not applied)
+  HGNC loaded: 44981 current symbols, 59786 aliases/previous symbols, 44373 Entrez IDs
+  STRING protein info: 19699 proteins
+  High-confidence edges (score >= 700): 473856
+  Building adjacency matrix...
+  Genes: 16198
+  Running truncated SVD (k=256)...
+  Extracted 16198 gene embeddings (256d)
+  Saved: <repo>/data/embeddings_cache/ppi_svd_gene_embeddings.pkl
+  Loading from: <repo>/data/embeddings_cache/ppi_svd_gene_embeddings.pkl
+  Loaded 16198 gene embeddings from file
+  Actual dim  : 256
+  Key->Entrez mapping: 16050 mapped, 148 unmapped (dropped), 0 collisions (the gene's own symbol replaced an alias in 0; the rest dropped)
+  Gene coverage: 15932/19397 (82.1%)
+  Missing Entrez IDs (first 20): ['100037417', '100101268', '100101629', '100113407', '100127206', '100127983', '100128071', '100128553', '100128908', '100128927', '100129053', '100129216', '100129239', '100129361', '100129407', '100129480', '100129520', '100129528', '100129543', '100129583']
+  ... and 3445 more
+  Missing genes receive NaN vectors (imputed per dimension and per fold at training time, fit on that fold's training rows; method set by train.py --pca_method)
+
+  Saved to : <repo>/data/all_genes_ppi_svd.pt
+  Shape    : torch.Size([19397, 256])
+[ppi_svd] Done
+[ppi_raw] Generating (attempt 1/2)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating ppi_raw embeddings
+  Description : PPI adjacency high-dim SVD baseline (1024d)
+  Dimension   : 1024
+  Source      : STRING v12.0 (https://string-db.org)
+  Custom gene corrections: 86 mappings loaded from <repo>/SLMGAE-in-pytorch/gene_corrections_config.py
+  Non-coding genes: 65 listed in gene_corrections_config (informational; not applied)
+  HGNC loaded: 44981 current symbols, 59786 aliases/previous symbols, 44373 Entrez IDs
+  STRING protein info: 19699 proteins
+  High-confidence edges (score >= 700): 473856
+  Building high-dim PPI adjacency SVD...
+  Genes: 16198
+  Running truncated SVD (k=1024)...
+  Generated 16198 PPI-RAW embeddings (1024d)
+  Saved: <repo>/data/embeddings_cache/ppi_raw_gene_embeddings.pkl
+  Loading from: <repo>/data/embeddings_cache/ppi_raw_gene_embeddings.pkl
+  Loaded 16198 gene embeddings from file
+  Actual dim  : 1024
+  Key->Entrez mapping: 16050 mapped, 148 unmapped (dropped), 0 collisions (the gene's own symbol replaced an alias in 0; the rest dropped)
+  Gene coverage: 15932/19397 (82.1%)
+  Missing Entrez IDs (first 20): ['100037417', '100101268', '100101629', '100113407', '100127206', '100127983', '100128071', '100128553', '100128908', '100128927', '100129053', '100129216', '100129239', '100129361', '100129407', '100129480', '100129520', '100129528', '100129543', '100129583']
+  ... and 3445 more
+  Missing genes receive NaN vectors (imputed per dimension and per fold at training time, fit on that fold's training rows; method set by train.py --pca_method)
+
+  Saved to : <repo>/data/all_genes_ppi_raw.pt
+  Shape    : torch.Size([19397, 1024])
+[ppi_raw] Done
+[mashup] Generating (attempt 1/2)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating mashup embeddings
+  Description : Mashup diffusion-based network embeddings (500d)
+  Dimension   : 500
+  Source      : Cho et al. 2016 (http://cb.csail.mit.edu/cb/mashup/)
+  Custom gene corrections: 86 mappings loaded from <repo>/SLMGAE-in-pytorch/gene_corrections_config.py
+  Non-coding genes: 65 listed in gene_corrections_config (informational; not applied)
+  HGNC loaded: 44981 current symbols, 59786 aliases/previous symbols, 44373 Entrez IDs
+  STRING protein info: 19699 proteins
+  High-confidence edges (score >= 700): 473856
+  Building Mashup diffusion embeddings...
+  Genes: 16198
+  Running RWR diffusion (dense inverse)...
+  Eigendecomposition of R R^T (top 500)...
+  Generated 16198 Mashup embeddings (500d)
+  Saved: <repo>/data/embeddings_cache/mashup_gene_embeddings.pkl
+  Loading from: <repo>/data/embeddings_cache/mashup_gene_embeddings.pkl
+  Loaded 16198 gene embeddings from file
+  Actual dim  : 500
+  Key->Entrez mapping: 16050 mapped, 148 unmapped (dropped), 0 collisions (the gene's own symbol replaced an alias in 0; the rest dropped)
+  Gene coverage: 15932/19397 (82.1%)
+  Missing Entrez IDs (first 20): ['100037417', '100101268', '100101629', '100113407', '100127206', '100127983', '100128071', '100128553', '100128908', '100128927', '100129053', '100129216', '100129239', '100129361', '100129407', '100129480', '100129520', '100129528', '100129543', '100129583']
+  ... and 3445 more
+  Missing genes receive NaN vectors (imputed per dimension and per fold at training time, fit on that fold's training rows; method set by train.py --pca_method)
+
+  Saved to : <repo>/data/all_genes_mashup.pt
+  Shape    : torch.Size([19397, 500])
+[mashup] Done
+[go2vec] Generating (attempt 1/2)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating go2vec embeddings
+  Description : GO2Vec: Node2Vec on Gene Ontology graph (128d)
+  Dimension   : 128
+  Source      : Gene Ontology (http://geneontology.org)
+  GO graph: 38560 terms, 72697 edges
+  GO annotations: 38815 genes
+  Custom gene corrections: 86 mappings loaded from <repo>/SLMGAE-in-pytorch/gene_corrections_config.py
+  Non-coding genes: 65 listed in gene_corrections_config (informational; not applied)
+  HGNC loaded: 44981 current symbols, 59786 aliases/previous symbols, 44373 Entrez IDs
+  After gene name normalization: 38811 unique genes
+  Training Node2Vec on GO graph...
+  GO graph (undirected): 38560 nodes, 72697 edges
+  Generated 38811 GO2Vec embeddings (128d)
+  Saved: <repo>/data/embeddings_cache/go2vec_gene_embeddings.pkl
+  Loading from: <repo>/data/embeddings_cache/go2vec_gene_embeddings.pkl
+  Loaded 38811 gene embeddings from file
+  Actual dim  : 128
+  Key->Entrez mapping: 19663 mapped, 19148 unmapped (dropped), 0 collisions (the gene's own symbol replaced an alias in 0; the rest dropped)
+  Gene coverage: 18791/19397 (96.9%)
+  Missing Entrez IDs (first 20): ['100008586', '100101629', '100128071', '100129239', '100129278', '100129407', '100129480', '100129515', '100129528', '100130086', '100130274', '100130301', '100130311', '100130361', '100130705', '100130890', '100131244', '100131378', '100131897', '100132146']
+  ... and 586 more
+  Missing genes receive NaN vectors (imputed per dimension and per fold at training time, fit on that fold's training rows; method set by train.py --pca_method)
+
+  Saved to : <repo>/data/all_genes_go2vec.pt
+  Shape    : torch.Size([19397, 128])
+[go2vec] Done
+[onto2vec] Generating (attempt 1/2)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating onto2vec embeddings
+  Description : Onto2Vec: Word2Vec on GO axiom sentences (128d)
+  Dimension   : 128
+  Source      : Gene Ontology (http://geneontology.org)
+  GO graph: 38560 terms, 72697 edges
+  GO annotations: 38815 genes
+  Custom gene corrections: 86 mappings loaded from <repo>/SLMGAE-in-pytorch/gene_corrections_config.py
+  Non-coding genes: 65 listed in gene_corrections_config (informational; not applied)
+  HGNC loaded: 44981 current symbols, 59786 aliases/previous symbols, 44373 Entrez IDs
+  After gene name normalization: 38811 unique genes
+  Converting GO axioms to sentences...
+  Generated 518409 sentences from GO axioms
+  Training Word2Vec (skip-gram)...
+  Generated 38811 Onto2Vec embeddings (128d)
+  Saved: <repo>/data/embeddings_cache/onto2vec_gene_embeddings.pkl
+  Loading from: <repo>/data/embeddings_cache/onto2vec_gene_embeddings.pkl
+  Loaded 38811 gene embeddings from file
+  Actual dim  : 128
+  Key->Entrez mapping: 19663 mapped, 19148 unmapped (dropped), 0 collisions (the gene's own symbol replaced an alias in 0; the rest dropped)
+  Gene coverage: 18791/19397 (96.9%)
+  Missing Entrez IDs (first 20): ['100008586', '100101629', '100128071', '100129239', '100129278', '100129407', '100129480', '100129515', '100129528', '100130086', '100130274', '100130301', '100130311', '100130361', '100130705', '100130890', '100131244', '100131378', '100131897', '100132146']
+  ... and 586 more
+  Missing genes receive NaN vectors (imputed per dimension and per fold at training time, fit on that fold's training rows; method set by train.py --pca_method)
+
+  Saved to : <repo>/data/all_genes_onto2vec.pt
+  Shape    : torch.Size([19397, 128])
+[onto2vec] Done
+[kg_complex] Generating (attempt 1/2)...
+Gene list: 19397 genes from <repo>/data/all_genes_esm2.pt
+
+Generating kg_complex embeddings
+  Description : ComplEx KG embeddings from biological knowledge graph (512d; real ⊕ imag)
+  Dimension   : 512
+  Source      : STRING PPI + GO annotations via PyKEEN
+  Custom gene corrections: 86 mappings loaded from <repo>/SLMGAE-in-pytorch/gene_corrections_config.py
+  Non-coding genes: 65 listed in gene_corrections_config (informational; not applied)
+  HGNC loaded: 44981 current symbols, 59786 aliases/previous symbols, 44373 Entrez IDs
+  STRING protein info: 19699 proteins
+  High-confidence edges (score >= 700): 473856
+  GO graph: 38560 terms, 72697 edges
+  GO annotations: 38815 genes
+  After gene name normalization: 38811 unique genes
+  Building biological knowledge graph...
+  PPI triples: 473856
+  GO triples: 334455
+  Total triples: 808311
+  Training ComplEx (this may take 10-60 minutes)...
+  Generated 39201 KG-ComplEx embeddings (512d)
+  Saved: <repo>/data/embeddings_cache/kg_complex_gene_embeddings.pkl
+  Loading from: <repo>/data/embeddings_cache/kg_complex_gene_embeddings.pkl
+  Loaded 39201 gene embeddings from file
+  Actual dim  : 512
+  Key->Entrez mapping: 19907 mapped, 19294 unmapped (dropped), 0 collisions (the gene's own symbol replaced an alias in 0; the rest dropped)
+  Gene coverage: 19003/19397 (98.0%)
+  Missing Entrez IDs (first 20): ['100101629', '100128071', '100129239', '100129407', '100129480', '100129528', '100130086', '100130274', '100130301', '100130311', '100130705', '100131244', '100131378', '100131897', '100132146', '100132202', '100132304', '100133093', '100170229', '100190949']
+  ... and 374 more
+  Missing genes receive NaN vectors (imputed per dimension and per fold at training time, fit on that fold's training rows; method set by train.py --pca_method)
+
+  Saved to : <repo>/data/all_genes_kg_complex.pt
+  Shape    : torch.Size([19397, 512])
+[kg_complex] Done
+
+--- Available Embeddings ---
+  [FOUND] GO-anc2vec (200d)
+  [FOUND] Geneformer (auto)
+  [FOUND] scGPT (512d)
+  [FOUND] Gene2Vec (200d)
+  [FOUND] ESM-2 (1280d)
+  [FOUND] ProtT5-XL (1024d)
+  [FOUND] ESM-1b (1280d)
+  [SKIP]  ESM-C (1152d)
+  [SKIP]  scPRINT (auto)
+  [SKIP]  SeqVec (1024d)
+  [FOUND] GenePT (1536d, SL data leakage)
+  [FOUND] Text-mxbai (1024d)
+  [FOUND] BioConceptVec (100d)
+  [FOUND] Node2Vec PPI (128d)
+  [FOUND] PPI-SVD (256d)
+  [FOUND] PPI-RAW (1024d)
+  [FOUND] Mashup (500d)
+  [FOUND] GO2Vec (128d)
+  [FOUND] Onto2Vec (128d)
+  [FOUND] KG-ComplEx (512d)
+
+--- Provenance check (embedding_versions.py) ---
+current generator_version: 2026-10-07-source-symbol-pins
+  OK       all_genes_geneformer.pt: generator_version 2026-10-07-source-symbol-pins
+  OK       all_genes_scgpt.pt: generator_version 2026-10-07-source-symbol-pins
+  OK       all_genes_gene2vec.pt: generator_version 2026-10-07-source-symbol-pins
+  OK       all_genes_esm2.pt: generator_version 2026-10-07-source-symbol-pins
+  OK       all_genes_esm1b.pt: generator_version 2026-10-07-source-symbol-pins
+  ABSENT   all_genes_esmc.pt: file not found (allowed)
+  OK       all_genes_prot_t5.pt: generator_version 2026-10-07-source-symbol-pins
+  ABSENT   all_genes_scprint.pt: file not found (allowed)
+  ABSENT   all_genes_seqvec.pt: file not found (allowed)
+  OK       all_genes_text_embed.pt: generator_version 2026-10-07-source-symbol-pins
+  OK       all_genes_bioconceptvec.pt: generator_version 2026-10-07-source-symbol-pins
+  OK       all_genes_node2vec_ppi.pt: generator_version 2026-10-07-source-symbol-pins
+  OK       all_genes_ppi_svd.pt: generator_version 2026-10-07-source-symbol-pins
+  OK       all_genes_ppi_raw.pt: generator_version 2026-10-07-source-symbol-pins
+  OK       all_genes_mashup.pt: generator_version 2026-10-07-source-symbol-pins
+  OK       all_genes_go.pt: generator_version 2026-10-07-source-symbol-pins
+  OK       all_genes_go2vec.pt: generator_version 2026-10-07-source-symbol-pins
+  OK       all_genes_onto2vec.pt: generator_version 2026-10-07-source-symbol-pins
+  OK       all_genes_kg_complex.pt: generator_version 2026-10-07-source-symbol-pins
+16 of 19 current; absent (allowed): all_genes_esmc.pt all_genes_scprint.pt all_genes_seqvec.pt
+
+Embedding generation completed at: Fri Nov 13 22:01:10 EST 2026

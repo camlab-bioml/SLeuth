@@ -1,0 +1,1180 @@
+{
+ "Adamson_file": {
+  "file": "external data/pair_sgRNA_phenotypes.txt",
+  "columns": [
+   "FirstPosition",
+   "FirstGene",
+   "SecondPosition",
+   "SecondGene",
+   "Gamma",
+   "Tau",
+   "Rho"
+  ],
+  "n_rows": 1264760,
+  "n_self_rows": 5061,
+  "gamma_quantiles": {
+   "0.01": -0.4289702590342649,
+   "0.25": -0.2039502537758492,
+   "0.5": -0.1309995127101474,
+   "0.75": -0.057811034550169026,
+   "0.99": 0.030659863865376454
+  },
+  "share_gamma_negative": 0.9383519402890667
+ },
+ "Corn_file": {
+  "file": "external data/41586_2025_8815_MOESM5_ESM.csv",
+  "columns": [
+   "gene_combination",
+   "sens.score",
+   "rank"
+  ],
+  "n_rows": 149787,
+  "share_exactly_zero": 0.493393952746233,
+  "share_negative": 0.506606047253767,
+  "share_positive": 0.0,
+  "rank1_rows": [
+   {
+    "gene_combination": "FEN1;WDR48",
+    "sens.score": -3.556486738,
+    "rank": 1
+   },
+   {
+    "gene_combination": "BRCA2;LIG1",
+    "sens.score": -3.501877498,
+    "rank": 2
+   },
+   {
+    "gene_combination": "C19orf40;SMARCAL1",
+    "sens.score": -3.236678173,
+    "rank": 3
+   },
+   {
+    "gene_combination": "APEX2;FZR1",
+    "sens.score": -3.206564129,
+    "rank": 4
+   },
+   {
+    "gene_combination": "CHEK1_mis;TOP3A",
+    "sens.score": -3.18477082,
+    "rank": 5
+   }
+  ],
+  "last_rank_rows": [
+   {
+    "gene_combination": "PPIE_mis;USP7",
+    "sens.score": 0.0,
+    "rank": 149785
+   },
+   {
+    "gene_combination": "MRE11A;POLE_mis",
+    "sens.score": 0.0,
+    "rank": 149786
+   },
+   {
+    "gene_combination": "GINS2_mis;POLR2H_mis",
+    "sens.score": 0.0,
+    "rank": 149787
+   }
+  ],
+  "spearman_rank_vs_score": 0.9380241809001835,
+  "n_mis_suffix": 45591
+ },
+ "AdamsonGI_file": {
+  "file": "external data/Simpson2023_TableS3_GI_scores.xlsx",
+  "n_rows": 148240,
+  "n_gamma_gi_finite": 144385,
+  "n_same_gene": 544,
+  "n_non_targeting": 544,
+  "interaction_category_vs_gamma_gi": [
+   {
+    "InteractionCategory": "Control - no category",
+    "n": 544,
+    "n_finite": 536,
+    "mean": -0.010609296523233605,
+    "median": -0.016364338430497,
+    "share_negative": 0.5992647058823529
+   },
+   {
+    "InteractionCategory": "Interaction, masked - gamma negative",
+    "n": 112,
+    "n_finite": 112,
+    "mean": -3.3074882686375653,
+    "median": -3.07679628114195,
+    "share_negative": 1.0
+   },
+   {
+    "InteractionCategory": "Interaction, masked - gamma positive",
+    "n": 59,
+    "n_finite": 59,
+    "mean": 2.993039718590448,
+    "median": 2.74973842720609,
+    "share_negative": 0.0
+   },
+   {
+    "InteractionCategory": "Interaction, modified - buffering, nu negative",
+    "n": 2,
+    "n_finite": 2,
+    "mean": 5.090786995752826,
+    "median": 5.090786995752826,
+    "share_negative": 0.0
+   },
+   {
+    "InteractionCategory": "Interaction, modified - buffering, nu positive",
+    "n": 12,
+    "n_finite": 12,
+    "mean": 2.367811023373291,
+    "median": 1.8723197454919749,
+    "share_negative": 0.0
+   },
+   {
+    "InteractionCategory": "Interaction, modified - synthetic lethal, nu negative",
+    "n": 36,
+    "n_finite": 36,
+    "mean": -2.6718739318901097,
+    "median": -2.459328003485915,
+    "share_negative": 1.0
+   },
+   {
+    "InteractionCategory": "Interaction, modified - synthetic lethal, nu positive",
+    "n": 35,
+    "n_finite": 35,
+    "mean": -6.932529778331584,
+    "median": -6.79988934535133,
+    "share_negative": 1.0
+   },
+   {
+    "InteractionCategory": "Interaction, novel - nu negative",
+    "n": 385,
+    "n_finite": 385,
+    "mean": 0.10345188878275585,
+    "median": 0.10741292215718,
+    "share_negative": 0.42857142857142855
+   },
+   {
+    "InteractionCategory": "Interaction, novel - nu positive",
+    "n": 209,
+    "n_finite": 209,
+    "mean": -0.38592245195943004,
+    "median": -0.524131161094156,
+    "share_negative": 0.7033492822966507
+   },
+   {
+    "InteractionCategory": "Interaction, possibly masked - gamma negative",
+    "n": 3169,
+    "n_finite": 3169,
+    "mean": -1.9796925021865306,
+    "median": -1.83680964504195,
+    "share_negative": 1.0
+   },
+   {
+    "InteractionCategory": "Interaction, possibly masked - gamma positive",
+    "n": 3056,
+    "n_finite": 3056,
+    "mean": 1.8785692222946742,
+    "median": 1.7776047299456201,
+    "share_negative": 0.0
+   },
+   {
+    "InteractionCategory": "Interaction, possibly novel - nu negative",
+    "n": 3835,
+    "n_finite": 3835,
+    "mean": -0.5747885812314942,
+    "median": -0.619272081146329,
+    "share_negative": 0.8198174706649283
+   },
+   {
+    "InteractionCategory": "Interaction, possibly novel - nu positive",
+    "n": 3513,
+    "n_finite": 3513,
+    "mean": 0.652494481362708,
+    "median": 0.755732536325708,
+    "share_negative": 0.15627668659265584
+   },
+   {
+    "InteractionCategory": "Interaction, possibly reversed - nu negative",
+    "n": 1,
+    "n_finite": 1,
+    "mean": 1.84517745282078,
+    "median": 1.84517745282078,
+    "share_negative": 0.0
+   },
+   {
+    "InteractionCategory": "Interaction, possibly reversed - nu positive",
+    "n": 5,
+    "n_finite": 5,
+    "mean": -2.056932817409084,
+    "median": -1.95308313320807,
+    "share_negative": 1.0
+   },
+   {
+    "InteractionCategory": "Interaction, reversed - nu negative",
+    "n": 28,
+    "n_finite": 28,
+    "mean": 1.8599546972660532,
+    "median": 1.73561134172714,
+    "share_negative": 0.0
+   },
+   {
+    "InteractionCategory": "Interaction, reversed - nu positive",
+    "n": 61,
+    "n_finite": 61,
+    "mean": -2.323372866540027,
+    "median": -1.88509390610233,
+    "share_negative": 1.0
+   },
+   {
+    "InteractionCategory": "Interaction, unmodified - buffering",
+    "n": 1487,
+    "n_finite": 1487,
+    "mean": 2.257370914916541,
+    "median": 2.01408587554981,
+    "share_negative": 0.0
+   },
+   {
+    "InteractionCategory": "Interaction, unmodified - synthetic lethal",
+    "n": 1932,
+    "n_finite": 1932,
+    "mean": -2.5467366887545735,
+    "median": -2.22206447408141,
+    "share_negative": 1.0
+   },
+   {
+    "InteractionCategory": "No interaction",
+    "n": 124860,
+    "n_finite": 124860,
+    "mean": 0.0387382396854123,
+    "median": 0.048269477489017554,
+    "share_negative": 0.47064712477975335
+   },
+   {
+    "InteractionCategory": "Same gene - no category",
+    "n": 543,
+    "n_finite": 495,
+    "mean": -1.4700724195880526,
+    "median": -0.598334417044563,
+    "share_negative": 0.570902394106814
+   },
+   {
+    "InteractionCategory": "Uncharacterized",
+    "n": 21,
+    "n_finite": 21,
+    "mean": -0.1521286252877152,
+    "median": -0.020760729781435,
+    "share_negative": 0.5238095238095238
+   },
+   {
+    "InteractionCategory": NaN,
+    "n": 4335,
+    "n_finite": 536,
+    "mean": -0.8541556410706829,
+    "median": -0.3890970119949709,
+    "share_negative": 0.08027681660899653
+   }
+  ],
+  "share_gamma_gi_negative": 0.4662371829465731
+ },
+ "Gilbert_file": {
+  "file": "external data/mmc5.xlsx",
+  "sheet": "gene GI scores and correlations (header rows: cell line / replicate / metric)",
+  "column": "K562 | Replicate Average | GI score (col G)",
+  "n_rows": 105360,
+  "n_finite": 100576,
+  "n_self": 459,
+  "quantiles": {
+   "0.01": -3.5269916055,
+   "0.25": -0.6381463785,
+   "0.5": 0.08947338299999999,
+   "0.75": 0.7654008207499999,
+   "0.99": 2.7743158475
+  },
+  "share_negative": 0.4427296886864085
+ },
+ "eval": {
+  "siamese_sl|cv1|Adamson": {
+   "n_pairs": 146583,
+   "n_genes": 542,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 105539,
+    "test": 29317,
+    "val": 11727
+   },
+   "n_test_sldb_overlap": 942,
+   "n_test_not_sldb": 28375,
+   "share_outcome_zero": 0.0,
+   "effective_head": "K562",
+   "ft_val_regime": "random_pairs",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Adamson:external data/pair_sgRNA_phenotypes.txt:Gamma:-1:tsv:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl|cv1|AdamsonGI": {
+   "n_pairs": 143354,
+   "n_genes": 536,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 103215,
+    "test": 28671,
+    "val": 11468
+   },
+   "n_test_sldb_overlap": 941,
+   "n_test_not_sldb": 27730,
+   "share_outcome_zero": 0.0,
+   "effective_head": "K562",
+   "ft_val_regime": "random_pairs",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "AdamsonGI:external data/Simpson2023_TableS3_GI_scores.xlsx:Gamma.GI:-1:xlsx:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl|cv1|Corn": {
+   "n_pairs": 149787,
+   "n_genes": 548,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 107847,
+    "test": 29957,
+    "val": 11983
+   },
+   "n_test_sldb_overlap": 250,
+   "n_test_not_sldb": 29707,
+   "share_outcome_zero": 0.493393952746233,
+   "effective_head": "OTHER",
+   "ft_val_regime": "random_pairs",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Corn:external data/41586_2025_8815_MOESM5_ESM.csv:sens.score:-1:csv:OTHER",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl|cv1|Gilbert": {
+   "n_pairs": 99681,
+   "n_genes": 447,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 71771,
+    "test": 19936,
+    "val": 7974
+   },
+   "n_test_sldb_overlap": 17403,
+   "n_test_not_sldb": 2533,
+   "share_outcome_zero": 0.0,
+   "effective_head": "K562",
+   "ft_val_regime": "random_pairs",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Gilbert:external data/mmc5.xlsx:K562_avg:-1:xlsx:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl|cv2|Adamson": {
+   "n_pairs": 146583,
+   "n_genes": 542,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 76226,
+    "test": 52642,
+    "val": 17715
+   },
+   "n_test_sldb_overlap": 1535,
+   "n_test_not_sldb": 51107,
+   "share_outcome_zero": 0.0,
+   "effective_head": "K562",
+   "ft_val_regime": "gene_holdout",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Adamson:external data/pair_sgRNA_phenotypes.txt:Gamma:-1:tsv:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl|cv2|AdamsonGI": {
+   "n_pairs": 143354,
+   "n_genes": 536,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 74289,
+    "test": 51565,
+    "val": 17500
+   },
+   "n_test_sldb_overlap": 1496,
+   "n_test_not_sldb": 50069,
+   "share_outcome_zero": 0.0,
+   "effective_head": "K562",
+   "ft_val_regime": "gene_holdout",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "AdamsonGI:external data/Simpson2023_TableS3_GI_scores.xlsx:Gamma.GI:-1:xlsx:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl|cv2|Corn": {
+   "n_pairs": 149787,
+   "n_genes": 548,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 77355,
+    "test": 54156,
+    "val": 18276
+   },
+   "n_test_sldb_overlap": 424,
+   "n_test_not_sldb": 53732,
+   "share_outcome_zero": 0.493393952746233,
+   "effective_head": "OTHER",
+   "ft_val_regime": "gene_holdout",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Corn:external data/41586_2025_8815_MOESM5_ESM.csv:sens.score:-1:csv:OTHER",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl|cv2|Gilbert": {
+   "n_pairs": 99681,
+   "n_genes": 447,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 51681,
+    "test": 35778,
+    "val": 12222
+   },
+   "n_test_sldb_overlap": 30296,
+   "n_test_not_sldb": 5482,
+   "share_outcome_zero": 0.0,
+   "effective_head": "K562",
+   "ft_val_regime": "gene_holdout",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Gilbert:external data/mmc5.xlsx:K562_avg:-1:xlsx:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl|cv3|Adamson": {
+   "n_pairs": 146583,
+   "n_genes": 542,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 76226,
+    "discarded": 63676,
+    "test": 5778,
+    "val": 903
+   },
+   "n_test_sldb_overlap": 141,
+   "n_test_not_sldb": 5637,
+   "share_outcome_zero": 0.0,
+   "effective_head": "K562",
+   "ft_val_regime": "gene_holdout",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Adamson:external data/pair_sgRNA_phenotypes.txt:Gamma:-1:tsv:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl|cv3|AdamsonGI": {
+   "n_pairs": 143354,
+   "n_genes": 536,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 74289,
+    "discarded": 62491,
+    "test": 5671,
+    "val": 903
+   },
+   "n_test_sldb_overlap": 140,
+   "n_test_not_sldb": 5531,
+   "share_outcome_zero": 0.0,
+   "effective_head": "K562",
+   "ft_val_regime": "gene_holdout",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "AdamsonGI:external data/Simpson2023_TableS3_GI_scores.xlsx:Gamma.GI:-1:xlsx:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl|cv3|Corn": {
+   "n_pairs": 149787,
+   "n_genes": 548,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 77355,
+    "discarded": 65491,
+    "test": 5995,
+    "val": 946
+   },
+   "n_test_sldb_overlap": 43,
+   "n_test_not_sldb": 5952,
+   "share_outcome_zero": 0.493393952746233,
+   "effective_head": "OTHER",
+   "ft_val_regime": "gene_holdout",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Corn:external data/41586_2025_8815_MOESM5_ESM.csv:sens.score:-1:csv:OTHER",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl|cv3|Gilbert": {
+   "n_pairs": 99681,
+   "n_genes": 447,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 51681,
+    "discarded": 43454,
+    "test": 3916,
+    "val": 630
+   },
+   "n_test_sldb_overlap": 3187,
+   "n_test_not_sldb": 729,
+   "share_outcome_zero": 0.0,
+   "effective_head": "K562",
+   "ft_val_regime": "gene_holdout",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Gilbert:external data/mmc5.xlsx:K562_avg:-1:xlsx:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl_pd_pooled|cv1|Adamson": {
+   "n_pairs": 146583,
+   "n_genes": 542,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 105539,
+    "test": 29317,
+    "val": 11727
+   },
+   "n_test_sldb_overlap": 942,
+   "n_test_not_sldb": 28375,
+   "share_outcome_zero": 0.0,
+   "effective_head": "ANY (pooled)",
+   "ft_val_regime": "random_pairs",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Adamson:external data/pair_sgRNA_phenotypes.txt:Gamma:-1:tsv:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl_pd_pooled|cv1|AdamsonGI": {
+   "n_pairs": 143354,
+   "n_genes": 536,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 103215,
+    "test": 28671,
+    "val": 11468
+   },
+   "n_test_sldb_overlap": 941,
+   "n_test_not_sldb": 27730,
+   "share_outcome_zero": 0.0,
+   "effective_head": "ANY (pooled)",
+   "ft_val_regime": "random_pairs",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "AdamsonGI:external data/Simpson2023_TableS3_GI_scores.xlsx:Gamma.GI:-1:xlsx:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl_pd_pooled|cv1|Corn": {
+   "n_pairs": 149787,
+   "n_genes": 548,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 107847,
+    "test": 29957,
+    "val": 11983
+   },
+   "n_test_sldb_overlap": 250,
+   "n_test_not_sldb": 29707,
+   "share_outcome_zero": 0.493393952746233,
+   "effective_head": "ANY (pooled)",
+   "ft_val_regime": "random_pairs",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Corn:external data/41586_2025_8815_MOESM5_ESM.csv:sens.score:-1:csv:OTHER",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl_pd_pooled|cv1|Gilbert": {
+   "n_pairs": 99681,
+   "n_genes": 447,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 71771,
+    "test": 19936,
+    "val": 7974
+   },
+   "n_test_sldb_overlap": 17403,
+   "n_test_not_sldb": 2533,
+   "share_outcome_zero": 0.0,
+   "effective_head": "ANY (pooled)",
+   "ft_val_regime": "random_pairs",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Gilbert:external data/mmc5.xlsx:K562_avg:-1:xlsx:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl_pd_pooled|cv2|Adamson": {
+   "n_pairs": 146583,
+   "n_genes": 542,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 76226,
+    "test": 52642,
+    "val": 17715
+   },
+   "n_test_sldb_overlap": 1535,
+   "n_test_not_sldb": 51107,
+   "share_outcome_zero": 0.0,
+   "effective_head": "ANY (pooled)",
+   "ft_val_regime": "gene_holdout",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Adamson:external data/pair_sgRNA_phenotypes.txt:Gamma:-1:tsv:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl_pd_pooled|cv2|AdamsonGI": {
+   "n_pairs": 143354,
+   "n_genes": 536,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 74289,
+    "test": 51565,
+    "val": 17500
+   },
+   "n_test_sldb_overlap": 1496,
+   "n_test_not_sldb": 50069,
+   "share_outcome_zero": 0.0,
+   "effective_head": "ANY (pooled)",
+   "ft_val_regime": "gene_holdout",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "AdamsonGI:external data/Simpson2023_TableS3_GI_scores.xlsx:Gamma.GI:-1:xlsx:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl_pd_pooled|cv2|Corn": {
+   "n_pairs": 149787,
+   "n_genes": 548,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 77355,
+    "test": 54156,
+    "val": 18276
+   },
+   "n_test_sldb_overlap": 424,
+   "n_test_not_sldb": 53732,
+   "share_outcome_zero": 0.493393952746233,
+   "effective_head": "ANY (pooled)",
+   "ft_val_regime": "gene_holdout",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Corn:external data/41586_2025_8815_MOESM5_ESM.csv:sens.score:-1:csv:OTHER",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl_pd_pooled|cv2|Gilbert": {
+   "n_pairs": 99681,
+   "n_genes": 447,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 51681,
+    "test": 35778,
+    "val": 12222
+   },
+   "n_test_sldb_overlap": 30296,
+   "n_test_not_sldb": 5482,
+   "share_outcome_zero": 0.0,
+   "effective_head": "ANY (pooled)",
+   "ft_val_regime": "gene_holdout",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Gilbert:external data/mmc5.xlsx:K562_avg:-1:xlsx:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl_pd_pooled|cv3|Adamson": {
+   "n_pairs": 146583,
+   "n_genes": 542,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 76226,
+    "discarded": 63676,
+    "test": 5778,
+    "val": 903
+   },
+   "n_test_sldb_overlap": 141,
+   "n_test_not_sldb": 5637,
+   "share_outcome_zero": 0.0,
+   "effective_head": "ANY (pooled)",
+   "ft_val_regime": "gene_holdout",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Adamson:external data/pair_sgRNA_phenotypes.txt:Gamma:-1:tsv:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl_pd_pooled|cv3|AdamsonGI": {
+   "n_pairs": 143354,
+   "n_genes": 536,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 74289,
+    "discarded": 62491,
+    "test": 5671,
+    "val": 903
+   },
+   "n_test_sldb_overlap": 140,
+   "n_test_not_sldb": 5531,
+   "share_outcome_zero": 0.0,
+   "effective_head": "ANY (pooled)",
+   "ft_val_regime": "gene_holdout",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "AdamsonGI:external data/Simpson2023_TableS3_GI_scores.xlsx:Gamma.GI:-1:xlsx:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl_pd_pooled|cv3|Corn": {
+   "n_pairs": 149787,
+   "n_genes": 548,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 77355,
+    "discarded": 65491,
+    "test": 5995,
+    "val": 946
+   },
+   "n_test_sldb_overlap": 43,
+   "n_test_not_sldb": 5952,
+   "share_outcome_zero": 0.493393952746233,
+   "effective_head": "ANY (pooled)",
+   "ft_val_regime": "gene_holdout",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Corn:external data/41586_2025_8815_MOESM5_ESM.csv:sens.score:-1:csv:OTHER",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  },
+  "siamese_sl_pd_pooled|cv3|Gilbert": {
+   "n_pairs": 99681,
+   "n_genes": 447,
+   "target_equals_minus_outcome": true,
+   "target_over_outcome_unique": [
+    -1.0
+   ],
+   "split_counts": {
+    "train": 51681,
+    "discarded": 43454,
+    "test": 3916,
+    "val": 630
+   },
+   "n_test_sldb_overlap": 3187,
+   "n_test_not_sldb": 729,
+   "share_outcome_zero": 0.0,
+   "effective_head": "ANY (pooled)",
+   "ft_val_regime": "gene_holdout",
+   "train_frac": 0.8,
+   "val_frac": 0.1,
+   "split_seed": 42,
+   "ft_modes": [
+    "LP_last",
+    "Full",
+    "Scratch"
+   ],
+   "ft_epochs": 100,
+   "ft_patience": 10,
+   "ft_lr": 0.0001,
+   "ft_batch_size": 256,
+   "ft_weight_decay": 0.0,
+   "spec": "Gilbert:external data/mmc5.xlsx:K562_avg:-1:xlsx:K562",
+   "sldb_overlap_sources": [
+    "SL_SynLethDB_experimental.txt",
+    "SL_SynLethDB_experimental_negatives.txt"
+   ]
+  }
+ },
+ "n_pairs_same_everywhere": {
+  "Adamson": [
+   146583
+  ],
+  "AdamsonGI": [
+   143354
+  ],
+  "Corn": [
+   149787
+  ],
+  "Gilbert": [
+   99681
+  ]
+ }
+}

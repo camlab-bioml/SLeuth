@@ -1,0 +1,492 @@
+Start: Mon Nov 16 17:49:55 EST 2026 | Job: 1265128 | Node: gpu3
+  python: <home>/pytorch/bin/python3
+  PCA arm: none (no PCA): siamese_sl/results/, sl_comparison/results/
+--- PCA arm none: combos from siamese_sl/results/, rows into sl_comparison/results/ ---
+--- collecting siamese_sl results (this run's pd:per_head combos: siamese_sl/results/latest_combo_<cv>.txt) ---
+[discover] siamese_sl/cv1 <- siamese_sl/results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_raw_esm2_esm1b_prot_t5_text_embed_cv1/results.json  [selected on val_auprg_any_mean, score=0.9750]
+siamese_sl/cv1: collected ['auroc', 'aupr', 'auprg', 'aupr_norm', 'baseline', 'f1', 'ndcg@10', 'ndcg@20', 'ndcg@50', 'recall@10', 'recall@20', 'recall@50', 'precision@10', 'precision@20', 'precision@50', 'map@10', 'map@20', 'map@50'] -> sl_comparison/results/siamese_sl_cv1.json  [AUPRG(any)=0.9748]
+[discover] siamese_sl/cv2 <- siamese_sl/results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_node2vec_ppi_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv2/results.json  [selected on val_auprg_any_mean, score=0.9140]
+siamese_sl/cv2: collected ['auroc', 'aupr', 'auprg', 'aupr_norm', 'baseline', 'f1', 'ndcg@10', 'ndcg@20', 'ndcg@50', 'recall@10', 'recall@20', 'recall@50', 'precision@10', 'precision@20', 'precision@50', 'map@10', 'map@20', 'map@50'] -> sl_comparison/results/siamese_sl_cv2.json  [AUPRG(any)=0.9005]
+[discover] siamese_sl/cv3 <- siamese_sl/results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/results.json  [selected on val_auprg_any_mean, score=0.8357]
+siamese_sl/cv3: collected ['auroc', 'aupr', 'auprg', 'aupr_norm', 'baseline', 'f1', 'ndcg@10', 'ndcg@20', 'ndcg@50', 'recall@10', 'recall@20', 'recall@50', 'precision@10', 'precision@20', 'precision@50', 'map@10', 'map@20', 'map@50'] -> sl_comparison/results/siamese_sl_cv3.json  [AUPRG(any)=0.8237]
+--- collecting siamese_sl_pd_pooled results (this run's combos: siamese_sl/results/var_pd_pooled__latest_combo_<cv>.txt) ---
+[discover] siamese_sl_pd_pooled/cv1 <- siamese_sl/results/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_raw_esm2_esm1b_prot_t5_text_embed_cv1/results.json  [selected on val_auprg_any_mean, score=0.9898]
+siamese_sl_pd_pooled/cv1: collected ['auroc', 'aupr', 'auprg', 'aupr_norm', 'baseline', 'f1', 'ndcg@10', 'ndcg@20', 'ndcg@50', 'recall@10', 'recall@20', 'recall@50', 'precision@10', 'precision@20', 'precision@50', 'map@10', 'map@20', 'map@50'] -> sl_comparison/results/siamese_sl_pd_pooled_cv1.json  [AUPRG(any)=0.9897]
+[discover] siamese_sl_pd_pooled/cv2 <- siamese_sl/results/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_node2vec_ppi_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv2/results.json  [selected on val_auprg_any_mean, score=0.9545]
+siamese_sl_pd_pooled/cv2: collected ['auroc', 'aupr', 'auprg', 'aupr_norm', 'baseline', 'f1', 'ndcg@10', 'ndcg@20', 'ndcg@50', 'recall@10', 'recall@20', 'recall@50', 'precision@10', 'precision@20', 'precision@50', 'map@10', 'map@20', 'map@50'] -> sl_comparison/results/siamese_sl_pd_pooled_cv2.json  [AUPRG(any)=0.9426]
+[discover] siamese_sl_pd_pooled/cv3 <- siamese_sl/results/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/results.json  [selected on val_auprg_any_mean, score=0.9149]
+siamese_sl_pd_pooled/cv3: collected ['auroc', 'aupr', 'auprg', 'aupr_norm', 'baseline', 'f1', 'ndcg@10', 'ndcg@20', 'ndcg@50', 'recall@10', 'recall@20', 'recall@50', 'precision@10', 'precision@20', 'precision@50', 'map@10', 'map@20', 'map@50'] -> sl_comparison/results/siamese_sl_pd_pooled_cv3.json  [AUPRG(any)=0.8674]
+--- collecting siamese_sl_allmod_pd_pooled results (all modalities, no selection: siamese_sl/results/allmod__<prefix>latest_allmod_<cv>.txt) ---
+[discover] siamese_sl_allmod_pd_pooled/cv1 <- siamese_sl/results/allmod__var_pd_pooled__all_modalities_cv1/results.json  [selected on val_auprg_any_mean, score=0.9901]
+siamese_sl_allmod_pd_pooled/cv1: collected ['auroc', 'aupr', 'auprg', 'aupr_norm', 'baseline', 'f1', 'ndcg@10', 'ndcg@20', 'ndcg@50', 'recall@10', 'recall@20', 'recall@50', 'precision@10', 'precision@20', 'precision@50', 'map@10', 'map@20', 'map@50'] -> sl_comparison/results/siamese_sl_allmod_pd_pooled_cv1.json  [AUPRG(any)=0.9901]
+[discover] siamese_sl_allmod_pd_pooled/cv2 <- siamese_sl/results/allmod__var_pd_pooled__all_modalities_cv2/results.json  [selected on val_auprg_any_mean, score=0.9564]
+siamese_sl_allmod_pd_pooled/cv2: collected ['auroc', 'aupr', 'auprg', 'aupr_norm', 'baseline', 'f1', 'ndcg@10', 'ndcg@20', 'ndcg@50', 'recall@10', 'recall@20', 'recall@50', 'precision@10', 'precision@20', 'precision@50', 'map@10', 'map@20', 'map@50'] -> sl_comparison/results/siamese_sl_allmod_pd_pooled_cv2.json  [AUPRG(any)=0.9444]
+[discover] siamese_sl_allmod_pd_pooled/cv3 <- siamese_sl/results/allmod__var_pd_pooled__all_modalities_cv3/results.json  [selected on val_auprg_any_mean, score=0.9061]
+siamese_sl_allmod_pd_pooled/cv3: collected ['auroc', 'aupr', 'auprg', 'aupr_norm', 'baseline', 'f1', 'ndcg@10', 'ndcg@20', 'ndcg@50', 'recall@10', 'recall@20', 'recall@50', 'precision@10', 'precision@20', 'precision@50', 'map@10', 'map@20', 'map@50'] -> sl_comparison/results/siamese_sl_allmod_pd_pooled_cv3.json  [AUPRG(any)=0.8292]
+--- collecting siamese_sl_allmod results (all modalities, no selection: siamese_sl/results/allmod__<prefix>latest_allmod_<cv>.txt) ---
+[discover] siamese_sl_allmod/cv1 <- siamese_sl/results/allmod__all_modalities_cv1/results.json  [selected on val_auprg_any_mean, score=0.9761]
+siamese_sl_allmod/cv1: collected ['auroc', 'aupr', 'auprg', 'aupr_norm', 'baseline', 'f1', 'ndcg@10', 'ndcg@20', 'ndcg@50', 'recall@10', 'recall@20', 'recall@50', 'precision@10', 'precision@20', 'precision@50', 'map@10', 'map@20', 'map@50'] -> sl_comparison/results/siamese_sl_allmod_cv1.json  [AUPRG(any)=0.9761]
+[discover] siamese_sl_allmod/cv2 <- siamese_sl/results/allmod__all_modalities_cv2/results.json  [selected on val_auprg_any_mean, score=0.9288]
+siamese_sl_allmod/cv2: collected ['auroc', 'aupr', 'auprg', 'aupr_norm', 'baseline', 'f1', 'ndcg@10', 'ndcg@20', 'ndcg@50', 'recall@10', 'recall@20', 'recall@50', 'precision@10', 'precision@20', 'precision@50', 'map@10', 'map@20', 'map@50'] -> sl_comparison/results/siamese_sl_allmod_cv2.json  [AUPRG(any)=0.9250]
+[discover] siamese_sl_allmod/cv3 <- siamese_sl/results/allmod__all_modalities_cv3/results.json  [selected on val_auprg_any_mean, score=0.8257]
+siamese_sl_allmod/cv3: collected ['auroc', 'aupr', 'auprg', 'aupr_norm', 'baseline', 'f1', 'ndcg@10', 'ndcg@20', 'ndcg@50', 'recall@10', 'recall@20', 'recall@50', 'precision@10', 'precision@20', 'precision@50', 'map@10', 'map@20', 'map@50'] -> sl_comparison/results/siamese_sl_allmod_cv3.json  [AUPRG(any)=0.8536]
+
+--- siamese_sl / cv1 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.9309 AP 0.8394 AUPRG 0.9773 NDCG@10 0.1333 (corrected 0.1263)
+  fold 1: AUROC 0.9189 AP 0.8338 AUPRG 0.9759 NDCG@10 0.0646 (corrected 0.0609)
+  fold 2: AUROC 0.9094 AP 0.8219 AUPRG 0.9727 NDCG@10 0.0614 (corrected 0.0587)
+  fold 3: AUROC 0.9133 AP 0.8171 AUPRG 0.9725 NDCG@10 0.1041 (corrected 0.0993)
+  fold 4: AUROC 0.9177 AP 0.8341 AUPRG 0.9756 NDCG@10 0.0366 (corrected 0.0341)
+
+siamese_sl(157,377)/cv1: AUROC 0.9180 | AP 0.8292 | AUPRG 0.9748 | R@50 0.4913  -> sl_comparison/results/siamese_sl_cv1.json
+  per-fold trainable params: 162,921.0 (5,884.3) over 5 folds
+
+--- siamese_sl / cv2 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.8608 AP 0.7099 AUPRG 0.9643 NDCG@10 0.1348 (corrected 0.1273)
+  fold 1: AUROC 0.8158 AP 0.6738 AUPRG 0.8808 NDCG@10 0.0311 (corrected 0.0232)
+  fold 2: AUROC 0.7878 AP 0.5450 AUPRG 0.7957 NDCG@10 0.0647 (corrected 0.0533)
+  fold 3: AUROC 0.8273 AP 0.6945 AUPRG 0.9303 NDCG@10 0.0791 (corrected 0.0670)
+  fold 4: AUROC 0.8072 AP 0.6281 AUPRG 0.9313 NDCG@10 0.0272 (corrected 0.0257)
+
+siamese_sl(180,873)/cv2: AUROC 0.8198 | AP 0.6503 | AUPRG 0.9005 | R@50 0.2437  -> sl_comparison/results/siamese_sl_cv2.json
+  per-fold trainable params: 157,509.0 (19,192.6) over 5 folds
+
+--- siamese_sl / cv3 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.6308 AP 0.3386 AUPRG 0.8532 NDCG@10 0.0000 (corrected 0.0000)
+  fold 1: AUROC 0.7114 AP 0.6061 AUPRG 0.6967 NDCG@10 0.0158 (corrected 0.0120)
+  fold 2: AUROC 0.7886 AP 0.5566 AUPRG 0.7687 NDCG@10 0.0282 (corrected 0.0181)
+  fold 3: AUROC 0.7618 AP 0.5648 AUPRG 0.8615 NDCG@10 0.0025 (corrected 0.0016)
+  fold 4: AUROC 0.7803 AP 0.5477 AUPRG 0.9384 NDCG@10 0.0400 (corrected 0.0300)
+
+siamese_sl(153,153)/cv3: AUROC 0.7346 | AP 0.5227 | AUPRG 0.8237 | R@50 0.1043  -> sl_comparison/results/siamese_sl_cv3.json
+  per-fold trainable params: 159,858.6 (16,496.0) over 5 folds
+
+--- siamese_sl_pd_pooled / cv1 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.9636 AP 0.9107 AUPRG 0.9904 NDCG@10 0.1293 (corrected 0.1256)
+  fold 1: AUROC 0.9613 AP 0.9010 AUPRG 0.9895 NDCG@10 0.0733 (corrected 0.0700)
+  fold 2: AUROC 0.9606 AP 0.9018 AUPRG 0.9895 NDCG@10 0.0811 (corrected 0.0776)
+  fold 3: AUROC 0.9621 AP 0.9089 AUPRG 0.9901 NDCG@10 0.0849 (corrected 0.0812)
+  fold 4: AUROC 0.9587 AP 0.9017 AUPRG 0.9890 NDCG@10 0.1633 (corrected 0.1549)
+
+siamese_sl_pd_pooled(156,162)/cv1: AUROC 0.9612 | AP 0.9048 | AUPRG 0.9897 | R@50 0.5880  -> sl_comparison/results/siamese_sl_pd_pooled_cv1.json
+  per-fold trainable params: 161,706.0 (5,884.3) over 5 folds
+
+--- siamese_sl_pd_pooled / cv2 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.8954 AP 0.7635 AUPRG 0.9752 NDCG@10 0.1401 (corrected 0.1325)
+  fold 1: AUROC 0.8349 AP 0.7371 AUPRG 0.9190 NDCG@10 0.0414 (corrected 0.0356)
+  fold 2: AUROC 0.8465 AP 0.6603 AUPRG 0.8992 NDCG@10 0.0970 (corrected 0.0800)
+  fold 3: AUROC 0.8853 AP 0.7634 AUPRG 0.9592 NDCG@10 0.1597 (corrected 0.1499)
+  fold 4: AUROC 0.8668 AP 0.7134 AUPRG 0.9605 NDCG@10 0.1359 (corrected 0.1186)
+
+siamese_sl_pd_pooled(179,658)/cv2: AUROC 0.8658 | AP 0.7275 | AUPRG 0.9426 | R@50 0.3140  -> sl_comparison/results/siamese_sl_pd_pooled_cv2.json
+  per-fold trainable params: 156,294.0 (19,192.6) over 5 folds
+
+--- siamese_sl_pd_pooled / cv3 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.7524 AP 0.3983 AUPRG 0.9208 NDCG@10 0.0198 (corrected 0.0125)
+  fold 1: AUROC 0.7671 AP 0.6868 AUPRG 0.8136 NDCG@10 0.0187 (corrected 0.0142)
+  fold 2: AUROC 0.7734 AP 0.5548 AUPRG 0.7855 NDCG@10 0.0219 (corrected 0.0133)
+  fold 3: AUROC 0.7874 AP 0.6093 AUPRG 0.8903 NDCG@10 0.0320 (corrected 0.0118)
+  fold 4: AUROC 0.7551 AP 0.5123 AUPRG 0.9269 NDCG@10 0.0330 (corrected 0.0205)
+
+siamese_sl_pd_pooled(151,938)/cv3: AUROC 0.7671 | AP 0.5523 | AUPRG 0.8674 | R@50 0.1284  -> sl_comparison/results/siamese_sl_pd_pooled_cv3.json
+  per-fold trainable params: 158,643.6 (16,496.0) over 5 folds
+
+--- siamese_sl_allmod_pd_pooled / cv1 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.9647 AP 0.9130 AUPRG 0.9908 NDCG@10 0.1375 (corrected 0.1323)
+  fold 1: AUROC 0.9619 AP 0.9037 AUPRG 0.9898 NDCG@10 0.1229 (corrected 0.1166)
+  fold 2: AUROC 0.9621 AP 0.9055 AUPRG 0.9900 NDCG@10 0.1581 (corrected 0.1512)
+  fold 3: AUROC 0.9622 AP 0.9092 AUPRG 0.9902 NDCG@10 0.1343 (corrected 0.1283)
+  fold 4: AUROC 0.9601 AP 0.9046 AUPRG 0.9895 NDCG@10 0.1289 (corrected 0.1230)
+
+siamese_sl_allmod_pd_pooled(320,106)/cv1: AUROC 0.9622 | AP 0.9072 | AUPRG 0.9901 | R@50 0.5911  -> sl_comparison/results/siamese_sl_allmod_pd_pooled_cv1.json
+  per-fold trainable params: 320,106.0 (0.0) over 5 folds
+
+--- siamese_sl_allmod_pd_pooled / cv2 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.8865 AP 0.7598 AUPRG 0.9736 NDCG@10 0.1061 (corrected 0.1029)
+  fold 1: AUROC 0.8066 AP 0.7036 AUPRG 0.8979 NDCG@10 0.0534 (corrected 0.0444)
+  fold 2: AUROC 0.8802 AP 0.7147 AUPRG 0.9220 NDCG@10 0.0722 (corrected 0.0572)
+  fold 3: AUROC 0.8947 AP 0.7880 AUPRG 0.9654 NDCG@10 0.1335 (corrected 0.1207)
+  fold 4: AUROC 0.8673 AP 0.7323 AUPRG 0.9631 NDCG@10 0.1747 (corrected 0.1580)
+
+siamese_sl_allmod_pd_pooled(320,106)/cv2: AUROC 0.8671 | AP 0.7397 | AUPRG 0.9444 | R@50 0.3281  -> sl_comparison/results/siamese_sl_allmod_pd_pooled_cv2.json
+  per-fold trainable params: 320,106.0 (0.0) over 5 folds
+
+--- siamese_sl_allmod_pd_pooled / cv3 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.7364 AP 0.4083 AUPRG 0.9196 NDCG@10 0.0161 (corrected 0.0161)
+  fold 1: AUROC 0.6812 AP 0.5979 AUPRG 0.6743 NDCG@10 0.0125 (corrected 0.0096)
+  fold 2: AUROC 0.7440 AP 0.4832 AUPRG 0.7073 NDCG@10 0.0410 (corrected 0.0266)
+  fold 3: AUROC 0.8208 AP 0.6635 AUPRG 0.9187 NDCG@10 0.0034 (corrected 0.0010)
+  fold 4: AUROC 0.7680 AP 0.5014 AUPRG 0.9264 NDCG@10 0.0685 (corrected 0.0406)
+
+siamese_sl_allmod_pd_pooled(320,106)/cv3: AUROC 0.7501 | AP 0.5309 | AUPRG 0.8292 | R@50 0.1051  -> sl_comparison/results/siamese_sl_allmod_pd_pooled_cv3.json
+  per-fold trainable params: 320,106.0 (0.0) over 5 folds
+
+--- siamese_sl_allmod / cv1 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.9209 AP 0.8382 AUPRG 0.9767 NDCG@10 0.1799 (corrected 0.1707)
+  fold 1: AUROC 0.9268 AP 0.8454 AUPRG 0.9787 NDCG@10 0.1313 (corrected 0.1263)
+  fold 2: AUROC 0.9290 AP 0.8383 AUPRG 0.9784 NDCG@10 0.1584 (corrected 0.1516)
+  fold 3: AUROC 0.9215 AP 0.8482 AUPRG 0.9779 NDCG@10 0.0762 (corrected 0.0723)
+  fold 4: AUROC 0.9185 AP 0.8099 AUPRG 0.9691 NDCG@10 0.0878 (corrected 0.0825)
+
+siamese_sl_allmod(321,321)/cv1: AUROC 0.9233 | AP 0.8360 | AUPRG 0.9761 | R@50 0.5513  -> sl_comparison/results/siamese_sl_allmod_cv1.json
+  per-fold trainable params: 321,321.0 (0.0) over 5 folds
+
+--- siamese_sl_allmod / cv2 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.8698 AP 0.7208 AUPRG 0.9673 NDCG@10 0.1110 (corrected 0.1071)
+  fold 1: AUROC 0.8110 AP 0.6859 AUPRG 0.8898 NDCG@10 0.0264 (corrected 0.0204)
+  fold 2: AUROC 0.8465 AP 0.6372 AUPRG 0.8809 NDCG@10 0.0399 (corrected 0.0284)
+  fold 3: AUROC 0.8393 AP 0.7171 AUPRG 0.9406 NDCG@10 0.0591 (corrected 0.0468)
+  fold 4: AUROC 0.8260 AP 0.6754 AUPRG 0.9464 NDCG@10 0.0826 (corrected 0.0724)
+
+siamese_sl_allmod(321,321)/cv2: AUROC 0.8385 | AP 0.6873 | AUPRG 0.9250 | R@50 0.2918  -> sl_comparison/results/siamese_sl_allmod_cv2.json
+  per-fold trainable params: 321,321.0 (0.0) over 5 folds
+
+--- siamese_sl_allmod / cv3 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.6744 AP 0.3667 AUPRG 0.8912 NDCG@10 0.0883 (corrected 0.0883)
+  fold 1: AUROC 0.7461 AP 0.6203 AUPRG 0.7353 NDCG@10 0.0178 (corrected 0.0122)
+  fold 2: AUROC 0.7860 AP 0.5667 AUPRG 0.7929 NDCG@10 0.0250 (corrected 0.0141)
+  fold 3: AUROC 0.7822 AP 0.6311 AUPRG 0.8985 NDCG@10 0.0101 (corrected 0.0043)
+  fold 4: AUROC 0.7913 AP 0.5945 AUPRG 0.9498 NDCG@10 0.0166 (corrected 0.0107)
+
+siamese_sl_allmod(321,321)/cv3: AUROC 0.7560 | AP 0.5559 | AUPRG 0.8536 | R@50 0.0757  -> sl_comparison/results/siamese_sl_allmod_cv3.json
+  per-fold trainable params: 321,321.0 (0.0) over 5 folds
+--- four-model comparison table (PCA arm none) ---
+PCA arm: none (no PCA)
+rows: 15 SLeuth and 18 shared-model row(s), all from sl_comparison/results
+
+==================================================================================================================================================================================
+                                                                          CV1 (edge) - model comparison                                                                           
+                                                                              PCA arm: none (no PCA)                                                                              
+==================================================================================================================================================================================
+Model                                                | AUPRG           | AP_norm         | AUROC           | AP              | AUPR[1]         | baseline        | maxF1[2]       
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+siamese_sl(162,921 mean of 5 folds)                  | 0.9748±0.0019   | 0.7938±0.0101   | 0.9180±0.0073   | 0.8292±0.0084   | 0.8292±0.0084   | 0.1720±0.0000   | 0.7580±0.0111  
+siamese_sl_nocell(157,377)                           | 0.9737±0.0027   | 0.7884±0.0140   | 0.9151±0.0083   | 0.8248±0.0116   | 0.8248±0.0116   | 0.1720±0.0000   | 0.7544±0.0120  
+siamese_sl_pd_pooled(161,706 mean of 5 folds)        | 0.9897±0.0005   | 0.8851±0.0050   | 0.9612±0.0016   | 0.9048±0.0041   | 0.9048±0.0041   | 0.1720±0.0000   | 0.8221±0.0074  
+siamese_sl_allmod(321,321 mean of 5 folds)           | 0.9761±0.0036   | 0.8019±0.0165   | 0.9233±0.0039   | 0.8360±0.0136   | 0.8360±0.0136   | 0.1720±0.0000   | 0.7614±0.0089  
+siamese_sl_allmod_pd_pooled(320,106 mean of 5 folds) | 0.9901±0.0004   | 0.8879±0.0041   | 0.9622±0.0015   | 0.9072±0.0034   | 0.9072±0.0034   | 0.1720±0.0000   | 0.8253±0.0071  
+SLMGAE(253,547,952)                                  | 0.9775±0.0005   | 0.8247±0.0042   | 0.9210±0.0021   | 0.8549±0.0035   | 0.8555±0.0034   | 0.1720±0.0000   | 0.7933±0.0067  
+SLGNN(5,219,712)                                     | 0.9859±0.0009   | 0.8612±0.0089   | 0.9493±0.0022   | 0.8850±0.0074   | 0.8850±0.0074   | 0.1720±0.0000   | 0.8084±0.0146  
+NSF4SL(469,760)                                      | 0.5296±0.0251   | 0.1889±0.0143   | 0.6286±0.0125   | 0.3284±0.0119   | 0.3283±0.0119   | 0.1720±0.0000   | 0.3363±0.0063  
+ELISL(1,063,002)                                     | 0.9355±0.0038   | 0.6348±0.0126   | 0.8431±0.0055   | 0.6976±0.0104   | 0.6976±0.0105   | 0.1720±0.0000   | 0.6331±0.0063  
+BilinearProbe(148,738 mean of 5 folds)               | 0.9834±0.0009   | 0.8427±0.0080   | 0.9459±0.0028   | 0.8697±0.0066   | 0.8697±0.0066   | 0.1720±0.0000   | 0.7917±0.0083  
+DegreePrior(0)                                       | 0.9121±0.0051   | 0.5772±0.0134   | 0.8811±0.0053   | 0.6499±0.0111   | 0.6480±0.0112   | 0.1720±0.0000   | 0.6521±0.0084  
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+AUPRG / AP_norm are baseline-anchored skill scores (random -> 0 at any
+prevalence), NOT prevalence-invariant; AUROC is the only invariant column.
+[1] AUPR is the vendored benchmark's trapezoidal auc(recall, precision)
+    (the auc(recall, precision) call in cal_metrics), kept for comparability with
+    published SLMGAE/SLGNN/NSF4SL tables. It linearly interpolates between
+    PR points, which no classifier achieves, and rewards ties: a CONSTANT
+    score matrix scores exactly (1+baseline)/2 — i.e. the `baseline`
+    column of this very table determines it, and it can exceed real
+    models' AUPR. compare.py prints the value under each CV's table; no
+    number is quoted here: an earlier footnote quoted 0.5786, the value
+    under the pre-2026-08-10 fold set, which went stale when the label
+    rule changed.
+    Report AP (average precision), which gives a constant predictor exactly
+    `baseline`.
+[2] maxF1 is the MAXIMUM F1 over the PR curve, i.e. an oracle threshold
+    chosen against the test labels (the max-F1 expression in cal_metrics).
+    It is applied identically to every model, but it is not an operating
+    point any deployed model could pick.
+    [1] here: a constant score matrix has AUPR (1+0.1720)/2 = 0.5860.
+==================================================================================================================================================================================
+
+==========================================================================================================================================================================================================================================================
+                                                                                                   CV1 (edge) - retrieval (see normalisation footnote)                                                                                                    
+                                                                                                                  PCA arm: none (no PCA)                                                                                                                  
+==========================================================================================================================================================================================================================================================
+Model                                                | R@10            | R@50            | NDCG@10         | NDCG@10c        | NDCG@50         | NDCG@50c        | MAP@10          | MAP@10c         | P@10            | P@10t           | degen-rows     
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+siamese_sl(162,921 mean of 5 folds)                  | 0.1299±0.0536   | 0.4913±0.0610   | 0.0800±0.0343   | 0.0759±0.0327   | 0.1763±0.0233   | 0.1640±0.0214   | 0.0734±0.0262   | 0.0463±0.0250   | 0.1303±0.0537   | 0.0276±0.0070   | 0.0000±0.0000  
+siamese_sl_nocell(157,377)                           | 0.1015±0.0517   | 0.4425±0.0717   | 0.0678±0.0315   | 0.0638±0.0301   | 0.1593±0.0162   | 0.1470±0.0147   | 0.0655±0.0234   | 0.0392±0.0222   | 0.1019±0.0517   | 0.0250±0.0072   | 0.0000±0.0000  
+siamese_sl_pd_pooled(161,706 mean of 5 folds)        | 0.1968±0.0610   | 0.5880±0.0218   | 0.1064±0.0345   | 0.1018±0.0329   | 0.2122±0.0199   | 0.2007±0.0188   | 0.0877±0.0278   | 0.0586±0.0243   | 0.1972±0.0609   | 0.0380±0.0076   | 0.0000±0.0000  
+siamese_sl_allmod(321,321 mean of 5 folds)           | 0.2302±0.0810   | 0.5513±0.0499   | 0.1267±0.0398   | 0.1207±0.0382   | 0.2151±0.0318   | 0.2015±0.0314   | 0.1023±0.0277   | 0.0722±0.0246   | 0.2308±0.0812   | 0.0415±0.0093   | 0.0000±0.0000  
+siamese_sl_allmod_pd_pooled(320,106 mean of 5 folds) | 0.2346±0.0136   | 0.5911±0.0097   | 0.1363±0.0120   | 0.1303±0.0117   | 0.2342±0.0179   | 0.2213±0.0174   | 0.1159±0.0207   | 0.0812±0.0183   | 0.2351±0.0136   | 0.0437±0.0023   | 0.0000±0.0000  
+SLMGAE(253,547,952)                                  | 0.3374±0.0435   | 0.5988±0.0103   | 0.1656±0.0337   | 0.1586±0.0330   | 0.2539±0.0230   | 0.2363±0.0220   | 0.1120±0.0308   | 0.0940±0.0287   | 0.3384±0.0435   | 0.0511±0.0063   | 0.0954±0.0060  
+SLGNN(5,219,712)                                     | 0.4702±0.0333   | 0.6403±0.0198   | 0.3514±0.0105   | 0.3373±0.0095   | 0.4049±0.0098   | 0.3827±0.0101   | 0.3156±0.0202   | 0.2766±0.0222   | 0.4729±0.0337   | 0.0797±0.0075   | 0.0000±0.0000  
+NSF4SL(469,760)                                      | 0.5902±0.0077   | 0.7069±0.0096   | 0.4439±0.0106   | 0.4354±0.0109   | 0.4929±0.0141   | 0.4731±0.0132   | 0.4021±0.0155   | 0.3580±0.0140   | 0.5975±0.0081   | 0.1079±0.0028   | 0.0000±0.0000  
+ELISL(1,063,002)                                     | 0.1993±0.0057   | 0.2666±0.0060   | 0.1685±0.0053   | 0.1530±0.0054   | 0.1924±0.0050   | 0.1704±0.0052   | 0.1516±0.0054   | 0.1304±0.0053   | 0.1997±0.0057   | 0.0285±0.0010   | 0.0000±0.0000  
+BilinearProbe(148,738 mean of 5 folds)               | 0.4601±0.0147   | 0.6088±0.0138   | 0.3182±0.0395   | 0.3031±0.0382   | 0.3642±0.0403   | 0.3442±0.0383   | 0.2725±0.0509   | 0.2381±0.0482   | 0.4607±0.0146   | 0.0681±0.0024   | 0.0000±0.0000  
+DegreePrior(0)                                       | 0.5431±0.0030   | 0.6713±0.0048   | 0.3881±0.0066   | 0.3761±0.0065   | 0.4399±0.0062   | 0.4196±0.0061   | 0.3383±0.0090   | 0.3049±0.0097   | 0.5444±0.0031   | 0.0772±0.0011   | 0.0000±0.0000  
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+All models rank against the SAME shared gene universe
+(sl_comparison/folds/genes.txt) on the SAME folds, siamese_sl included
+(every siamese config.json carries folds_dir=../sl_comparison/folds).
+The columns differ only in how they are NORMALISED:
+  R@k       hits@k / #relevant. Correct as published - prefer these.
+  NDCG@k    vendored: IDCG taken over the model's OWN top-100, so IDCG =
+            min(k, hits-in-top-100) instead of min(k, #relevant)
+            (cal_metrics' ndcg_score call, handed y_bool over the model's
+            own top-100). Inflated.
+  NDCG@kc   same ranking, IDCG from the true #relevant. Corrected.
+  MAP@k     vendored: AP divided by hits-in-top-k rather than
+            min(k, #relevant) (calculate_AP_at_k). Inflated more
+            than NDCG.
+  MAP@kc    same ranking, divided by min(k, #relevant). Corrected.
+  P@10      vendored: hits/min(k, #relevant) - a second copy of R@k
+            whenever #relevant <= k (cal_metrics' precision_k block),
+            not precision.
+  P@10t     true hits/k.
+The corrections usually lower scores and lower the WEAKEST retriever
+most, but not always: NDCG@kc can EXCEED NDCG@k on a row with many tied
+scores (sklearn's ndcg_score averages tied gains; the corrected DCG is
+positional). On the 2026-08-06 run they reordered no cell. See
+retrieval_metrics.py.
+degen-rows = fraction of scored test genes whose score row is CONSTANT.
+  Those genes' @k values are an arbitrary tie-break, not model output, and
+  do not reproduce across numpy versions. Any row with a non-trivial
+  degen-rows figure has a retrieval column that should not be published.
+==========================================================================================================================================================================================================================================================
+
+==================================================================================================================================================================================
+                                                                          CV2 (gene) - model comparison                                                                           
+                                                                              PCA arm: none (no PCA)                                                                              
+==================================================================================================================================================================================
+Model                                                | AUPRG           | AP_norm         | AUROC           | AP              | AUPR[1]         | baseline        | maxF1[2]       
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+siamese_sl(157,509 mean of 5 folds)                  | 0.9005±0.0588   | 0.5768±0.0784   | 0.8198±0.0242   | 0.6503±0.0594   | 0.6503±0.0594   | 0.1709±0.0302   | 0.5904±0.0605  
+siamese_sl_nocell(180,873)                           | 0.9017±0.0551   | 0.5772±0.0736   | 0.8197±0.0236   | 0.6506±0.0552   | 0.6506±0.0552   | 0.1709±0.0302   | 0.5898±0.0565  
+siamese_sl_pd_pooled(156,294 mean of 5 folds)        | 0.9426±0.0287   | 0.6704±0.0520   | 0.8658±0.0227   | 0.7275±0.0384   | 0.7275±0.0384   | 0.1709±0.0302   | 0.6502±0.0416  
+siamese_sl_allmod(321,321 mean of 5 folds)           | 0.9250±0.0337   | 0.6217±0.0448   | 0.8385±0.0198   | 0.6873±0.0305   | 0.6873±0.0305   | 0.1709±0.0302   | 0.6171±0.0319  
+siamese_sl_allmod_pd_pooled(320,106 mean of 5 folds) | 0.9444±0.0293   | 0.6848±0.0452   | 0.8671±0.0315   | 0.7397±0.0307   | 0.7397±0.0307   | 0.1709±0.0302   | 0.6707±0.0312  
+SLMGAE(253,547,952)                                  | 0.8632±0.0609   | 0.4863±0.0508   | 0.7652±0.0220   | 0.5755±0.0285   | 0.5854±0.0281   | 0.1709±0.0302   | 0.5445±0.0332  
+SLGNN(5,219,712)                                     | 0.9153±0.0424   | 0.5960±0.0485   | 0.8406±0.0188   | 0.6664±0.0297   | 0.6664±0.0297   | 0.1709±0.0302   | 0.5957±0.0317  
+NSF4SL(469,760)                                      | 0.2552±0.3022   | 0.0819±0.0918   | 0.5681±0.0800   | 0.2411±0.0550   | 0.2410±0.0550   | 0.1709±0.0302   | 0.3299±0.0283  
+ELISL(1,184,403)                                     | 0.8694±0.0384   | 0.4850±0.0358   | 0.7821±0.0075   | 0.5727±0.0351   | 0.5728±0.0351   | 0.1709±0.0302   | 0.5338±0.0254  
+BilinearProbe(143,490 mean of 5 folds)               | 0.9029±0.0536   | 0.5722±0.0660   | 0.8337±0.0329   | 0.6469±0.0442   | 0.6469±0.0442   | 0.1709±0.0302   | 0.5889±0.0384  
+DegreePrior(0)                                       | 0.6271±0.2748   | 0.3267±0.1296   | 0.6343±0.0990   | 0.4453±0.0890   | 0.4460±0.0924   | 0.1709±0.0302   | 0.4207±0.0780  
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+AUPRG / AP_norm are baseline-anchored skill scores (random -> 0 at any
+prevalence), NOT prevalence-invariant; AUROC is the only invariant column.
+[1] AUPR is the vendored benchmark's trapezoidal auc(recall, precision)
+    (the auc(recall, precision) call in cal_metrics), kept for comparability with
+    published SLMGAE/SLGNN/NSF4SL tables. It linearly interpolates between
+    PR points, which no classifier achieves, and rewards ties: a CONSTANT
+    score matrix scores exactly (1+baseline)/2 — i.e. the `baseline`
+    column of this very table determines it, and it can exceed real
+    models' AUPR. compare.py prints the value under each CV's table; no
+    number is quoted here: an earlier footnote quoted 0.5786, the value
+    under the pre-2026-08-10 fold set, which went stale when the label
+    rule changed.
+    Report AP (average precision), which gives a constant predictor exactly
+    `baseline`.
+[2] maxF1 is the MAXIMUM F1 over the PR curve, i.e. an oracle threshold
+    chosen against the test labels (the max-F1 expression in cal_metrics).
+    It is applied identically to every model, but it is not an operating
+    point any deployed model could pick.
+    [1] here: a constant score matrix has AUPR (1+0.1709)/2 = 0.5854.
+==================================================================================================================================================================================
+
+==========================================================================================================================================================================================================================================================
+                                                                                                   CV2 (gene) - retrieval (see normalisation footnote)                                                                                                    
+                                                                                                                  PCA arm: none (no PCA)                                                                                                                  
+==========================================================================================================================================================================================================================================================
+Model                                                | R@10            | R@50            | NDCG@10         | NDCG@10c        | NDCG@50         | NDCG@50c        | MAP@10          | MAP@10c         | P@10            | P@10t           | degen-rows     
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+siamese_sl(157,509 mean of 5 folds)                  | 0.1021±0.0754   | 0.2437±0.1353   | 0.0674±0.0390   | 0.0593±0.0378   | 0.1170±0.0534   | 0.0962±0.0522   | 0.0584±0.0300   | 0.0327±0.0220   | 0.1090±0.0767   | 0.0297±0.0132   | 0.0000±0.0000  
+siamese_sl_nocell(180,873)                           | 0.0919±0.0638   | 0.2408±0.1313   | 0.0630±0.0338   | 0.0550±0.0328   | 0.1144±0.0498   | 0.0936±0.0488   | 0.0567±0.0272   | 0.0308±0.0200   | 0.0989±0.0652   | 0.0275±0.0108   | 0.0000±0.0000  
+siamese_sl_pd_pooled(156,294 mean of 5 folds)        | 0.1426±0.0602   | 0.3140±0.1059   | 0.1148±0.0420   | 0.1033±0.0409   | 0.1679±0.0524   | 0.1445±0.0504   | 0.1096±0.0366   | 0.0691±0.0293   | 0.1505±0.0631   | 0.0419±0.0162   | 0.0000±0.0000  
+siamese_sl_allmod(321,321 mean of 5 folds)           | 0.0765±0.0584   | 0.2918±0.1241   | 0.0638±0.0302   | 0.0550±0.0316   | 0.1292±0.0502   | 0.1096±0.0497   | 0.0621±0.0273   | 0.0320±0.0184   | 0.0843±0.0608   | 0.0306±0.0142   | 0.0000±0.0000  
+siamese_sl_allmod_pd_pooled(320,106 mean of 5 folds) | 0.1366±0.0536   | 0.3281±0.0912   | 0.1080±0.0433   | 0.0967±0.0416   | 0.1652±0.0494   | 0.1433±0.0471   | 0.1035±0.0583   | 0.0634±0.0340   | 0.1441±0.0565   | 0.0425±0.0145   | 0.0000±0.0000  
+SLMGAE(253,547,952)                                  | 0.1243±0.0670   | 0.1771±0.0944   | 0.0812±0.0360   | 0.0677±0.0313   | 0.1033±0.0439   | 0.0830±0.0387   | 0.0594±0.0245   | 0.0388±0.0163   | 0.1270±0.0678   | 0.0287±0.0148   | 0.1765±0.0295  
+SLGNN(5,219,712)                                     | 0.1977±0.1053   | 0.2653±0.1222   | 0.1723±0.0787   | 0.1499±0.0731   | 0.2007±0.0847   | 0.1671±0.0774   | 0.1559±0.0684   | 0.1160±0.0579   | 0.2049±0.1075   | 0.0476±0.0233   | 0.0000±0.0000  
+NSF4SL(469,760)                                      | 0.2895±0.0850   | 0.3468±0.0925   | 0.2399±0.0535   | 0.2201±0.0523   | 0.2691±0.0522   | 0.2361±0.0523   | 0.2259±0.0475   | 0.1762±0.0440   | 0.2954±0.0851   | 0.0630±0.0205   | 0.0000±0.0000  
+ELISL(1,184,403)                                     | 0.0879±0.0359   | 0.1406±0.0551   | 0.0876±0.0256   | 0.0704±0.0274   | 0.1100±0.0327   | 0.0837±0.0329   | 0.0764±0.0243   | 0.0530±0.0230   | 0.0908±0.0356   | 0.0266±0.0090   | 0.0000±0.0000  
+BilinearProbe(143,490 mean of 5 folds)               | 0.2210±0.1106   | 0.3103±0.1072   | 0.1852±0.0770   | 0.1647±0.0802   | 0.2196±0.0781   | 0.1865±0.0802   | 0.1668±0.0685   | 0.1243±0.0664   | 0.2287±0.1132   | 0.0548±0.0241   | 0.0000±0.0000  
+DegreePrior(0)                                       | 0.2181±0.1202   | 0.2517±0.1304   | 0.1968±0.0838   | 0.1761±0.0807   | 0.2154±0.0901   | 0.1859±0.0845   | 0.1828±0.0701   | 0.1405±0.0616   | 0.2255±0.1218   | 0.0503±0.0247   | 0.0000±0.0000  
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+All models rank against the SAME shared gene universe
+(sl_comparison/folds/genes.txt) on the SAME folds, siamese_sl included
+(every siamese config.json carries folds_dir=../sl_comparison/folds).
+The columns differ only in how they are NORMALISED:
+  R@k       hits@k / #relevant. Correct as published - prefer these.
+  NDCG@k    vendored: IDCG taken over the model's OWN top-100, so IDCG =
+            min(k, hits-in-top-100) instead of min(k, #relevant)
+            (cal_metrics' ndcg_score call, handed y_bool over the model's
+            own top-100). Inflated.
+  NDCG@kc   same ranking, IDCG from the true #relevant. Corrected.
+  MAP@k     vendored: AP divided by hits-in-top-k rather than
+            min(k, #relevant) (calculate_AP_at_k). Inflated more
+            than NDCG.
+  MAP@kc    same ranking, divided by min(k, #relevant). Corrected.
+  P@10      vendored: hits/min(k, #relevant) - a second copy of R@k
+            whenever #relevant <= k (cal_metrics' precision_k block),
+            not precision.
+  P@10t     true hits/k.
+The corrections usually lower scores and lower the WEAKEST retriever
+most, but not always: NDCG@kc can EXCEED NDCG@k on a row with many tied
+scores (sklearn's ndcg_score averages tied gains; the corrected DCG is
+positional). On the 2026-08-06 run they reordered no cell. See
+retrieval_metrics.py.
+degen-rows = fraction of scored test genes whose score row is CONSTANT.
+  Those genes' @k values are an arbitrary tie-break, not model output, and
+  do not reproduce across numpy versions. Any row with a non-trivial
+  degen-rows figure has a retrieval column that should not be published.
+==========================================================================================================================================================================================================================================================
+
+==================================================================================================================================================================================
+                                                                     CV3 (pair/cold-start) - model comparison                                                                     
+                                                                              PCA arm: none (no PCA)                                                                              
+==================================================================================================================================================================================
+Model                                                | AUPRG           | AP_norm         | AUROC           | AP              | AUPR[1]         | baseline        | maxF1[2]       
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+siamese_sl(159,859 mean of 5 folds)                  | 0.8237±0.0832   | 0.4292±0.0779   | 0.7346±0.0584   | 0.5227±0.0942   | 0.5225±0.0943   | 0.1684±0.0662   | 0.5012±0.0771  
+siamese_sl_nocell(153,153)                           | 0.8408±0.0641   | 0.4431±0.0832   | 0.7426±0.0591   | 0.5333±0.1013   | 0.5331±0.1013   | 0.1684±0.0662   | 0.5082±0.0814  
+siamese_sl_pd_pooled(158,644 mean of 5 folds)        | 0.8674±0.0575   | 0.4666±0.0798   | 0.7671±0.0127   | 0.5523±0.0966   | 0.5521±0.0967   | 0.1684±0.0662   | 0.5092±0.0708  
+siamese_sl_allmod(321,321 mean of 5 folds)           | 0.8536±0.0779   | 0.4683±0.0889   | 0.7560±0.0438   | 0.5559±0.0972   | 0.5557±0.0972   | 0.1684±0.0662   | 0.5216±0.0830  
+siamese_sl_allmod_pd_pooled(320,106 mean of 5 folds) | 0.8292±0.1136   | 0.4371±0.0898   | 0.7501±0.0453   | 0.5309±0.0897   | 0.5307±0.0898   | 0.1684±0.0662   | 0.4936±0.0735  
+SLMGAE(253,547,952)                                  | 0.7028±0.0972   | 0.2697±0.0969   | 0.6964±0.0504   | 0.3874±0.1248   | 0.4038±0.1288   | 0.1684±0.0662   | 0.4209±0.1113  
+SLGNN(5,219,712)                                     | 0.6724±0.1345   | 0.2519±0.0519   | 0.6919±0.0156   | 0.3770±0.0746   | 0.3766±0.0748   | 0.1684±0.0662   | 0.3881±0.0810  
+NSF4SL(469,760)                                      | 0.0246±0.1634   | 0.0062±0.0231   | 0.5199±0.0463   | 0.1733±0.0699   | 0.1728±0.0699   | 0.1684±0.0662   | 0.2937±0.0904  
+ELISL(98,703)                                        | 0.7560±0.0554   | 0.3075±0.1208   | 0.7152±0.0293   | 0.4166±0.1406   | 0.4156±0.1413   | 0.1684±0.0662   | 0.4349±0.0964  
+BilinearProbe(145,768 mean of 5 folds)               | 0.7992±0.0917   | 0.3620±0.0707   | 0.7413±0.0294   | 0.4662±0.0942   | 0.4654±0.0948   | 0.1684±0.0662   | 0.4676±0.0540  
+DegreePrior(0)                                       | 0.0000±0.0000   | 0.0000±0.0000   | 0.5000±0.0000   | 0.1684±0.0662   | 0.5842±0.0331   | 0.1684±0.0662   | 0.2827±0.0970  
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+AUPRG / AP_norm are baseline-anchored skill scores (random -> 0 at any
+prevalence), NOT prevalence-invariant; AUROC is the only invariant column.
+[1] AUPR is the vendored benchmark's trapezoidal auc(recall, precision)
+    (the auc(recall, precision) call in cal_metrics), kept for comparability with
+    published SLMGAE/SLGNN/NSF4SL tables. It linearly interpolates between
+    PR points, which no classifier achieves, and rewards ties: a CONSTANT
+    score matrix scores exactly (1+baseline)/2 — i.e. the `baseline`
+    column of this very table determines it, and it can exceed real
+    models' AUPR. compare.py prints the value under each CV's table; no
+    number is quoted here: an earlier footnote quoted 0.5786, the value
+    under the pre-2026-08-10 fold set, which went stale when the label
+    rule changed.
+    Report AP (average precision), which gives a constant predictor exactly
+    `baseline`.
+[2] maxF1 is the MAXIMUM F1 over the PR curve, i.e. an oracle threshold
+    chosen against the test labels (the max-F1 expression in cal_metrics).
+    It is applied identically to every model, but it is not an operating
+    point any deployed model could pick.
+    [1] here: a constant score matrix has AUPR (1+0.1684)/2 = 0.5842.
+==================================================================================================================================================================================
+
+==========================================================================================================================================================================================================================================================
+                                                                                              CV3 (pair/cold-start) - retrieval (see normalisation footnote)                                                                                              
+                                                                                                                  PCA arm: none (no PCA)                                                                                                                  
+==========================================================================================================================================================================================================================================================
+Model                                                | R@10            | R@50            | NDCG@10         | NDCG@10c        | NDCG@50         | NDCG@50c        | MAP@10          | MAP@10c         | P@10            | P@10t           | degen-rows     
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+siamese_sl(159,859 mean of 5 folds)                  | 0.0152±0.0149   | 0.1043±0.0627   | 0.0173±0.0152   | 0.0123±0.0111   | 0.0456±0.0156   | 0.0355±0.0154   | 0.0210±0.0198   | 0.0051±0.0041   | 0.0153±0.0149   | 0.0085±0.0086   | 0.0000±0.0000  
+siamese_sl_nocell(153,153)                           | 0.0150±0.0156   | 0.0955±0.0670   | 0.0185±0.0170   | 0.0132±0.0123   | 0.0456±0.0197   | 0.0352±0.0182   | 0.0252±0.0232   | 0.0058±0.0049   | 0.0151±0.0156   | 0.0084±0.0090   | 0.0000±0.0000  
+siamese_sl_pd_pooled(158,644 mean of 5 folds)        | 0.0264±0.0078   | 0.1284±0.0994   | 0.0251±0.0062   | 0.0145±0.0031   | 0.0604±0.0237   | 0.0407±0.0226   | 0.0160±0.0051   | 0.0048±0.0016   | 0.0265±0.0077   | 0.0115±0.0049   | 0.0000±0.0000  
+siamese_sl_allmod(321,321 mean of 5 folds)           | 0.0421±0.0567   | 0.0757±0.0590   | 0.0316±0.0287   | 0.0259±0.0314   | 0.0505±0.0242   | 0.0373±0.0286   | 0.0254±0.0204   | 0.0160±0.0242   | 0.0422±0.0566   | 0.0124±0.0097   | 0.0000±0.0000  
+siamese_sl_allmod_pd_pooled(320,106 mean of 5 folds) | 0.0314±0.0264   | 0.1051±0.0580   | 0.0283±0.0236   | 0.0188±0.0137   | 0.0598±0.0219   | 0.0400±0.0162   | 0.0245±0.0207   | 0.0077±0.0054   | 0.0314±0.0264   | 0.0111±0.0091   | 0.0000±0.0000  
+SLMGAE(253,547,952)                                  | 0.0000±0.0000   | 0.0063±0.0115   | 0.0003±0.0002   | 0.0001±0.0001   | 0.0027±0.0040   | 0.0016±0.0026   | 0.0002±0.0004   | 0.0000±0.0000   | 0.0001±0.0002   | 0.0001±0.0002   | 0.2683±0.0595  
+SLGNN(5,219,712)                                     | 0.0028±0.0026   | 0.0311±0.0189   | 0.0017±0.0013   | 0.0013±0.0010   | 0.0151±0.0077   | 0.0095±0.0058   | 0.0011±0.0007   | 0.0004±0.0003   | 0.0028±0.0026   | 0.0011±0.0009   | 0.0000±0.0000  
+NSF4SL(469,760)                                      | 0.0506±0.0903   | 0.0819±0.0989   | 0.0503±0.0835   | 0.0418±0.0749   | 0.0695±0.0848   | 0.0512±0.0759   | 0.0453±0.0771   | 0.0352±0.0668   | 0.0511±0.0902   | 0.0089±0.0109   | 0.0000±0.0000  
+ELISL(98,703)                                        | 0.0253±0.0306   | 0.0540±0.0533   | 0.0276±0.0209   | 0.0168±0.0192   | 0.0404±0.0254   | 0.0246±0.0241   | 0.0206±0.0164   | 0.0106±0.0152   | 0.0255±0.0306   | 0.0060±0.0037   | 0.0000±0.0000  
+BilinearProbe(145,768 mean of 5 folds)               | 0.0705±0.1076   | 0.1158±0.1100   | 0.0545±0.0758   | 0.0441±0.0685   | 0.0761±0.0747   | 0.0579±0.0681   | 0.0447±0.0627   | 0.0292±0.0537   | 0.0706±0.1078   | 0.0153±0.0124   | 0.0000±0.0000  
+DegreePrior(0)                                       | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000   | 0.0000±0.0000  
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+All models rank against the SAME shared gene universe
+(sl_comparison/folds/genes.txt) on the SAME folds, siamese_sl included
+(every siamese config.json carries folds_dir=../sl_comparison/folds).
+The columns differ only in how they are NORMALISED:
+  R@k       hits@k / #relevant. Correct as published - prefer these.
+  NDCG@k    vendored: IDCG taken over the model's OWN top-100, so IDCG =
+            min(k, hits-in-top-100) instead of min(k, #relevant)
+            (cal_metrics' ndcg_score call, handed y_bool over the model's
+            own top-100). Inflated.
+  NDCG@kc   same ranking, IDCG from the true #relevant. Corrected.
+  MAP@k     vendored: AP divided by hits-in-top-k rather than
+            min(k, #relevant) (calculate_AP_at_k). Inflated more
+            than NDCG.
+  MAP@kc    same ranking, divided by min(k, #relevant). Corrected.
+  P@10      vendored: hits/min(k, #relevant) - a second copy of R@k
+            whenever #relevant <= k (cal_metrics' precision_k block),
+            not precision.
+  P@10t     true hits/k.
+The corrections usually lower scores and lower the WEAKEST retriever
+most, but not always: NDCG@kc can EXCEED NDCG@k on a row with many tied
+scores (sklearn's ndcg_score averages tied gains; the corrected DCG is
+positional). On the 2026-08-06 run they reordered no cell. See
+retrieval_metrics.py.
+degen-rows = fraction of scored test genes whose score row is CONSTANT.
+  Those genes' @k values are an arbitrary tie-break, not model output, and
+  do not reproduce across numpy versions. Any row with a non-trivial
+  degen-rows figure has a retrieval column that should not be published.
+==========================================================================================================================================================================================================================================================
+
+PARAMETER COUNTS (the number in each model's label)
+  Counted identically for all rows by model_params.count_parameters: every
+  torch parameter with requires_grad=True at model-construction time.
+  Caveats a reader will otherwise draw the wrong conclusion from:
+   - SLMGAE's count is dominated by a (3, n_genes, n_genes) attention block
+     (234,649,008 of 253,547,952 = 92.6%). Gradient reaches it only at
+     training-edge positions, so ~96% of the total never updates; its
+     effective trained size is ~10.7M, not 253.5M.
+   - siamese_sl's count EXCLUDES its frozen input feature matrix (n_genes x k,
+     the pretrained embeddings after the PCA arm's PCA), which is an input,
+     not a parameter. k is the encoder's input width: in PCA arm none (no
+     PCA) the concatenated width of the selected modalities, which moves with
+     the selection (4,424-4,864 on the sets selected so far, i.e. ~86-94M
+     values at n_genes = 19,397); in arms joint, per_modality and both the
+     width the PCA keeps, which a variance target resolves per fold (train.py
+     logs it; an exact PCA_JOINT_DIM fixes the joint PCA's). This run's k is
+     fold_metrics[].input_dim in each combo's results.json.
+   - A siamese_sl label reads "<n> mean of <K> folds" (k, hence the entry
+     layer, differs by fold under a variance-target PCA; in arm none every
+     fold has the same count): the per-fold mean, also the CSV row
+     trainable_params_fold (mean, population sd). Its CSV trainable_params /
+     total_params rows are the LAST fold's count only (model_params.json is
+     rewritten at every fold start), as is the label of a siamese row with no
+     per-fold counts. Quote the mean.
+   - BilinearProbe's count is W (latent x k, k the fold's input width, as
+     for siamese_sl) plus tau and b; its label is the per-fold mean, like a
+     siamese_sl row's (run_probe.sh writes trainable_params_fold_*).
+  DegreePrior(0) is exact: it has no parameters at all.
+
+UPSTREAM INPUTS (as the authors ship them, kept on purpose and not
+corrected; each carries a label-derived signal - see sl_comparison/README.md)
+  SLGNN: SynLethKG kg2id.txt (SLGNN repo @ c56e23fbd20e) ships without the
+    SL / SR / non-SL relations AND without every other gene-gene edge
+    (INTERACTS, REGULATES, COVARIES) between genes SynLethKG labels SL:
+    all 1,251 non-label triples missing from it lie on SL pairs. On the
+    shared folds a direct KG edge joins 0.37% of positive pairs (83 of
+    22,166) and 2.38% of negatives (2,542 of 106,704), so in SLGNN's
+    input a direct edge correlates with non-SL, for val and test pairs
+    too.
+  SLMGAE: its GO-BP / GO-CC / PPI support views cover only the 6,375 genes of
+    List_Proteins_in_SL.txt, the gene set of the SynLethDB v1 SL pairs
+    (4,587 of the 8,844 shared genes; the rest get all-zero view
+    rows). 73.1% of genes in any positive pair have a view row against
+    20.7% of negative-only genes, so coverage alone is predictive: the
+    number of a pair's genes with a view row scores cv3 test AUROC
+    0.60-0.74 per fold (cv2 0.67-0.72). A gene with no training
+    positive and no view row gets an exactly-zero embedding: SLMGAE's
+    constant score rows (degen-rows).
+
+MODEL SELECTION REGIME
+  n/a (no training, no selection): DegreePrior/cv1, DegreePrior/cv2, DegreePrior/cv3
+  val: BilinearProbe/cv1, BilinearProbe/cv2, BilinearProbe/cv3, ELISL/cv1, ELISL/cv2, ELISL/cv3, NSF4SL/cv1, NSF4SL/cv2, NSF4SL/cv3, SLGNN/cv1, SLGNN/cv2, SLGNN/cv3, SLMGAE/cv1, SLMGAE/cv2, SLMGAE/cv3, siamese_sl/cv1, siamese_sl/cv2, siamese_sl/cv3, siamese_sl_allmod/cv1, siamese_sl_allmod/cv2, siamese_sl_allmod/cv3, siamese_sl_allmod_pd_pooled/cv1, siamese_sl_allmod_pd_pooled/cv2, siamese_sl_allmod_pd_pooled/cv3, siamese_sl_nocell/cv1, siamese_sl_nocell/cv2, siamese_sl_nocell/cv3, siamese_sl_pd_pooled/cv1, siamese_sl_pd_pooled/cv2, siamese_sl_pd_pooled/cv3
+
+TRAINING SEED (model_params.json; not the fold seed)
+  42: BilinearProbe/cv1, BilinearProbe/cv2, BilinearProbe/cv3, ELISL/cv1, ELISL/cv2, ELISL/cv3, NSF4SL/cv1, NSF4SL/cv2, NSF4SL/cv3, SLGNN/cv1, SLGNN/cv2, SLGNN/cv3, SLMGAE/cv1, SLMGAE/cv2, SLMGAE/cv3, siamese_sl/cv1, siamese_sl/cv2, siamese_sl/cv3, siamese_sl_allmod/cv1, siamese_sl_allmod/cv2, siamese_sl_allmod/cv3, siamese_sl_allmod_pd_pooled/cv1, siamese_sl_allmod_pd_pooled/cv2, siamese_sl_allmod_pd_pooled/cv3, siamese_sl_nocell/cv1, siamese_sl_nocell/cv2, siamese_sl_nocell/cv3, siamese_sl_pd_pooled/cv1, siamese_sl_pd_pooled/cv2, siamese_sl_pd_pooled/cv3
+  UNRECORDED: DegreePrior/cv1, DegreePrior/cv2, DegreePrior/cv3
+
+LABEL SEMANTICS (what POSITIVE means, and what each siamese row scores)
+  siamese_sl, siamese_sl_allmod: OR-collapse: a pair is POSITIVE if it is SL in ANY of the 8 cell-line heads. Since 2026-08-10 the shared folds use the SAME rule (conflict_policy=or_collapse: positive if any screen called it SL in any line, negative only if every screen called it non-SL), so this row and the SLGNN / NSF4SL / SLMGAE / DegreePrior rows are graded on an identical positive set — including the 5,542 pairs screened both ways, which every row now counts as positive. What still differs is the SCORE: siamese emits 8 per-head logits collapsed by max, the others emit one score for the unlabelled relation.
+  siamese_sl_allmod_pd_pooled, siamese_sl_pd_pooled: OR-collapse: a pair is POSITIVE if it is SL in ANY cell line — the shared folds' conflict_policy=or_collapse label, identical to the SLGNN / NSF4SL / SLMGAE / DegreePrior rows. This siamese variant (--cell_lines pooled) is TRAINED on that label directly: one head, no cell-line embedding, one score per pair, like the other models.
+
+SELECTION BUDGET (asymmetric across rows — disclose in methods)
+  siamese_sl_allmod/cv1, siamese_sl_allmod/cv2, siamese_sl_allmod/cv3, siamese_sl_allmod_pd_pooled/cv1, siamese_sl_allmod_pd_pooled/cv2, siamese_sl_allmod_pd_pooled/cv3: NO modality selection, every catalog embedding in every fold (16: geneformer, scgpt, gene2vec, esm2, esm1b, prot_t5, text_embed, bioconceptvec, node2vec_ppi, ppi_svd, ppi_raw, mashup, go, go2vec, onto2vec, kg_complex; not generated, optional: esmc, scprint, seqvec). The same pairs as the selected combo (its selection split is held out of training too, and chooses nothing).
+  siamese modalities of cv1, selected PER FOLD, shared by siamese_sl/cv1, siamese_sl_pd_pooled/cv1: expression: fold 0 geneformer, fold 1 scgpt, fold 2 scgpt, fold 3 geneformer, fold 4 scgpt; go: fold 0 go2vec, fold 1 go2vec, fold 2 go, fold 3 go2vec, fold 4 go2vec; kg: fold 0 kg_complex, fold 1 kg_complex, fold 2 kg_complex, fold 3 kg_complex, fold 4 kg_complex; ppi: fold 0 ppi_raw, fold 1 ppi_raw, fold 2 ppi_raw, fold 3 ppi_raw, fold 4 ppi_raw; protein_seq: fold 0 prot_t5, fold 1 esm1b, fold 2 esm2, fold 3 prot_t5, fold 4 esm1b; text: fold 0 text_embed, fold 1 text_embed, fold 2 text_embed, fold 3 text_embed, fold 4 text_embed. Each fold's pick per category is the argmax of AUPRG_any on that fold's own selection split (a random 0.1 of its TRAINING pairs, never trained on; seed 42) over the single-embedding runs trained as pd:pooled; the combo trains each fold on its own picks (embeddings picked per fold: esm1b x2, esm2 x1, geneformer x2, go x1, go2vec x4, kg_complex x5, ppi_raw x5, prot_t5 x2, scgpt x3, text_embed x5). Leakage-free per fold: no fold's test pairs reached its own choice.
+      not ranked, embedding file never generated: esmc, scprint, seqvec.
+  siamese modalities of cv2, selected PER FOLD, shared by siamese_sl/cv2, siamese_sl_pd_pooled/cv2: expression: fold 0 geneformer, fold 1 scgpt, fold 2 geneformer, fold 3 geneformer, fold 4 geneformer; go: fold 0 go, fold 1 go, fold 2 go, fold 3 go2vec, fold 4 go; kg: fold 0 kg_complex, fold 1 kg_complex, fold 2 kg_complex, fold 3 kg_complex, fold 4 kg_complex; ppi: fold 0 mashup, fold 1 node2vec_ppi, fold 2 ppi_raw, fold 3 node2vec_ppi, fold 4 ppi_raw; protein_seq: fold 0 esm1b, fold 1 esm1b, fold 2 prot_t5, fold 3 prot_t5, fold 4 esm1b; text: fold 0 text_embed, fold 1 text_embed, fold 2 text_embed, fold 3 text_embed, fold 4 text_embed. Each fold's pick per category is the argmax of AUPRG_any on that fold's own selection split (a random 0.1 of its TRAINING pairs, never trained on; seed 42) over the single-embedding runs trained as pd:pooled; the combo trains each fold on its own picks (embeddings picked per fold: esm1b x3, geneformer x4, go x4, go2vec x1, kg_complex x5, mashup x1, node2vec_ppi x2, ppi_raw x2, prot_t5 x2, scgpt x1, text_embed x5). Leakage-free per fold: no fold's test pairs reached its own choice.
+      not ranked, embedding file never generated: esmc, scprint, seqvec.
+  siamese modalities of cv3, selected PER FOLD, shared by siamese_sl/cv3, siamese_sl_pd_pooled/cv3: expression: fold 0 scgpt, fold 1 geneformer, fold 2 geneformer, fold 3 geneformer, fold 4 geneformer; go: fold 0 go2vec, fold 1 go, fold 2 go, fold 3 go2vec, fold 4 go2vec; kg: fold 0 kg_complex, fold 1 kg_complex, fold 2 kg_complex, fold 3 kg_complex, fold 4 kg_complex; ppi: fold 0 mashup, fold 1 ppi_raw, fold 2 mashup, fold 3 ppi_raw, fold 4 ppi_svd; protein_seq: fold 0 prot_t5, fold 1 prot_t5, fold 2 esm1b, fold 3 esm1b, fold 4 esm1b; text: fold 0 text_embed, fold 1 text_embed, fold 2 text_embed, fold 3 text_embed, fold 4 text_embed. Each fold's pick per category is the argmax of AUPRG_any on that fold's own selection split (a random 0.1 of its TRAINING pairs, never trained on; seed 42) over the single-embedding runs trained as pd:pooled; the combo trains each fold on its own picks (embeddings picked per fold: esm1b x3, geneformer x4, go x2, go2vec x3, kg_complex x5, mashup x2, ppi_raw x2, ppi_svd x1, prot_t5 x2, scgpt x1, text_embed x5). Leakage-free per fold: no fold's test pairs reached its own choice.
+      not ranked, embedding file never generated: esmc, scprint, seqvec.
+  siamese_sl_nocell/cv1, siamese_sl_nocell/cv2, siamese_sl_nocell/cv3: no selection record (a pinned, single-candidate or derived row, or a selection file that did not match its combo; see the collect log) — how this configuration was chosen is NOT disclosed here.
+  Every other row is a single fixed configuration (no sweep).
+
+PROVENANCE: all rows scored on one fold set (genes.txt 42ff034debb48f84, all_pos.npy 20be58a407d6aa9a, meta.json 1a5aa49fb909a0e1).
+
+Tidy CSV -> sl_comparison/results/comparison.csv
+Caveats   -> sl_comparison/results/comparison_notes.txt
+--- rows: 21 of 21 present (sl_comparison/results/<row>_<cv>.json) ---
+Done: Mon Nov 16 17:51:54 EST 2026

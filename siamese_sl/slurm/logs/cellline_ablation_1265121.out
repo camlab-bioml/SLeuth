@@ -1,0 +1,211 @@
+============================================================================
+Job: cellline_ablation | ID: 1265121 | Node: gpu3
+PCA arm: none (no PCA) | results: results/
+Start: Mon Nov 16 17:47:41 EST 2026
+NVIDIA L40, 46068 MiB, 805 MiB
+NVIDIA L40, 46068 MiB, 847 MiB
+NVIDIA L40, 46068 MiB, 0 MiB
+NVIDIA L40, 46068 MiB, 687 MiB
+============================================================================
+
+PCA arm: none (no PCA): combos of results/, rows -> sl_comparison/results/
+Variants: pd:pooled pd:per_head   CVs: cv1 cv2 cv3
+USE_CELL_LINES=1
+
+============================================================================
+Variant pd:pooled  (row siamese_sl_pd_pooled_nocell, prefix 'var_pd_pooled__')
+============================================================================
+N/A: pd:pooled has no cell-line embedding (pooled); its combo is
+     the retrained no-cell-line counterpart of the per_head variant.
+
+============================================================================
+Variant pd:per_head  (row siamese_sl_nocell, prefix '')
+============================================================================
+  cv1: results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_raw_esm2_esm1b_prot_t5_text_embed_cv1
+  cv2: results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_node2vec_ppi_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv2
+  cv3: results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3
+
+device: cuda
+=== cv1: results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_raw_esm2_esm1b_prot_t5_text_embed_cv1 ===
+  loading raw embeddings:
+    all_genes_geneformer.pt
+    all_genes_scgpt.pt
+    all_genes_go.pt
+    all_genes_go2vec.pt
+    all_genes_kg_complex.pt
+    all_genes_ppi_raw.pt
+    all_genes_esm2.pt
+    all_genes_esm1b.pt
+    all_genes_prot_t5.pt
+    all_genes_text_embed.pt
+    19,397 genes, dims [1152, 512, 200, 128, 512, 1024, 1280, 1280, 1024, 1024]
+  gene map: 8,844/8,844 shared genes present in the model's universe
+    fold 0: n=25,775 pi=0.1720  as-trained: AUPRG +0.9773  cell_emb=0: AUPRG +0.9773  [self-check ok]
+    fold 1: n=25,774 pi=0.1720  as-trained: AUPRG +0.9759  cell_emb=0: AUPRG +0.9751  [self-check ok]
+    fold 2: n=25,774 pi=0.1720  as-trained: AUPRG +0.9727  cell_emb=0: AUPRG +0.9713  [self-check ok]
+    fold 3: n=25,774 pi=0.1720  as-trained: AUPRG +0.9725  cell_emb=0: AUPRG +0.9700  [self-check ok]
+    fold 4: n=25,773 pi=0.1720  as-trained: AUPRG +0.9756  cell_emb=0: AUPRG +0.9748  [self-check ok]
+  Trainable parameters: 157,377 (total 157,377) [SiameseSLMultiCell]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+    wrote results/cellline_ablation_cv1/model_params.json
+    wrote results/cellline_ablation_cv1/results.json
+
+=== cv2: results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_node2vec_ppi_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv2 ===
+  loading raw embeddings:
+    all_genes_geneformer.pt
+    all_genes_scgpt.pt
+    all_genes_go.pt
+    all_genes_go2vec.pt
+    all_genes_kg_complex.pt
+    all_genes_node2vec_ppi.pt
+    all_genes_ppi_raw.pt
+    all_genes_mashup.pt
+    all_genes_esm1b.pt
+    all_genes_prot_t5.pt
+    all_genes_text_embed.pt
+    19,397 genes, dims [1152, 512, 200, 128, 512, 128, 1024, 500, 1280, 1024, 1024]
+  gene map: 8,844/8,844 shared genes present in the model's universe
+    fold 0: n=45,753 pi=0.1317  as-trained: AUPRG +0.9643  cell_emb=0: AUPRG +0.9643  [self-check ok]
+    fold 1: n=48,630 pi=0.2135  as-trained: AUPRG +0.8808  cell_emb=0: AUPRG +0.8752  [self-check ok]
+    fold 2: n=50,538 pi=0.1925  as-trained: AUPRG +0.7957  cell_emb=0: AUPRG +0.8075  [self-check ok]
+    fold 3: n=41,812 pi=0.1726  as-trained: AUPRG +0.9303  cell_emb=0: AUPRG +0.9302  [self-check ok]
+    fold 4: n=45,250 pi=0.1440  as-trained: AUPRG +0.9313  cell_emb=0: AUPRG +0.9313  [self-check ok]
+  Trainable parameters: 180,873 (total 180,873) [SiameseSLMultiCell]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+    wrote results/cellline_ablation_cv2/model_params.json
+    wrote results/cellline_ablation_cv2/results.json
+
+=== cv3: results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3 ===
+  loading raw embeddings:
+    all_genes_geneformer.pt
+    all_genes_scgpt.pt
+    all_genes_go.pt
+    all_genes_go2vec.pt
+    all_genes_kg_complex.pt
+    all_genes_ppi_svd.pt
+    all_genes_ppi_raw.pt
+    all_genes_mashup.pt
+    all_genes_esm1b.pt
+    all_genes_prot_t5.pt
+    all_genes_text_embed.pt
+    19,397 genes, dims [1152, 512, 200, 128, 512, 256, 1024, 500, 1280, 1024, 1024]
+  gene map: 8,844/8,844 shared genes present in the model's universe
+    fold 0: n=5,006 pi=0.0843  as-trained: AUPRG +0.8532  cell_emb=0: AUPRG +0.8532  [self-check ok]
+    fold 1: n=5,689 pi=0.2640  as-trained: AUPRG +0.6967  cell_emb=0: AUPRG +0.7443  [self-check ok]
+    fold 2: n=6,142 pi=0.2128  as-trained: AUPRG +0.7687  cell_emb=0: AUPRG +0.8069  [self-check ok]
+    fold 3: n=4,111 pi=0.1730  as-trained: AUPRG +0.8615  cell_emb=0: AUPRG +0.8615  [self-check ok]
+    fold 4: n=4,809 pi=0.1077  as-trained: AUPRG +0.9384  cell_emb=0: AUPRG +0.9383  [self-check ok]
+  Trainable parameters: 153,153 (total 153,153) [SiameseSLMultiCell]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+    wrote results/cellline_ablation_cv3/model_params.json
+    wrote results/cellline_ablation_cv3/results.json
+
+==============================================================================
+POST-HOC CELL-LINE ABLATION — mean (population sd) over folds
+==============================================================================
+
+cv1  (5 folds, status ok)
+  row                                         AUROC               AP            AUPRG
+  as-trained                        +0.9180 (0.007)  +0.8292 (0.008)  +0.9748 (0.002)
+  cell_emb=0                        +0.9151 (0.008)  +0.8248 (0.012)  +0.9737 (0.003)
+  cell_emb=0 +bias=0                +0.9178 (0.007)  +0.8281 (0.011)  +0.9746 (0.002)
+  cell_emb=0 +head_proj_bias=mean   +0.9152 (0.006)  +0.7939 (0.030)  +0.9678 (0.007)
+  cell_emb=0 +head_proj_bias=0      +0.9244 (0.006)  +0.8256 (0.009)  +0.9754 (0.002)
+  ------------------------------------------------------------------------------------
+  Δ cell_emb=0                              -0.0029          -0.0044          -0.0011
+  Δ cell_emb=0 +bias=0                      -0.0002          -0.0011          -0.0002
+  Δ cell_emb=0 +head_proj_bias=mean          -0.0028          -0.0354          -0.0070
+  Δ cell_emb=0 +head_proj_bias=0            +0.0064          -0.0036          +0.0006
+  (Δ is the mean paired per-fold change vs as-trained)
+  Note: the heads still differ after cell_emb=0 through head_proj_bias (per-head c_h),
+        so cell_emb=0 does not make them identical and the +bias=0 row can differ
+        from it. The +head_proj_bias rows remove c_h's head identity (=mean) or c_h
+        itself (=0).
+  self-check vs results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_raw_esm2_esm1b_prot_t5_text_embed_cv1/results.json: ok
+
+cv2  (5 folds, status ok)
+  row                                         AUROC               AP            AUPRG
+  as-trained                        +0.8198 (0.024)  +0.6503 (0.059)  +0.9005 (0.059)
+  cell_emb=0                        +0.8197 (0.024)  +0.6506 (0.055)  +0.9017 (0.055)
+  cell_emb=0 +bias=0                +0.8226 (0.022)  +0.6546 (0.054)  +0.9045 (0.053)
+  cell_emb=0 +head_proj_bias=mean   +0.8059 (0.027)  +0.5953 (0.054)  +0.8777 (0.045)
+  cell_emb=0 +head_proj_bias=0      +0.8025 (0.049)  +0.6036 (0.078)  +0.8814 (0.044)
+  ------------------------------------------------------------------------------------
+  Δ cell_emb=0                              -0.0001          +0.0003          +0.0012
+  Δ cell_emb=0 +bias=0                      +0.0028          +0.0043          +0.0041
+  Δ cell_emb=0 +head_proj_bias=mean          -0.0139          -0.0549          -0.0228
+  Δ cell_emb=0 +head_proj_bias=0            -0.0173          -0.0466          -0.0191
+  (Δ is the mean paired per-fold change vs as-trained)
+  Note: the heads still differ after cell_emb=0 through head_proj_bias (per-head c_h),
+        so cell_emb=0 does not make them identical and the +bias=0 row can differ
+        from it. The +head_proj_bias rows remove c_h's head identity (=mean) or c_h
+        itself (=0).
+  self-check vs results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_node2vec_ppi_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv2/results.json: ok
+
+cv3  (5 folds, status ok)
+  row                                         AUROC               AP            AUPRG
+  as-trained                        +0.7346 (0.058)  +0.5227 (0.094)  +0.8237 (0.083)
+  cell_emb=0                        +0.7426 (0.059)  +0.5333 (0.101)  +0.8408 (0.064)
+  cell_emb=0 +bias=0                +0.7437 (0.061)  +0.5358 (0.104)  +0.8426 (0.063)
+  cell_emb=0 +head_proj_bias=mean   +0.7322 (0.031)  +0.4931 (0.075)  +0.8051 (0.085)
+  cell_emb=0 +head_proj_bias=0      +0.7602 (0.044)  +0.5490 (0.099)  +0.8595 (0.056)
+  ------------------------------------------------------------------------------------
+  Δ cell_emb=0                              +0.0081          +0.0106          +0.0171
+  Δ cell_emb=0 +bias=0                      +0.0092          +0.0131          +0.0189
+  Δ cell_emb=0 +head_proj_bias=mean          -0.0024          -0.0296          -0.0186
+  Δ cell_emb=0 +head_proj_bias=0            +0.0256          +0.0262          +0.0358
+  (Δ is the mean paired per-fold change vs as-trained)
+  Note: the heads still differ after cell_emb=0 through head_proj_bias (per-head c_h),
+        so cell_emb=0 does not make them identical and the +bias=0 row can differ
+        from it. The +head_proj_bias rows remove c_h's head identity (=mean) or c_h
+        itself (=0).
+  self-check vs results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/results.json: ok
+
+ablated checkpoints -> results/cellline_ablation_<cv>/checkpoints/
+grade the matrices with cell_line_ablation/grade.sh
+  python: <home>/pytorch/bin/python3
+
+--- siamese_sl_nocell / cv1 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.9295 AP 0.8388 AUPRG 0.9773 NDCG@10 0.1104 (corrected 0.1040)
+  fold 1: AUROC 0.9168 AP 0.8309 AUPRG 0.9751 NDCG@10 0.0487 (corrected 0.0450)
+  fold 2: AUROC 0.9055 AP 0.8173 AUPRG 0.9713 NDCG@10 0.0492 (corrected 0.0467)
+  fold 3: AUROC 0.9084 AP 0.8061 AUPRG 0.9700 NDCG@10 0.1003 (corrected 0.0953)
+  fold 4: AUROC 0.9153 AP 0.8308 AUPRG 0.9748 NDCG@10 0.0306 (corrected 0.0282)
+
+siamese_sl_nocell(157,377)/cv1: AUROC 0.9151 | AP 0.8248 | AUPRG 0.9737 | R@50 0.4425  -> sl_comparison/results/siamese_sl_nocell_cv1.json
+
+--- siamese_sl_nocell / cv2 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.8617 AP 0.7089 AUPRG 0.9643 NDCG@10 0.1190 (corrected 0.1122)
+  fold 1: AUROC 0.8092 AP 0.6665 AUPRG 0.8752 NDCG@10 0.0310 (corrected 0.0230)
+  fold 2: AUROC 0.7932 AP 0.5550 AUPRG 0.8075 NDCG@10 0.0588 (corrected 0.0468)
+  fold 3: AUROC 0.8272 AP 0.6945 AUPRG 0.9302 NDCG@10 0.0792 (corrected 0.0672)
+  fold 4: AUROC 0.8071 AP 0.6281 AUPRG 0.9313 NDCG@10 0.0272 (corrected 0.0257)
+
+siamese_sl_nocell(180,873)/cv2: AUROC 0.8197 | AP 0.6506 | AUPRG 0.9017 | R@50 0.2408  -> sl_comparison/results/siamese_sl_nocell_cv2.json
+
+--- siamese_sl_nocell / cv3 (shared evaluator, 5 folds) ---
+  fold 0: AUROC 0.6308 AP 0.3385 AUPRG 0.8532 NDCG@10 0.0000 (corrected 0.0000)
+  fold 1: AUROC 0.7413 AP 0.6297 AUPRG 0.7443 NDCG@10 0.0139 (corrected 0.0107)
+  fold 2: AUROC 0.7990 AP 0.5871 AUPRG 0.8069 NDCG@10 0.0327 (corrected 0.0212)
+  fold 3: AUROC 0.7618 AP 0.5648 AUPRG 0.8615 NDCG@10 0.0025 (corrected 0.0016)
+  fold 4: AUROC 0.7804 AP 0.5464 AUPRG 0.9383 NDCG@10 0.0434 (corrected 0.0327)
+
+siamese_sl_nocell(153,153)/cv3: AUROC 0.7426 | AP 0.5333 | AUPRG 0.8408 | R@50 0.0955  -> sl_comparison/results/siamese_sl_nocell_cv3.json
+
+============================================================================
+graded 3 cv(s), 0 skipped/failed
+
+To fold the new row into the full four-model table, rerun
+  sl_comparison/slurm/run_compare.sh (with this arm's PCA_ARM exported): it
+  reads the SLeuth rows of sl_comparison/results and the shared models' rows of
+  sl_comparison/results.
+
+NOTE: do NOT run sl_comparison/collect_siamese.py to pick this up.
+      It reads only the combos named by the latest_combo_<cv>.txt markers, and
+      this ablation's results.json has no summary, so it is never collected.
+============================================================================
+
+============================================================================
+cell-line ablation: 3 of 3 applicable row(s) graded
+Completed at: Mon Nov 16 17:49:29 EST 2026
+============================================================================

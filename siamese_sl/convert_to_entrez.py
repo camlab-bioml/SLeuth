@@ -1,19 +1,32 @@
 #!/usr/bin/env python3
 """
-One-time conversion of all data files from gene symbols to NCBI Entrez Gene IDs.
+One-time conversion of siamese data files from gene symbols to NCBI Entrez
+Gene IDs. The migration has already been applied: download_synlethdb.py and
+generate_embeddings.py now write Entrez IDs directly, so on the current data
+every file below is detected as already Entrez-keyed and skipped. A file is
+Entrez-keyed when at least half its ids are all-digit (the rule
+data_loader.load_single_embedding uses); converting one would map every id
+through the symbol table, find nothing and write the file back empty.
 
-Converts:
-  1. data/List_Proteins_in_SL.txt  (gene list)
-  2. data/SL_Human_Approved.txt    (SL pairs with scores)
-  3. data/SL_SynLethDB_experimental.txt  (SL pairs)
-  4. data/SL_SynLethDB_experimental.sources.tsv  (SL pairs with sources)
-  5. data/computational_pairs.txt  (gene pairs with header)
-  6. data/all_genes_esm2.genes.txt  (gene list)
-  7. data/all_genes_*.pt  (18 .pt embedding files: gene_order + gene_to_idx)
-  8. data/embeddings_esm2_t33_650M_UR50D_meanpool.pt  (legacy ESM)
+Converts (when still symbol-keyed):
+  1. data/all_genes_esm2.genes.txt  (gene list)
+  2. data/SL_SynLethDB_experimental.txt  (SL pairs)
+  3. data/SL_SynLethDB_experimental.sources.tsv  (SL pairs with sources)
+  4. data/all_genes_*.pt  (embedding files: gene_order + gene_to_idx)
+
+Never converted: SLMGAE's native inputs List_Proteins_in_SL.txt,
+SL_Human_Approved.txt, computational_pairs.txt and
+embeddings_esm2_t33_650M_UR50D_meanpool.pt. They stay in symbol space.
+List_Proteins_in_SL.txt is the 6,375-row index of the support views, so
+dropping or merging rows would shift every similarity row;
+SLMGAE-in-pytorch/train_slmgae_shared.load_lp_genes maps it to Entrez at load
+time, one entry per row. The other three share its symbol space: the
+SL_Human_Approved.txt pairs and the legacy ESM gene_order are looked up in it,
+and original_tensorflow_code/utils.py compares computational_pairs.txt against
+SL_Human_Approved.txt.
 
 Pipeline per file:
-  1. Read gene symbols
+  1. Read gene ids; skip the file if they are already Entrez IDs
   2. Apply gene name correction (custom + HGNC normalization)
   3. Map to Entrez Gene ID
   4. Drop genes that can't be mapped (with warning)
@@ -47,6 +60,12 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 BACKUP_DIR = DATA_DIR / "_backup_symbols"
 
 
+def _already_entrez(ids: List[str]) -> bool:
+    """True when at least half the non-empty ids are all-digit Entrez IDs."""
+    ids = [g for g in ids if g]
+    return bool(ids) and sum(g.isdigit() for g in ids) >= 0.5 * len(ids)
+
+
 def backup(path: Path, dry_run: bool) -> None:
     """Copy original file to backup dir."""
     if dry_run:
@@ -58,12 +77,18 @@ def backup(path: Path, dry_run: bool) -> None:
         shutil.copy2(path, dst)
 
 
-def convert_gene_list(path: Path, mapper, dry_run: bool) -> None:
-    """Convert a file with one gene symbol per line to Entrez IDs."""
+def convert_gene_list(path: Path, mapper, dry_run: bool) -> bool:
+    """Convert a file with one gene symbol per line to Entrez IDs.
+
+    Returns True when the file is (or, under dry_run, would be) rewritten.
+    """
     print(f"\n--- {path.relative_to(DATA_DIR)} ---")
     with open(path) as f:
         symbols = [line.strip() for line in f if line.strip()]
     print(f"  Input: {len(symbols)} genes")
+    if _already_entrez(symbols):
+        print("  already Entrez IDs, skipped")
+        return False
 
     entrez_ids = []
     dropped = []
@@ -91,24 +116,26 @@ def convert_gene_list(path: Path, mapper, dry_run: bool) -> None:
 
     if dry_run:
         print(f"  [DRY RUN] Would write {len(entrez_ids)} Entrez IDs")
-        return
+        return True
 
     backup(path, dry_run)
     with open(path, 'w') as f:
         for eid in entrez_ids:
             f.write(f"{eid}\n")
     print(f"  Written: {len(entrez_ids)} Entrez IDs")
+    return True
 
 
 def convert_pair_file(path: Path,
                       mapper,
                       dry_run: bool,
-                      has_header: bool = False) -> None:
+                      has_header: bool = False) -> bool:
     """Convert a tab-separated gene pair file to Entrez IDs.
 
     Handles formats:
       gene1 TAB gene2 [TAB score_or_extra...]
       With optional header line.
+    Returns True when the file is (or, under dry_run, would be) rewritten.
     """
     print(f"\n--- {path.relative_to(DATA_DIR)} ---")
     with open(path) as f:
@@ -120,6 +147,10 @@ def convert_pair_file(path: Path,
         lines = lines[1:]
 
     print(f"  Input: {len(lines)} pairs")
+    ids = [g for line in lines for g in line.strip().split('\t')[:2]]
+    if _already_entrez(ids):
+        print("  already Entrez IDs, skipped")
+        return False
 
     output_lines = []
     dropped = 0
@@ -141,7 +172,7 @@ def convert_pair_file(path: Path,
 
     if dry_run:
         print(f"  [DRY RUN] Would write {len(output_lines)} pairs")
-        return
+        return True
 
     backup(path, dry_run)
     with open(path, 'w') as f:
@@ -149,20 +180,22 @@ def convert_pair_file(path: Path,
             f.write(header)
         f.writelines(output_lines)
     print(f"  Written: {len(output_lines)} pairs")
+    return True
 
 
-def convert_pt_file(path: Path, mapper, dry_run: bool) -> None:
+def convert_pt_file(path: Path, mapper, dry_run: bool) -> bool:
     """Convert a .pt embedding file's gene_order from symbols to Entrez IDs.
 
     Drops genes that can't be mapped. Reindexes embeddings tensor and
-    gene_to_idx accordingly.
+    gene_to_idx accordingly. Returns True when the file is (or, under
+    dry_run, would be) rewritten.
     """
     print(f"\n--- {path.relative_to(DATA_DIR)} ---")
     data = torch.load(path, map_location='cpu', weights_only=False)
 
     if not isinstance(data, dict):
         print("  SKIP: not a dict (raw tensor)")
-        return
+        return False
 
     # Find gene order
     if 'gene_order' in data:
@@ -175,9 +208,12 @@ def convert_pt_file(path: Path, mapper, dry_run: bool) -> None:
             symbols[idx] = gene
     else:
         print("  SKIP: no gene_order or gene_to_idx")
-        return
+        return False
 
     print(f"  Input: {len(symbols)} genes")
+    if _already_entrez([str(g) for g in symbols]):
+        print("  already Entrez IDs, skipped")
+        return False
 
     # Map symbols -> Entrez IDs, track which indices to keep
     keep_indices = []
@@ -207,7 +243,7 @@ def convert_pt_file(path: Path, mapper, dry_run: bool) -> None:
 
     if dry_run:
         print(f"  [DRY RUN] Would reindex to {n_kept} genes")
-        return
+        return True
 
     backup(path, dry_run)
 
@@ -245,78 +281,13 @@ def convert_pt_file(path: Path, mapper, dry_run: bool) -> None:
 
     torch.save(data, path)
     print(f"  Saved: {n_kept} genes")
-
-
-def convert_raw_tensor(path: Path, gene_list_path: Path, mapper,
-                       dry_run: bool) -> None:
-    """Convert a raw tensor .pt file that is indexed by a gene list file.
-
-    The gene list file should ALREADY be converted to Entrez IDs by the
-    time this runs. We re-read it to get the Entrez IDs and the
-    correspondence to original positions.
-
-    Since the gene list was converted first (dropping unmapped genes),
-    we need to use the BACKUP of the original gene list to find the
-    original positions, then select the same rows from the tensor.
-    """
-    print(f"\n--- {path.relative_to(DATA_DIR)} ---")
-    tensor = torch.load(path, map_location='cpu', weights_only=False)
-    if not isinstance(tensor, torch.Tensor):
-        print("  SKIP: not a raw tensor")
-        return
-
-    # Read the ORIGINAL gene list from backup (symbols)
-    backup_gene_list = BACKUP_DIR / gene_list_path.relative_to(DATA_DIR)
-    if backup_gene_list.exists():
-        with open(backup_gene_list) as f:
-            original_symbols = [line.strip() for line in f if line.strip()]
-    else:
-        # Backup doesn't exist yet — read current (should still be symbols)
-        with open(gene_list_path) as f:
-            original_symbols = [line.strip() for line in f if line.strip()]
-
-    print(f"  Tensor: {tensor.shape}, Gene list: {len(original_symbols)}")
-
-    if tensor.shape[0] != len(original_symbols):
-        print(f"  ERROR: tensor rows ({tensor.shape[0]}) != gene list "
-              f"({len(original_symbols)})")
-        return
-
-    # Map symbols -> Entrez, track which rows to keep
-    keep_indices = []
-    new_gene_order = []
-    seen = set()
-    for i, sym in enumerate(original_symbols):
-        eid = mapper.symbol_to_entrez(sym)
-        if eid and eid not in seen:
-            seen.add(eid)
-            keep_indices.append(i)
-            new_gene_order.append(eid)
-
-    n_kept = len(new_gene_order)
-    print(f"  Mapped: {n_kept}, Dropped: {len(original_symbols) - n_kept}")
-
-    if dry_run:
-        print(f"  [DRY RUN] Would reindex to {n_kept} rows")
-        return
-
-    backup(path, dry_run)
-    keep = torch.tensor(keep_indices, dtype=torch.long)
-    new_tensor = tensor[keep]
-
-    # Save as dict with gene_order (upgrade from raw tensor)
-    data = {
-        'embeddings': new_tensor,
-        'gene_order': new_gene_order,
-        'num_genes': n_kept,
-    }
-    torch.save(data, path)
-    print(f"  Saved: {new_tensor.shape} with gene_order")
+    return True
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convert all data files from gene symbols to Entrez IDs")
+        description="Convert siamese data files that are still keyed by gene "
+        "symbols to Entrez IDs (files already keyed by Entrez IDs are skipped)")
     parser.add_argument('--dry_run',
                         action='store_true',
                         help="Preview changes without writing")
@@ -329,47 +300,46 @@ def main():
     mapper = get_mapper(cache_dir=args.cache_dir)
 
     if not args.dry_run:
-        BACKUP_DIR.mkdir(parents=True, exist_ok=True)
-        print(f"Backups will be saved to: {BACKUP_DIR}")
+        # backup() creates the directory on the first file it rewrites
+        print(f"Originals of rewritten files are backed up to: {BACKUP_DIR}")
+
+    # SLMGAE's native List_Proteins_in_SL.txt, SL_Human_Approved.txt,
+    # computational_pairs.txt and legacy ESM tensor stay symbol-keyed (see
+    # the module docstring).
+
+    # Number of files rewritten (or, under --dry_run, that would be).
+    n_converted = 0
 
     # 1. Gene lists
-    convert_gene_list(DATA_DIR / "List_Proteins_in_SL.txt", mapper,
-                      args.dry_run)
-    convert_gene_list(DATA_DIR / "all_genes_esm2.genes.txt", mapper,
-                      args.dry_run)
+    n_converted += convert_gene_list(DATA_DIR / "all_genes_esm2.genes.txt",
+                                     mapper, args.dry_run)
 
     # 2. SL pair files (no header, tab-separated)
-    convert_pair_file(DATA_DIR / "SL_Human_Approved.txt", mapper, args.dry_run)
-    convert_pair_file(DATA_DIR / "SL_SynLethDB_experimental.txt", mapper,
-                      args.dry_run)
+    n_converted += convert_pair_file(
+        DATA_DIR / "SL_SynLethDB_experimental.txt", mapper, args.dry_run)
 
     # 3. SL sources file (has header)
-    convert_pair_file(DATA_DIR / "SL_SynLethDB_experimental.sources.tsv",
-                      mapper,
-                      args.dry_run,
-                      has_header=True)
+    n_converted += convert_pair_file(
+        DATA_DIR / "SL_SynLethDB_experimental.sources.tsv",
+        mapper,
+        args.dry_run,
+        has_header=True)
 
-    # 4. Computational pairs (has header)
-    convert_pair_file(DATA_DIR / "computational_pairs.txt",
-                      mapper,
-                      args.dry_run,
-                      has_header=True)
-
-    # 5. All .pt embedding files
+    # 4. All .pt embedding files
     pt_files = sorted(DATA_DIR.glob("all_genes_*.pt"))
     for pt_path in pt_files:
-        convert_pt_file(pt_path, mapper, args.dry_run)
-
-    # 6. Legacy ESM embedding (raw tensor indexed by List_Proteins_in_SL.txt)
-    legacy_esm = DATA_DIR / "embeddings_esm2_t33_650M_UR50D_meanpool.pt"
-    if legacy_esm.exists():
-        convert_raw_tensor(legacy_esm, DATA_DIR / "List_Proteins_in_SL.txt",
-                           mapper, args.dry_run)
+        n_converted += convert_pt_file(pt_path, mapper, args.dry_run)
 
     print("\n" + "=" * 60)
-    print("Conversion complete.")
-    if not args.dry_run:
-        print(f"Originals backed up to: {BACKUP_DIR}")
+    if n_converted == 0:
+        print("Nothing to convert: no file needed rewriting (see the "
+              "per-file lines above).")
+    elif args.dry_run:
+        print(f"[DRY RUN] {n_converted} file(s) would be converted; "
+              f"nothing was written.")
+    else:
+        print(f"Converted {n_converted} file(s); originals backed up to: "
+              f"{BACKUP_DIR}")
     print("=" * 60)
 
 

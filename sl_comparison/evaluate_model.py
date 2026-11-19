@@ -8,9 +8,10 @@ A model writes, for each fold k of a CV type, a dense gene x gene score matrix
 aligned to the shared gene index (sl_comparison/folds/genes.txt), named
     <pred_dir>/fold_<k>_<cv>_predictions.npy
 This script loads each, scores it against that fold's test_pos / test_neg
-(excluding train_pos edges from the ranking), aggregates mean/std across folds,
-and writes results.json in the benchmark schema (auroc_mean, aupr_mean, ...),
-which compare_sl_models.py already reads.
+(masking every known SL pair except this fold's test positives, i.e.
+<folds_dir>/all_pos.npy minus test_pos, out of the ranking; see seen_for),
+aggregates mean/std across folds, and writes results.json in the benchmark
+schema (auroc_mean, aupr_mean, ...), which sl_comparison/compare.py tabulates.
 
 Usage:
   python sl_comparison/evaluate_model.py --model_name SLGNN --cv_type cv3 \
@@ -90,13 +91,18 @@ def fold_provenance(folds_dir, cv_type):
         except (OSError, json.JSONDecodeError):
             pass
     here = str(Path(__file__).resolve().parent)
+    # subprocess.run raises only when git cannot start or times out. One that
+    # runs and exits non-zero (not a repo, "dubious ownership" on a shared
+    # checkout) prints nothing to stdout, which read as a clean tree: unknown
+    # is None.
     try:
-        prov["git_sha"] = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=here).stdout.strip() or None
+        r = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                           capture_output=True,
+                           text=True,
+                           timeout=10,
+                           cwd=here)
+        prov["git_sha"] = (r.stdout.strip() or None) \
+            if r.returncode == 0 else None
         # git_sha alone is misleading: it names the last COMMIT, not the code
         # that ran. Scoring with uncommitted edits records a SHA whose tree
         # never produced these numbers, and nothing downstream could tell.
@@ -108,15 +114,14 @@ def fold_provenance(folds_dir, cv_type):
         # Untracked files ARE included: a new module the pipeline imports but
         # nobody `git add`ed is exactly the state that makes git_sha a lie, and
         # --untracked-files=no hid it.
-        dirty = [
-            ln for ln in subprocess.run(["git", "status", "--porcelain"],
-                                        capture_output=True,
-                                        text=True,
-                                        timeout=10,
-                                        cwd=here).stdout.splitlines()
-            if ln.strip()
-        ]
-        prov["git_dirty"] = bool(dirty)
+        st = subprocess.run(["git", "status", "--porcelain"],
+                            capture_output=True,
+                            text=True,
+                            timeout=10,
+                            cwd=here)
+        dirty = ([ln for ln in st.stdout.splitlines() if ln.strip()]
+                 if st.returncode == 0 else None)
+        prov["git_dirty"] = None if dirty is None else bool(dirty)
         if dirty:
             paths = [ln[3:] for ln in dirty]
             prov["git_dirty_n"] = len(paths)
@@ -212,19 +217,26 @@ def score_fold(score, fold_dir, label):
 
     # MAKE THE RANKING METRICS AFFINE-INVARIANT.
     #
-    # cal_metrics writes a literal 0 onto the diagonal (:1400) and -999999
-    # onto seen edges — absolute values on a scale it does not own. A model
+    # cal_metrics writes a literal 0 onto the diagonal (its two
+    # `[range(n_gene), range(n_gene)] = 0` lines: score_matrix for the edge
+    # metrics, score_matrix_ndcg for the ranking; sl_comparison copy :1377 and
+    # :1408) and -999999 onto seen edges — absolute values on a scale it does
+    # not own. A model
     # whose scores are all negative (raw logits, unnormalised dot products)
     # therefore has the injected 0 outrank EVERY real candidate, losing slot #1
     # of every gene's top-100, while a model emitting sigmoids keeps it.
     # Measured on a synthetic matrix: the SAME ranking scores ndcg@10 0.0097
     # when negative and 0.0123 when shifted positive.
     #
-    # Every metric here is rank- or threshold-based, so a strictly increasing
-    # affine map is provably neutral — and applying it to all four models makes
-    # the comparison independent of each model's output convention. siamese
-    # already did this internally; doing it here means SLGNN / NSF4SL / SLMGAE
-    # get the same treatment.
+    # Every metric here is rank- or threshold-based, and a strictly increasing
+    # affine map preserves the ranking — though not strictly in float32:
+    # rounding onto [1, 1 + range] can merge values closer than about
+    # ulp(1 + range) into ties (it never inverts two). SLGNN / NSF4SL / SLMGAE
+    # select on this same shifted matrix; siamese selects on its forward
+    # logits. Applying the shift to all four models makes the comparison
+    # independent of each model's output convention. siamese already did this
+    # internally; doing it here means SLGNN / NSF4SL / SLMGAE get the same
+    # treatment.
     if not np.isfinite(score).all():
         raise SystemExit(f"{label}: non-finite entries in score matrix")
     score = (score - score.min() + np.float32(1.0)).astype(np.float32)
@@ -242,9 +254,15 @@ def score_fold(score, fold_dir, label):
     # Every @k metric is an argsort of one matrix row. If that row is CONSTANT
     # the ranking is an arbitrary tie-break, so the score is a property of the
     # sort implementation rather than of the model — and it is not reproducible
-    # across numpy versions. Measured on SLMGAE (features are the training
-    # adjacency, so a gene with no training edge gets a zero embedding):
-    # 224/2212 scored cv1 test genes, 360/1875 on cv2, 67/212 on cv3. Re-scoring
+    # across numpy versions. Measured on SLMGAE: 224/2212 scored cv1 test
+    # genes, 360/1875 on cv2, 67/212 on cv3. Its features are the training
+    # adjacency and its GO/PPI support views cover only List_Proteins_in_SL.txt
+    # (the genes of SynLethDB v1 SL pairs), so a gene with NO training positive
+    # AND no support-view row gets an exactly-zero embedding in every branch
+    # (no bias terms, leaky_relu(0) = 0); a gene with no training edge but a
+    # view row still gets a learned one from its GO/PPI neighbours. Which genes
+    # have view rows correlates with the labels (sl_comparison/README.md,
+    # "Upstream inputs kept as shipped"). Re-scoring
     # the identical matrices on a different machine moved SLMGAE's cv3 recall@50
     # from 0.000882 to 0.000151 while every other model's retrieval column was
     # bit-identical. The other three models have zero constant rows.
@@ -280,8 +298,11 @@ def score_fold(score, fold_dir, label):
             f"CONSTANT score row — their @k metrics are tie-break artifacts, "
             f"not model output, and will not reproduce across numpy versions.")
 
-    # Baseline-independent metrics (fair across differing prevalences) —
-    # computed from the same test-edge scores cal_metrics uses.
+    # Baseline-ANCHORED skill scores (random ranker -> 0, perfect -> 1; NOT
+    # prevalence-invariant, see auprg.py) — computed from the same test-edge
+    # scores cal_metrics uses. aupr_norm is built on the trapezoidal `aupr` and
+    # inherits its tie reward: a constant scorer gets (1 + pi) / 2, i.e.
+    # aupr_norm = 0.5 (DegreePrior on cv3). ap_norm below is the anchored one.
     pos_s = score[test_pos[:, 0], test_pos[:, 1]]
     neg_s = score[test_neg[:, 0], test_neg[:, 1]]
     y = np.concatenate([np.ones(len(pos_s)), np.zeros(len(neg_s))])
@@ -292,7 +313,8 @@ def score_fold(score, fold_dir, label):
 
     # AVERAGE PRECISION, alongside the vendored trapezoidal AUPR.
     #
-    # cal_metrics:1396 uses auc(recall, precision), which linearly interpolates
+    # cal_metrics' `aupr_p = auc(recall, precision)` (sl_comparison copy
+    # :1395) uses auc(recall, precision), which linearly interpolates
     # between PR points. That interpolation is not achievable by any classifier
     # and it rewards ties: a CONSTANT score matrix scores exactly (1 + pi) / 2,
     # which on the 2026-08-06 cv3 fold set was 0.5786 — above EVERY model in
@@ -338,9 +360,11 @@ def score_fold(score, fold_dir, label):
 # note quoting the matrix's actual universe the two flatly contradict each
 # other in the same object. It describes the discarded numbers, not these.
 # `label_semantics` MUST be carried: it says what a positive MEANS for this row
-# (siamese's is OR-collapsed over 8 cell-line heads; every other row uses the
-# single unlabelled SL relation). Re-grading changes how the scores are
-# measured, never what the labels mean, so this caveat outlives the re-grade —
+# (under the shared folds' conflict_policy=or_collapse the positives are
+# identical across rows; siamese per_head SCORES 8 per-head logits collapsed by
+# max, every other row one score for the unlabelled SL relation). Re-grading
+# changes how the scores are measured, never what the labels mean, so this
+# caveat outlives the re-grade —
 # and it is the most important qualifier on the headline row.
 CARRY_KEYS = ("selection_audit", "label_semantics")
 
@@ -369,6 +393,9 @@ def build_summary(model_name,
     # an unguarded open() after every fold has been scored — the worst place to
     # fail, since the expensive work is done and nothing has been written yet.
     n_genes = fold_metrics[0].get("n_genes")
+    # Beside n_folds_scored so a partial mean (--allow_partial, or a control
+    # that skipped a degenerate fold) identifies itself in the JSON.
+    n_expected = len(fold_dirs_for(folds_dir, cv_type))
     summary = {
         "model":
         model_name,
@@ -376,6 +403,10 @@ def build_summary(model_name,
         cv_type,
         "n_folds_scored":
         len(fold_metrics),
+        "n_folds_expected":
+        n_expected,
+        "partial":
+        len(fold_metrics) != n_expected,
         "note":
         SHARED_NOTE.format(folds=folds_dir,
                            n=n_genes or -1,
@@ -419,8 +450,20 @@ def build_summary(model_name,
 def write_summary(summary, out_path):
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    with open(out, "w") as f:
-        json.dump({"summary": summary}, f, indent=2)
+    # Through <name>.tmp and a rename: a write cut short (a full quota, a
+    # killed job) must leave no file under the row's name, because
+    # run_cell_line_ablation.sh, run_compare.sh and run_external_transfer.sh
+    # take a row file that EXISTS as a graded row.
+    tmp = out.with_name(out.name + ".tmp")
+    try:
+        with open(tmp, "w") as f:
+            json.dump({"summary": summary}, f, indent=2)
+        tmp.replace(out)
+    finally:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
     tp = summary.get("trainable_params")
     name = (f"{summary['model']}({tp:,})"
             if isinstance(tp, int) else summary["model"])
@@ -448,7 +491,8 @@ def main():
         "--allow_partial",
         action="store_true",
         help="Summarise even when fewer folds were scored than the "
-        "fold set contains. Off by default: a partial mean "
+        "fold set contains (the summary then records partial=true and "
+        "n_folds_expected). Off by default: a partial mean "
         "reads identically to a complete one in the table.")
     ap.add_argument("--allow_unstamped",
                     action="store_true",
@@ -493,15 +537,16 @@ def main():
     # produced a 3-fold mean that is indistinguishable in the table from a full
     # 5-fold one — and CV3's per-fold prevalence spans 0.084-0.264, so which
     # folds are missing moves the number materially. Refuse by default; the
-    # opt-out is explicit and lands in the summary via the CLI record.
+    # --allow_partial opt-out is explicit, and build_summary records
+    # partial=true and n_folds_expected beside n_folds_scored.
     n_expected = len(fold_dirs_for(args.folds_dir, args.cv_type))
     if len(fold_metrics) != n_expected and not args.allow_partial:
         raise SystemExit(
             f"REFUSING to summarise {args.model_name}/{args.cv_type}: scored "
             f"{len(fold_metrics)} of {n_expected} folds. A partial mean is not "
             f"comparable to a complete one. Re-run the missing folds, or pass "
-            f"--allow_partial to publish it anyway (the count is recorded as "
-            f"n_folds_scored either way).")
+            f"--allow_partial to publish it anyway (the summary then records "
+            f"partial=true and n_folds_expected beside n_folds_scored).")
 
     summary = build_summary(args.model_name,
                             args.cv_type,

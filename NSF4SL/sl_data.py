@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-Shared SL data loading for the SLGNN / NSF4SL PyTorch directories.
+SL data loading for the NSF4SL PyTorch directory.
 
-Uses the SAME gene index space and SL edge source as SLMGAE-in-pytorch so
-results are directly comparable across models:
-  - Gene list      : ../data/List_Proteins_in_SL.txt  (Entrez Gene ID per line)
-  - SL positives   : ../data/SL_Human_Approved.txt    (Entrez pairs)
+The gene index and the SL labels are the shared folds' (load_shared_folds, a
+byte-identical copy of sl_comparison/shared_folds.py): genes.txt is the gene
+universe (Entrez ID per line, index == gene index) and the fold files hold the
+SLDB 3.0 positives and screened negatives, so results are directly comparable
+across the four models.
 
-Per-gene features come from any of the repo's ``all_genes_*.pt`` embedding
-files. These store a dict with ``embeddings`` (n_genes, dim) and ``gene_order``
-(list of Entrez ID strings); we realign them to the SL gene index by Entrez ID.
+NSF4SL's own features (SynLethKG TransE, build_transe_features.py) are aligned
+to that index by load_transe_features. Per-gene features can instead come from
+any of the repo's ``all_genes_*.pt`` embedding files (load_gene_features).
+These store a dict with ``embeddings`` (n_genes, dim) and ``gene_order`` (list
+of Entrez ID strings); we realign them to the gene index by Entrez ID.
 """
 
 from pathlib import Path
@@ -19,45 +22,6 @@ import scipy.sparse as sp
 import torch
 
 
-def load_sl_edges(data_path):
-    """Load SL positives + gene list, matching SLMGAE's DataLoader.load_sl_matrix.
-
-    Returns:
-        pos_edges: (P, 2) int array of upper-triangular positive gene-index pairs
-        num_nodes: number of genes (rows in List_Proteins_in_SL.txt)
-        gene_order: list of Entrez ID strings, index == gene index
-    """
-    gene_order = []
-    sl_mapping = {}
-    with open(f"{data_path}/List_Proteins_in_SL.txt", "r") as f:
-        for idx, line in enumerate(f):
-            gid = line.strip()
-            gene_order.append(gid)
-            sl_mapping[gid] = idx
-    num_nodes = len(gene_order)
-
-    row, col = [], []
-    with open(f"{data_path}/SL_Human_Approved.txt", "r") as f:
-        for line in f:
-            parts = line.strip().split()
-            if len(parts) >= 2:
-                id1, id2 = parts[0], parts[1]
-                if id1 in sl_mapping and id2 in sl_mapping:
-                    row.append(sl_mapping[id1])
-                    col.append(sl_mapping[id2])
-
-    adj = sp.coo_matrix((np.ones(len(row)), (row, col)),
-                        shape=(num_nodes, num_nodes))
-    adj = (adj + adj.T).toarray()
-    adj[adj != 0] = 1
-    np.fill_diagonal(adj, 0)
-
-    x, y = np.triu_indices(num_nodes, k=1)
-    mask = adj[x, y] != 0
-    pos_edges = np.stack([x[mask], y[mask]], axis=1).astype(np.int32)
-    return pos_edges, num_nodes, gene_order
-
-
 def load_gene_features(emb_path, gene_order, standardize=True):
     """Load an ``all_genes_*.pt`` embedding and align it to ``gene_order``.
 
@@ -65,8 +29,16 @@ def load_gene_features(emb_path, gene_order, standardize=True):
     per-column mean over the available genes.
 
     Returns:
-        feats: FloatTensor (num_nodes, dim)
-        matched: number of genes matched to the embedding file
+        feats:   FloatTensor (num_nodes, dim)
+        matched: number of genes matched to a row of the embedding file
+        missing: gene_order entries with NO usable row — absent from the file,
+                 or stored there as an all-NaN row (generate_embeddings.py
+                 writes one for every gene it could not embed; 95 of the 8,844
+                 shared genes in all_genes_kg_complex.pt). Their whole vector
+                 is the column mean, so they are as featureless as the TransE
+                 branch's entity-mean genes (load_transe_features.missing). A
+                 row with only SOME NaN cells keeps its real dimensions and is
+                 not listed.
     """
     data = torch.load(emb_path, map_location="cpu", weights_only=False)
     if isinstance(data, dict):
@@ -90,6 +62,12 @@ def load_gene_features(emb_path, gene_order, standardize=True):
             feats[idx] = emb[j]
             matched += 1
 
+    # Which genes end up fully substituted, BEFORE the fill hides it. Reported
+    # so the run's summary cannot claim every gene had features (it used to
+    # report an empty list on this branch, unlike load_transe_features).
+    featureless = np.isnan(feats).all(axis=1)
+    missing = [str(g) for g, bad in zip(gene_order, featureless) if bad]
+
     # Fill missing genes / NaN cells with per-column mean over available rows.
     col_mean = np.nan_to_num(np.nanmean(feats, axis=0))
     nan_r, nan_c = np.where(np.isnan(feats))
@@ -101,7 +79,45 @@ def load_gene_features(emb_path, gene_order, standardize=True):
         sd[sd == 0] = 1.0
         feats = (feats - mu) / sd
 
-    return torch.from_numpy(feats.astype(np.float32)), matched
+    return torch.from_numpy(feats.astype(np.float32)), matched, missing
+
+
+def load_transe_features(transe_path, gene_order):
+    """Align NSF4SL's original SynLethKG TransE features to ``gene_order``.
+
+    ``transe_path`` is the file build_transe_features.py writes. Rows are the
+    RAW 400-d TransE vectors (the original never standardises them). A gene
+    with no SynLethKG entity linked to its Entrez id (the builder's
+    gene_order) gets ``entity_mean``, the column mean over all KG
+    entities: the value the original's augmentation writes into a masked
+    dimension (data_loader.SLDataset.kgemb_data_mean), so such a gene is a
+    fully masked gene. It is computed from the embedding alone, never from a
+    fold, so the fill cannot leak.
+
+    Returns:
+        feats:       FloatTensor (num_nodes, 400)
+        entity_mean: float32 ndarray (400,), also the augmentation fill value
+        missing:     list of gene_order entries with no linked KG entity
+    """
+    data = torch.load(transe_path, map_location="cpu", weights_only=False)
+    if not isinstance(data, dict) or "entity_mean" not in data:
+        raise ValueError(
+            f"{transe_path} is not a build_transe_features.py output (no "
+            f"'entity_mean'); rebuild it with NSF4SL/build_transe_features.py")
+    emb = np.asarray(data["embeddings"], dtype=np.float32)
+    entity_mean = np.asarray(data["entity_mean"], dtype=np.float32)
+    g2i = {str(g): i for i, g in enumerate(data["gene_order"])}
+
+    feats = np.empty((len(gene_order), emb.shape[1]), dtype=np.float32)
+    missing = []
+    for idx, g in enumerate(gene_order):
+        j = g2i.get(str(g))
+        if j is None:
+            feats[idx] = entity_mean
+            missing.append(str(g))
+        else:
+            feats[idx] = emb[j]
+    return torch.from_numpy(feats), entity_mean, missing
 
 
 def load_shared_folds(folds_dir, cv_type):
@@ -113,6 +129,10 @@ def load_shared_folds(folds_dir, cv_type):
 
     fold_dirs = sorted((root / cv_type).glob("fold_*"),
                        key=lambda d: int(d.name.split("_")[1]))
+    if not fold_dirs:
+        # An empty CV directory must stop the run: every per-fold loop would
+        # otherwise be skipped and the trainer would write an all-NaN summary.
+        raise SystemExit(f"no fold_* directories under {root / cv_type}")
     splits = []
     for k, d in enumerate(fold_dirs):
         tp = np.load(d / "train_pos.npy")
@@ -120,8 +140,8 @@ def load_shared_folds(folds_dir, cv_type):
         ep = np.load(d / "test_pos.npy")
         en = np.load(d / "test_neg.npy")
         # Validation (prepare_folds --val_frac). Absent in legacy fold sets,
-        # in which case val_* come back empty and the caller must fall back to
-        # test-based selection (and say so).
+        # in which case val_* come back empty and every trainer REFUSES the
+        # fold set (selection is val-only; there is no test fallback).
         vp = np.load(d / "val_pos.npy") if (d / "val_pos.npy").exists() \
             else ep[:0].copy()
         vn = np.load(d / "val_neg.npy") if (d / "val_neg.npy").exists() \

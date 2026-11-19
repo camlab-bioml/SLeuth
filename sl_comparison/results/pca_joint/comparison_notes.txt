@@ -1,0 +1,137 @@
+PCA arm: joint (PCA on the concatenation of all modalities (variance 0.8))
+rows: 15 SLeuth row(s) (siamese_sl*) from sl_comparison/results/pca_joint; 18 shared-model row(s) (SLGNN / NSF4SL / SLMGAE / DegreePrior, the same in every PCA arm's table) from sl_comparison/results
+
+Notes for comparison.csv
+============================================================
+
+AUPRG / AP_norm are baseline-anchored skill scores (random -> 0 at any
+prevalence), NOT prevalence-invariant; AUROC is the only invariant column.
+[1] AUPR is the vendored benchmark's trapezoidal auc(recall, precision)
+    (the auc(recall, precision) call in cal_metrics), kept for comparability with
+    published SLMGAE/SLGNN/NSF4SL tables. It linearly interpolates between
+    PR points, which no classifier achieves, and rewards ties: a CONSTANT
+    score matrix scores exactly (1+baseline)/2 — i.e. the `baseline`
+    column of this very table determines it, and it can exceed real
+    models' AUPR. compare.py prints the value under each CV's table; no
+    number is quoted here: an earlier footnote quoted 0.5786, the value
+    under the pre-2026-08-10 fold set, which went stale when the label
+    rule changed.
+    Report AP (average precision), which gives a constant predictor exactly
+    `baseline`.
+[2] maxF1 is the MAXIMUM F1 over the PR curve, i.e. an oracle threshold
+    chosen against the test labels (the max-F1 expression in cal_metrics).
+    It is applied identically to every model, but it is not an operating
+    point any deployed model could pick.
+
+All models rank against the SAME shared gene universe
+(sl_comparison/folds/genes.txt) on the SAME folds, siamese_sl included
+(every siamese config.json carries folds_dir=../sl_comparison/folds).
+The columns differ only in how they are NORMALISED:
+  R@k       hits@k / #relevant. Correct as published - prefer these.
+  NDCG@k    vendored: IDCG taken over the model's OWN top-100, so IDCG =
+            min(k, hits-in-top-100) instead of min(k, #relevant)
+            (cal_metrics' ndcg_score call, handed y_bool over the model's
+            own top-100). Inflated.
+  NDCG@kc   same ranking, IDCG from the true #relevant. Corrected.
+  MAP@k     vendored: AP divided by hits-in-top-k rather than
+            min(k, #relevant) (calculate_AP_at_k). Inflated more
+            than NDCG.
+  MAP@kc    same ranking, divided by min(k, #relevant). Corrected.
+  P@10      vendored: hits/min(k, #relevant) - a second copy of R@k
+            whenever #relevant <= k (cal_metrics' precision_k block),
+            not precision.
+  P@10t     true hits/k.
+The corrections usually lower scores and lower the WEAKEST retriever
+most, but not always: NDCG@kc can EXCEED NDCG@k on a row with many tied
+scores (sklearn's ndcg_score averages tied gains; the corrected DCG is
+positional). On the 2026-08-06 run they reordered no cell. See
+retrieval_metrics.py.
+degen-rows = fraction of scored test genes whose score row is CONSTANT.
+  Those genes' @k values are an arbitrary tie-break, not model output, and
+  do not reproduce across numpy versions. Any row with a non-trivial
+  degen-rows figure has a retrieval column that should not be published.
+
+aupr_norm is derived from `aupr` and inherits its defect: it is
+(aupr - baseline) / (1 - baseline), so a constant predictor scores
+0.5 rather than 0. Use ap_norm. Both are in this CSV for archival
+completeness; only ap / ap_norm / auprg / auroc are safe to report.
+
+
+PARAMETER COUNTS (the number in each model's label)
+  Counted identically for all rows by model_params.count_parameters: every
+  torch parameter with requires_grad=True at model-construction time.
+  Caveats a reader will otherwise draw the wrong conclusion from:
+   - SLMGAE's count is dominated by a (3, n_genes, n_genes) attention block
+     (234,649,008 of 253,547,952 = 92.6%). Gradient reaches it only at
+     training-edge positions, so ~96% of the total never updates; its
+     effective trained size is ~10.7M, not 253.5M.
+   - siamese_sl's count EXCLUDES its frozen input feature matrix (n_genes x k,
+     the pretrained embeddings after the PCA arm's PCA), which is an input,
+     not a parameter. k is the encoder's input width: in PCA arm none (no
+     PCA) the concatenated width of the selected modalities, which moves with
+     the selection (4,424-4,864 on the sets selected so far, i.e. ~86-94M
+     values at n_genes = 19,397); in arms joint, per_modality and both the
+     width the PCA keeps, which a variance target resolves per fold (train.py
+     logs it; an exact PCA_JOINT_DIM fixes the joint PCA's). This run's k is
+     fold_metrics[].input_dim in each combo's results.json.
+   - A siamese_sl label reads "<n> mean of <K> folds" (k, hence the entry
+     layer, differs by fold under a variance-target PCA; in arm none every
+     fold has the same count): the per-fold mean, also the CSV row
+     trainable_params_fold (mean, population sd). Its CSV trainable_params /
+     total_params rows are the LAST fold's count only (model_params.json is
+     rewritten at every fold start), as is the label of a siamese row with no
+     per-fold counts. Quote the mean.
+   - BilinearProbe's count is W (latent x k, k the fold's input width, as
+     for siamese_sl) plus tau and b; its label is the per-fold mean, like a
+     siamese_sl row's (run_probe.sh writes trainable_params_fold_*).
+  DegreePrior(0) is exact: it has no parameters at all.
+
+UPSTREAM INPUTS (as the authors ship them, kept on purpose and not
+corrected; each carries a label-derived signal - see sl_comparison/README.md)
+  SLGNN: SynLethKG kg2id.txt (SLGNN repo @ c56e23fbd20e) ships without the
+    SL / SR / non-SL relations AND without every other gene-gene edge
+    (INTERACTS, REGULATES, COVARIES) between genes SynLethKG labels SL:
+    all 1,251 non-label triples missing from it lie on SL pairs. On the
+    shared folds a direct KG edge joins 0.37% of positive pairs (83 of
+    22,166) and 2.38% of negatives (2,542 of 106,704), so in SLGNN's
+    input a direct edge correlates with non-SL, for val and test pairs
+    too.
+  SLMGAE: its GO-BP / GO-CC / PPI support views cover only the 6,375 genes of
+    List_Proteins_in_SL.txt, the gene set of the SynLethDB v1 SL pairs
+    (4,587 of the 8,844 shared genes; the rest get all-zero view
+    rows). 73.1% of genes in any positive pair have a view row against
+    20.7% of negative-only genes, so coverage alone is predictive: the
+    number of a pair's genes with a view row scores cv3 test AUROC
+    0.60-0.74 per fold (cv2 0.67-0.72). A gene with no training
+    positive and no view row gets an exactly-zero embedding: SLMGAE's
+    constant score rows (degen-rows).
+
+MODEL SELECTION REGIME
+  n/a (no training, no selection): DegreePrior/cv1, DegreePrior/cv2, DegreePrior/cv3
+  val: BilinearProbe/cv1, BilinearProbe/cv2, BilinearProbe/cv3, ELISL/cv1, ELISL/cv2, ELISL/cv3, NSF4SL/cv1, NSF4SL/cv2, NSF4SL/cv3, SLGNN/cv1, SLGNN/cv2, SLGNN/cv3, SLMGAE/cv1, SLMGAE/cv2, SLMGAE/cv3, siamese_sl/cv1, siamese_sl/cv2, siamese_sl/cv3, siamese_sl_allmod/cv1, siamese_sl_allmod/cv2, siamese_sl_allmod/cv3, siamese_sl_allmod_pd_pooled/cv1, siamese_sl_allmod_pd_pooled/cv2, siamese_sl_allmod_pd_pooled/cv3, siamese_sl_nocell/cv1, siamese_sl_nocell/cv2, siamese_sl_nocell/cv3, siamese_sl_pd_pooled/cv1, siamese_sl_pd_pooled/cv2, siamese_sl_pd_pooled/cv3
+
+TRAINING SEED (model_params.json; not the fold seed)
+  42: BilinearProbe/cv1, BilinearProbe/cv2, BilinearProbe/cv3, ELISL/cv1, ELISL/cv2, ELISL/cv3, NSF4SL/cv1, NSF4SL/cv2, NSF4SL/cv3, SLGNN/cv1, SLGNN/cv2, SLGNN/cv3, SLMGAE/cv1, SLMGAE/cv2, SLMGAE/cv3, siamese_sl/cv1, siamese_sl/cv2, siamese_sl/cv3, siamese_sl_allmod/cv1, siamese_sl_allmod/cv2, siamese_sl_allmod/cv3, siamese_sl_allmod_pd_pooled/cv1, siamese_sl_allmod_pd_pooled/cv2, siamese_sl_allmod_pd_pooled/cv3, siamese_sl_nocell/cv1, siamese_sl_nocell/cv2, siamese_sl_nocell/cv3, siamese_sl_pd_pooled/cv1, siamese_sl_pd_pooled/cv2, siamese_sl_pd_pooled/cv3
+  UNRECORDED: DegreePrior/cv1, DegreePrior/cv2, DegreePrior/cv3
+
+LABEL SEMANTICS (what POSITIVE means, and what each siamese row scores)
+  siamese_sl, siamese_sl_allmod: OR-collapse: a pair is POSITIVE if it is SL in ANY of the 8 cell-line heads. Since 2026-08-10 the shared folds use the SAME rule (conflict_policy=or_collapse: positive if any screen called it SL in any line, negative only if every screen called it non-SL), so this row and the SLGNN / NSF4SL / SLMGAE / DegreePrior rows are graded on an identical positive set — including the 5,542 pairs screened both ways, which every row now counts as positive. What still differs is the SCORE: siamese emits 8 per-head logits collapsed by max, the others emit one score for the unlabelled relation.
+  siamese_sl_allmod_pd_pooled, siamese_sl_pd_pooled: OR-collapse: a pair is POSITIVE if it is SL in ANY cell line — the shared folds' conflict_policy=or_collapse label, identical to the SLGNN / NSF4SL / SLMGAE / DegreePrior rows. This siamese variant (--cell_lines pooled) is TRAINED on that label directly: one head, no cell-line embedding, one score per pair, like the other models.
+
+SELECTION BUDGET (asymmetric across rows — disclose in methods)
+  siamese_sl_allmod/cv1, siamese_sl_allmod/cv2, siamese_sl_allmod/cv3, siamese_sl_allmod_pd_pooled/cv1, siamese_sl_allmod_pd_pooled/cv2, siamese_sl_allmod_pd_pooled/cv3: NO modality selection, every catalog embedding in every fold (16: geneformer, scgpt, gene2vec, esm2, esm1b, prot_t5, text_embed, bioconceptvec, node2vec_ppi, ppi_svd, ppi_raw, mashup, go, go2vec, onto2vec, kg_complex; not generated, optional: esmc, scprint, seqvec). The same pairs as the selected combo (its selection split is held out of training too, and chooses nothing).
+  siamese modalities of cv1, selected PER FOLD, shared by siamese_sl/cv1, siamese_sl_pd_pooled/cv1: expression: fold 0 geneformer, fold 1 scgpt, fold 2 scgpt, fold 3 geneformer, fold 4 scgpt; go: fold 0 go2vec, fold 1 go2vec, fold 2 go, fold 3 go2vec, fold 4 go2vec; kg: fold 0 kg_complex, fold 1 kg_complex, fold 2 kg_complex, fold 3 kg_complex, fold 4 kg_complex; ppi: fold 0 ppi_raw, fold 1 ppi_raw, fold 2 ppi_raw, fold 3 ppi_raw, fold 4 ppi_raw; protein_seq: fold 0 prot_t5, fold 1 esm1b, fold 2 esm2, fold 3 prot_t5, fold 4 esm1b; text: fold 0 text_embed, fold 1 text_embed, fold 2 text_embed, fold 3 text_embed, fold 4 text_embed. Each fold's pick per category is the argmax of AUPRG_any on that fold's own selection split (a random 0.1 of its TRAINING pairs, never trained on; seed 42) over the single-embedding runs trained as pd:pooled; the combo trains each fold on its own picks (embeddings picked per fold: esm1b x2, esm2 x1, geneformer x2, go x1, go2vec x4, kg_complex x5, ppi_raw x5, prot_t5 x2, scgpt x3, text_embed x5). Leakage-free per fold: no fold's test pairs reached its own choice.
+      not ranked, embedding file never generated: esmc, scprint, seqvec.
+  siamese modalities of cv2, selected PER FOLD, shared by siamese_sl/cv2, siamese_sl_pd_pooled/cv2: expression: fold 0 geneformer, fold 1 scgpt, fold 2 geneformer, fold 3 geneformer, fold 4 geneformer; go: fold 0 go, fold 1 go, fold 2 go, fold 3 go2vec, fold 4 go; kg: fold 0 kg_complex, fold 1 kg_complex, fold 2 kg_complex, fold 3 kg_complex, fold 4 kg_complex; ppi: fold 0 mashup, fold 1 node2vec_ppi, fold 2 ppi_raw, fold 3 node2vec_ppi, fold 4 ppi_raw; protein_seq: fold 0 esm1b, fold 1 esm1b, fold 2 prot_t5, fold 3 prot_t5, fold 4 esm1b; text: fold 0 text_embed, fold 1 text_embed, fold 2 text_embed, fold 3 text_embed, fold 4 text_embed. Each fold's pick per category is the argmax of AUPRG_any on that fold's own selection split (a random 0.1 of its TRAINING pairs, never trained on; seed 42) over the single-embedding runs trained as pd:pooled; the combo trains each fold on its own picks (embeddings picked per fold: esm1b x3, geneformer x4, go x4, go2vec x1, kg_complex x5, mashup x1, node2vec_ppi x2, ppi_raw x2, prot_t5 x2, scgpt x1, text_embed x5). Leakage-free per fold: no fold's test pairs reached its own choice.
+      not ranked, embedding file never generated: esmc, scprint, seqvec.
+  siamese modalities of cv3, selected PER FOLD, shared by siamese_sl/cv3, siamese_sl_pd_pooled/cv3: expression: fold 0 scgpt, fold 1 geneformer, fold 2 geneformer, fold 3 geneformer, fold 4 geneformer; go: fold 0 go2vec, fold 1 go, fold 2 go, fold 3 go2vec, fold 4 go2vec; kg: fold 0 kg_complex, fold 1 kg_complex, fold 2 kg_complex, fold 3 kg_complex, fold 4 kg_complex; ppi: fold 0 mashup, fold 1 ppi_raw, fold 2 mashup, fold 3 ppi_raw, fold 4 ppi_svd; protein_seq: fold 0 prot_t5, fold 1 prot_t5, fold 2 esm1b, fold 3 esm1b, fold 4 esm1b; text: fold 0 text_embed, fold 1 text_embed, fold 2 text_embed, fold 3 text_embed, fold 4 text_embed. Each fold's pick per category is the argmax of AUPRG_any on that fold's own selection split (a random 0.1 of its TRAINING pairs, never trained on; seed 42) over the single-embedding runs trained as pd:pooled; the combo trains each fold on its own picks (embeddings picked per fold: esm1b x3, geneformer x4, go x2, go2vec x3, kg_complex x5, mashup x2, ppi_raw x2, ppi_svd x1, prot_t5 x2, scgpt x1, text_embed x5). Leakage-free per fold: no fold's test pairs reached its own choice.
+      not ranked, embedding file never generated: esmc, scprint, seqvec.
+  siamese_sl_nocell/cv1, siamese_sl_nocell/cv2, siamese_sl_nocell/cv3: no selection record (a pinned, single-candidate or derived row, or a selection file that did not match its combo; see the collect log) — how this configuration was chosen is NOT disclosed here.
+  Every other row is a single fixed configuration (no sweep).
+
+
+FOLD-SET PROVENANCE (as printed by compare.py; the
+per-row sha256 fingerprints are also rows in the CSV itself)
+------------------------------------------------------------
+
+PROVENANCE: all rows scored on one fold set (genes.txt 42ff034debb48f84, all_pos.npy 20be58a407d6aa9a, meta.json 1a5aa49fb909a0e1).

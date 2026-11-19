@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """
-Shared SL data loading for the SLGNN / NSF4SL PyTorch directories.
+SL data loading for the SLGNN PyTorch directory.
 
-Uses the SAME gene index space and SL edge source as SLMGAE-in-pytorch so
-results are directly comparable across models:
-  - Gene list      : ../data/List_Proteins_in_SL.txt  (Entrez Gene ID per line)
-  - SL positives   : ../data/SL_Human_Approved.txt    (Entrez pairs)
+The gene index and the SL labels are the shared folds' (load_shared_folds, a
+byte-identical copy of sl_comparison/shared_folds.py): genes.txt is the gene
+universe (Entrez ID per line, index == gene index) and the fold files hold the
+SLDB 3.0 positives, the screened negatives and the validation split, so
+results are directly comparable across the four models. It is the only split
+source train_slgnn.py trains on (--folds_dir is required).
 
-Per-gene features come from any of the repo's ``all_genes_*.pt`` embedding
-files. These store a dict with ``embeddings`` (n_genes, dim) and ``gene_order``
-(list of Entrez ID strings); we realign them to the SL gene index by Entrez ID.
+--arch original learns its gene embeddings over SynLethKG
+(build_synlethkg.load_kg_for_genes). --arch port instead reads per-gene
+features from any of the repo's ``all_genes_*.pt`` embedding files
+(load_gene_features). These store a dict with ``embeddings`` (n_genes, dim)
+and ``gene_order`` (list of Entrez ID strings); we realign them to the gene
+index by Entrez ID.
 """
 
 from pathlib import Path
@@ -17,45 +22,6 @@ from pathlib import Path
 import numpy as np
 import scipy.sparse as sp
 import torch
-
-
-def load_sl_edges(data_path):
-    """Load SL positives + gene list, matching SLMGAE's DataLoader.load_sl_matrix.
-
-    Returns:
-        pos_edges: (P, 2) int array of upper-triangular positive gene-index pairs
-        num_nodes: number of genes (rows in List_Proteins_in_SL.txt)
-        gene_order: list of Entrez ID strings, index == gene index
-    """
-    gene_order = []
-    sl_mapping = {}
-    with open(f"{data_path}/List_Proteins_in_SL.txt", "r") as f:
-        for idx, line in enumerate(f):
-            gid = line.strip()
-            gene_order.append(gid)
-            sl_mapping[gid] = idx
-    num_nodes = len(gene_order)
-
-    row, col = [], []
-    with open(f"{data_path}/SL_Human_Approved.txt", "r") as f:
-        for line in f:
-            parts = line.strip().split()
-            if len(parts) >= 2:
-                id1, id2 = parts[0], parts[1]
-                if id1 in sl_mapping and id2 in sl_mapping:
-                    row.append(sl_mapping[id1])
-                    col.append(sl_mapping[id2])
-
-    adj = sp.coo_matrix((np.ones(len(row)), (row, col)),
-                        shape=(num_nodes, num_nodes))
-    adj = (adj + adj.T).toarray()
-    adj[adj != 0] = 1
-    np.fill_diagonal(adj, 0)
-
-    x, y = np.triu_indices(num_nodes, k=1)
-    mask = adj[x, y] != 0
-    pos_edges = np.stack([x[mask], y[mask]], axis=1).astype(np.int32)
-    return pos_edges, num_nodes, gene_order
 
 
 def load_gene_features(emb_path, gene_order, standardize=True):
@@ -113,6 +79,10 @@ def load_shared_folds(folds_dir, cv_type):
 
     fold_dirs = sorted((root / cv_type).glob("fold_*"),
                        key=lambda d: int(d.name.split("_")[1]))
+    if not fold_dirs:
+        # An empty CV directory must stop the run: every per-fold loop would
+        # otherwise be skipped and the trainer would write an all-NaN summary.
+        raise SystemExit(f"no fold_* directories under {root / cv_type}")
     splits = []
     for k, d in enumerate(fold_dirs):
         tp = np.load(d / "train_pos.npy")
@@ -120,8 +90,8 @@ def load_shared_folds(folds_dir, cv_type):
         ep = np.load(d / "test_pos.npy")
         en = np.load(d / "test_neg.npy")
         # Validation (prepare_folds --val_frac). Absent in legacy fold sets,
-        # in which case val_* come back empty and the caller must fall back to
-        # test-based selection (and say so).
+        # in which case val_* come back empty and every trainer REFUSES the
+        # fold set (selection is val-only; there is no test fallback).
         vp = np.load(d / "val_pos.npy") if (d / "val_pos.npy").exists() \
             else ep[:0].copy()
         vn = np.load(d / "val_neg.npy") if (d / "val_neg.npy").exists() \

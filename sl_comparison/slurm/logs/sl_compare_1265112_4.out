@@ -1,0 +1,125 @@
+==================================================
+SL comparison — task 4 of 9
+  Model: NSF4SL
+  CV:    cv2
+Start: Fri Nov 13 23:16:16 EST 2026 | Job: 1265927 | Node: gpu3
+==================================================
+  python: <home>/pytorch/bin/python3
+  inputs OK: NSF4SL
+--- training NSF4SL / cv2 ---
+Device: cuda
+Shared folds from ../sl_comparison/folds/cv2: 5 folds, 8844 genes
+Genes: 8844 | features: SynLethKG TransE 400d (raw) from ../data/nsf4sl_transe_features.pt | matched 8820/8844; 24 genes with no linked KG entity get the all-entity mean (e.g. 2574, 5259, 7795, 10834, 56260, 146723, 196913, 284379, 284898, 338399)
+Training loop: original main.py
+
+============================================================
+Fold 1/5
+============================================================
+Train positives: 13369 | Val: 2772 pos, 11815 neg | Test: 6025 pos, 39728 neg | select on val:auprg
+  Trainable parameters: 469,760 (total 873,728) [Net]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  epoch  10 | loss 0.2605 | val auprg 0.3874 *
+  epoch  20 | loss 0.2874 | val auprg 0.3374
+  epoch  30 | loss 0.2967 | val auprg 0.3705
+  epoch  40 | loss 0.2991 | val auprg 0.3061
+  epoch  50 | loss 0.2978 | val auprg 0.4091 *
+  epoch  60 | loss 0.2992 | val auprg 0.3461
+  Early stopping at epoch 60
+  Selected epoch 50 (val auprg 0.4091)
+  Best fold 1: AUPR=0.2999, AUROC=0.6492, F1=0.2998
+
+============================================================
+Fold 2/5
+============================================================
+Train positives: 9745 | Val: 2037 pos, 15111 neg | Test: 10384 pos, 38246 neg | select on val:auprg
+  Trainable parameters: 469,760 (total 873,728) [Net]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  epoch  10 | loss 0.1851 | val auprg -0.1313 *
+  epoch  20 | loss 0.2074 | val auprg -0.1772
+  epoch  30 | loss 0.2162 | val auprg -0.2293
+  epoch  40 | loss 0.2144 | val auprg -0.2003
+  epoch  50 | loss 0.2153 | val auprg -0.1969
+  Early stopping at epoch 50
+  Selected epoch 10 (val auprg -0.1313)
+  Best fold 2: AUPR=0.2008, AUROC=0.5041, F1=0.3610
+
+============================================================
+Fold 3/5
+============================================================
+Train positives: 9031 | Val: 3407 pos, 11230 neg | Test: 9728 pos, 40810 neg | select on val:auprg
+  Trainable parameters: 469,760 (total 873,728) [Net]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  epoch  10 | loss 0.1669 | val auprg -0.1268 *
+  epoch  20 | loss 0.1700 | val auprg 0.0855 *
+  epoch  30 | loss 0.1805 | val auprg 0.0276
+  epoch  40 | loss 0.1851 | val auprg -0.0250
+  epoch  50 | loss 0.1855 | val auprg 0.0210
+  epoch  60 | loss 0.1858 | val auprg 0.0260
+  Early stopping at epoch 60
+  Selected epoch 20 (val auprg 0.0855)
+  Best fold 3: AUPR=0.1661, AUROC=0.4436, F1=0.3229
+
+============================================================
+Fold 4/5
+============================================================
+Train positives: 11416 | Val: 3532 pos, 15039 neg | Test: 7218 pos, 34594 neg | select on val:auprg
+  Trainable parameters: 469,760 (total 873,728) [Net]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  epoch  10 | loss 0.2346 | val auprg 0.5608 *
+  epoch  20 | loss 0.2693 | val auprg 0.7244 *
+  epoch  30 | loss 0.2857 | val auprg 0.6220
+  epoch  40 | loss 0.2893 | val auprg 0.6499
+  epoch  50 | loss 0.2916 | val auprg 0.6541
+  epoch  60 | loss 0.2904 | val auprg 0.6566
+  Early stopping at epoch 60
+  Selected epoch 20 (val auprg 0.7244)
+  Best fold 4: AUPR=0.3069, AUROC=0.6266, F1=0.3652
+
+============================================================
+Fold 5/5
+============================================================
+Train positives: 11309 | Val: 4340 pos, 11757 neg | Test: 6517 pos, 38733 neg | select on val:auprg
+  Trainable parameters: 469,760 (total 873,728) [Net]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  epoch  10 | loss 0.2142 | val auprg 0.4543 *
+  epoch  20 | loss 0.2424 | val auprg 0.4140
+  epoch  30 | loss 0.2530 | val auprg 0.4168
+  epoch  40 | loss 0.2566 | val auprg 0.4274
+  epoch  50 | loss 0.2562 | val auprg 0.4251
+  Early stopping at epoch 50
+  Selected epoch 10 (val auprg 0.4543)
+  Best fold 5: AUPR=0.2313, AUROC=0.6169, F1=0.3009
+
+============================================================
+Cross-validation results:
+============================================================
+  auroc         : 0.5681 +/- 0.0800
+  f1            : 0.3299 +/- 0.0283
+  aupr          : 0.2410 +/- 0.0550
+  ndcg@10       : 0.2399 +/- 0.0535
+  ndcg@20       : 0.2512 +/- 0.0545
+  ndcg@50       : 0.2691 +/- 0.0522
+  recall@10     : 0.2895 +/- 0.0850
+  recall@20     : 0.3120 +/- 0.0892
+  recall@50     : 0.3468 +/- 0.0925
+  precision@10  : 0.2954 +/- 0.0851
+  precision@20  : 0.3151 +/- 0.0891
+  precision@50  : 0.3479 +/- 0.0925
+  map@10        : 0.2259 +/- 0.0475
+  map@20        : 0.2220 +/- 0.0483
+  map@50        : 0.2128 +/- 0.0469
+
+Results saved to results/nsf4sl_cv2/results.json
+--- scoring NSF4SL / cv2 ---
+  fold 0: AUROC 0.6492 AP 0.3000 AUPRG 0.6127 NDCG@10 0.2817 (corrected 0.2691)
+  fold 1: AUROC 0.5041 AP 0.2008 AUPRG -0.0518 NDCG@10 0.2660 (corrected 0.2410)
+  fold 2: AUROC 0.4436 AP 0.1662 AUPRG -0.1531 NDCG@10 0.1343 (corrected 0.1185)
+  fold 3: AUROC 0.6266 AP 0.3070 AUPRG 0.4782 NDCG@10 0.2612 (corrected 0.2398)
+  fold 4: AUROC 0.6169 AP 0.2314 AUPRG 0.3898 NDCG@10 0.2565 (corrected 0.2322)
+
+NSF4SL(469,760)/cv2: AUROC 0.5681 | AP 0.2411 | AUPRG 0.2552 | R@50 0.3468  -> sl_comparison/results/NSF4SL_cv2.json
+
+==================================================
+SUCCESS: NSF4SL / cv2
+Completed at: Fri Nov 13 23:21:45 EST 2026
+==================================================

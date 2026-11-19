@@ -1,0 +1,13 @@
+<repo>/SLGNN/slgnn_orig_model.py:432: UserWarning: Sparse invariant checks are implicitly disabled. Memory errors (e.g. SEGFAULT) will occur when operating on a sparse tensor which violates the invariants, but checks incur performance overhead. To silence this warning, explicitly opt in or out. See `torch.sparse.check_sparse_tensor_invariants.__doc__` for guidance.  (Triggered internally at /__w/pytorch/pytorch/aten/src/ATen/Context.cpp:916.)
+  return torch.sparse_coo_tensor(self.sl_index, self.sl_value,
+<repo>/SLGNN/train_slgnn.py:319: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  running_cor += float(cor)
+<repo>/SLGNN/preprocess_benchmarking_paper.py:1397: RuntimeWarning: invalid value encountered in divide
+  f1_p = max(2 * precision * recall / (precision + recall))
+<repo>/SLGNN/preprocess_benchmarking_paper.py:1397: RuntimeWarning: invalid value encountered in divide
+  f1_p = max(2 * precision * recall / (precision + recall))
+<repo>/SLGNN/preprocess_benchmarking_paper.py:1397: RuntimeWarning: invalid value encountered in divide
+  f1_p = max(2 * precision * recall / (precision + recall))
+<repo>/SLGNN/preprocess_benchmarking_paper.py:1397: RuntimeWarning: invalid value encountered in divide
+  f1_p = max(2 * precision * recall / (precision + recall))

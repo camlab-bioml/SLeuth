@@ -1,0 +1,29 @@
+  arm                       model  cv  max_abs_auprg_graded_minus_self  max_abs_auroc  max_abs_ap_vs_aupr_any
+ none           siamese_sl_allmod cv1                     2.141762e-08   6.340752e-08            1.796919e-07
+ none           siamese_sl_allmod cv2                     3.440724e-08   4.177787e-08            1.411853e-07
+ none           siamese_sl_allmod cv3                     5.412509e-07   8.273352e-07            8.275381e-07
+ none                  siamese_sl cv1                     1.186421e-08   2.641980e-08            1.103446e-07
+ none                  siamese_sl cv2                     4.264068e-08   5.539518e-08            6.894171e-08
+ none                  siamese_sl cv3                     1.303013e-06   4.136676e-07            6.440871e-07
+ none siamese_sl_allmod_pd_pooled cv1                     1.876213e-08   6.342183e-08            1.287828e-07
+ none siamese_sl_allmod_pd_pooled cv2                     3.909073e-08   7.609146e-08            7.430510e-08
+ none siamese_sl_allmod_pd_pooled cv3                     2.519005e-07   1.590110e-07            9.459096e-07
+ none        siamese_sl_pd_pooled cv1                     9.458901e-09   3.171091e-08            8.372349e-08
+ none        siamese_sl_pd_pooled cv2                     4.322195e-09   2.971204e-08            7.742308e-08
+ none        siamese_sl_pd_pooled cv3                     3.942534e-07   7.912212e-08            4.559047e-07
+joint           siamese_sl_allmod cv1                     1.199399e-08   3.699607e-08            4.222437e-08
+joint           siamese_sl_allmod cv2                     2.350559e-08   3.274562e-08            1.260830e-07
+joint           siamese_sl_allmod cv3                     6.591230e-08   5.169433e-07            9.713119e-08
+joint                  siamese_sl cv1                     1.036180e-08   3.171240e-08            6.427075e-08
+joint                  siamese_sl cv2                     1.131082e-07   5.163732e-08            1.514535e-07
+joint                  siamese_sl cv3                     1.344558e-06   2.249478e-07            3.608392e-07
+joint siamese_sl_allmod_pd_pooled cv1                     8.648458e-09   2.114061e-08            1.481649e-07
+joint siamese_sl_allmod_pd_pooled cv2                     2.976099e-08   2.392949e-08            1.516501e-07
+joint siamese_sl_allmod_pd_pooled cv3                     6.435455e-07   2.373664e-07            1.687460e-07
+joint        siamese_sl_pd_pooled cv1                     3.094854e-09   1.057080e-08            2.990951e-08
+joint        siamese_sl_pd_pooled cv2                     1.697704e-08   3.203851e-08            9.611828e-08
+joint        siamese_sl_pd_pooled cv3                     6.918512e-08   2.584717e-07            1.409856e-07
+overall max |graded - self| AUPRG: 1.344558112514882e-06
+overall max |graded - self| AUROC: 8.273351534970885e-07
+overall max |graded ap - self aupr_any|: 9.45909558014435e-07
+tab_tiers mismatches (mean, population sd): 0

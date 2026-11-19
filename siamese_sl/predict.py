@@ -28,6 +28,7 @@ Usage:
 
 import json
 import argparse
+import hashlib
 from pathlib import Path
 from typing import List, Tuple, Optional
 
@@ -44,6 +45,18 @@ from data_loader import (
     load_raw_multimodal,
 )
 from gene_name_utils import get_mapper
+
+
+def _file_sha256(path, chunk: int = 1 << 20) -> str:
+    """sha256 of a file's bytes, chunked (the .pt files are ~200MB each).
+
+    The same digest train.py records as `embeddings_sha256`.
+    """
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(chunk), b""):
+            h.update(block)
+    return h.hexdigest()
 
 
 def _find_key(state_dict: dict, contains: list) -> str:
@@ -109,7 +122,10 @@ def _infer_kernel_dims(state_dict: dict) -> dict:
         encoder_rank = 64
         warnings.warn(
             f"_infer_kernel_dims: cannot infer encoder_rank for '{encoder_type}' "
-            f"encoder; assuming {encoder_rank}. Pass --encoder_rank if incorrect."
+            f"encoder from the weights; assuming {encoder_rank}. The checkpoint "
+            f"config's encoder_rank overrides this when present (there is no "
+            f"CLI override); a wrong value fails the state_dict load with a "
+            f"shape mismatch."
         )
     else:
         first_key = _find_key(state_dict, ["encoder.net.0.weight"])
@@ -121,7 +137,10 @@ def _infer_kernel_dims(state_dict: dict) -> dict:
         encoder_rank = 64
         warnings.warn(
             f"_infer_kernel_dims: cannot infer encoder_rank for '{encoder_type}' "
-            f"encoder; assuming {encoder_rank}. Pass --encoder_rank if incorrect."
+            f"encoder from the weights; assuming {encoder_rank}. The checkpoint "
+            f"config's encoder_rank overrides this when present (there is no "
+            f"CLI override); a wrong value fails the state_dict load with a "
+            f"shape mismatch."
         )
 
     return {
@@ -138,8 +157,13 @@ def load_model(
     model_type: str = "siamese",
     device: str = "cpu",
     num_heads: Optional[int] = None,
+    load_weights: bool = True,
 ) -> torch.nn.Module:
-    """Load trained model from checkpoint."""
+    """Load trained model from checkpoint.
+
+    load_weights=False: the checkpoint's architecture at the constructor's
+    own initialisation (the caller's torch RNG state), no weight loaded
+    (eval_finetuning's Scratch mode)."""
     checkpoint = torch.load(checkpoint_path,
                             map_location=device,
                             weights_only=False)
@@ -147,20 +171,44 @@ def load_model(
     # Infer model params from state dict
     state_dict = checkpoint["model_state_dict"]
 
-    # Cell-line (multi-head, SiameseSLMultiCell) checkpoints are not supported
-    # here yet — they emit one logit PER cell-line head, not a single SL score.
-    if any(k.startswith("cell_emb") for k in state_dict):
+    # Cell-line (SiameseSLMultiCell) checkpoints are not supported here — they
+    # emit one logit PER head, not a single SL score. Detect every form, not
+    # just cell_emb: a --cell_lines pooled checkpoint has NO cell_emb (one
+    # head, no cell-line embedding) but a (1,)-shaped scoring_bias, and the
+    # per-head / bilinear / raw-tau / inner-norm options add parameters that
+    # SiameseSL does not have. Loaded as SiameseSL, such a checkpoint would
+    # mostly fail with an opaque state-dict error; a pooled checkpoint with
+    # otherwise published options WOULD load (load_state_dict squeezes its
+    # (1,) scoring_bias into SiameseSL's scalar) and score the same function,
+    # but it is refused too so every multi-cell checkpoint takes one path.
+    _MULTICELL_KEYS = ("tau", "head_proj_bias", "head_input_bias", "kernel_A",
+                       "inner_running_mean", "gene_w", "pair_fc1.weight")
+    _sb = state_dict.get("scoring_bias")
+    _mc_found = sorted(
+        [k for k in state_dict if k.startswith("cell_emb")] +
+        [k for k in _MULTICELL_KEYS if k in state_dict] +
+        (["scoring_bias (per-head, dim 1)"]
+         if _sb is not None and _sb.dim() == 1 else []))
+    if _mc_found:
         raise NotImplementedError(
-            "This checkpoint was trained with --use_cell_lines "
-            "(SiameseSLMultiCell, per-head outputs). predict.py / "
-            "eval_finetuning.py do not consume multi-head models yet. Run the "
-            "pipeline with --skip-eval, or evaluate per head directly.")
+            f"{checkpoint_path} is a SiameseSLMultiCell checkpoint (trained "
+            f"with --use_cell_lines; found {', '.join(_mc_found)}): it emits "
+            f"one logit per head, per_head or pooled, which predict.py's "
+            f"single-output SiameseSL cannot represent. Load it with "
+            f"eval_finetuning.load_multicell_model (e.g. eval_finetuning.py "
+            f"--per_head) and read the head column you need, or run "
+            f"export_pair_predictions.py for every gene pair and head.")
 
     # Auto-detect model type from state dict keys (overrides --model_type)
     if "hilbert_map" in str(state_dict.keys()):
         model_type = "kernel"
     elif "cross_attn" in str(state_dict.keys()):
         model_type = "attention"
+
+    # The checkpoint's own dropout: eval_finetuning's Full / LP_last modes
+    # fine-tune this model in train mode, where the rate matters (a model
+    # trained with dropout 0.0 must not be adapted at the constructor's 0.2).
+    ckpt_dropout = float((checkpoint.get("config") or {}).get("dropout", 0.2))
 
     if model_type == "siamese":
         # Detect encoder variant from state-dict key layout:
@@ -214,6 +262,7 @@ def load_model(
             last_layer_bias=has_bias,
             pd_epsilon=pd_eps,
             siamese_encoder_type=siamese_encoder_type,
+            dropout=ckpt_dropout,
         )
     elif model_type == "kernel":
         kernel_dims = _infer_kernel_dims(state_dict)
@@ -243,6 +292,7 @@ def load_model(
             predictor_hidden=predictor_hidden,
             encoder_type=kernel_dims["encoder_type"],
             encoder_rank=kernel_dims["encoder_rank"],
+            dropout=ckpt_dropout,
         )
     else:  # attention
         first_layer_key = _find_key(state_dict, ["proj.0.weight"])
@@ -275,7 +325,13 @@ def load_model(
             hidden_dim=hidden_dim,
             latent_dim=latent_dim,
             num_heads=num_heads,
+            dropout=ckpt_dropout,
         )
+
+    if not load_weights:
+        model.to(device)
+        model.eval()
+        return model
 
     # Backward compatibility: old checkpoints lack input_bias (added later).
     # Inject missing keys as zero tensors so load_state_dict doesn't fail.
@@ -315,9 +371,12 @@ class SLPredictor:
         # Already an Entrez ID?
         if gene in self.gene_to_idx:
             return gene
-        # Try as symbol -> Entrez ID
-        mapper = get_mapper()
-        eid = mapper.symbol_to_entrez(gene)
+        # Try as symbol -> Entrez ID; a name the screens pin
+        # (eval_finetuning.SCREEN_SYMBOL_OVERRIDES) is the pinned gene, as in
+        # the eval and the pair export. Imported here: eval_finetuning
+        # imports this module.
+        from eval_finetuning import symbol_entrez
+        eid = symbol_entrez(get_mapper(), gene)
         if eid and eid in self.gene_to_idx:
             return eid
         return None
@@ -549,26 +608,83 @@ def main():
     # driven by --pca_variance/--pca_dims when the checkpoint predates the
     # fit/apply split.
     ckpt_raw = torch.load(args.model, map_location="cpu", weights_only=False)
+    # A fine-tuned model saved by eval_finetuning.save_finetuned_model holds
+    # the weights and the affine head only: the fold's transform and the keys
+    # the three guards below read stay in its source checkpoint, so it would
+    # be taken for a legacy checkpoint (all-gene fit, no guard), and its
+    # output is a screen value a * logit + c, not an SL probability.
+    if str(ckpt_raw.get("format", "")).startswith("siamese_sl.finetuned"):
+        raise SystemExit(
+            f"{args.model} is a fine-tuned model saved by eval_finetuning.py "
+            f"(format {ckpt_raw['format']}): it carries no preprocessing "
+            f"transform and predicts a screen value, not an SL probability. "
+            f"Score it with export_pair_predictions.py --finetuned_eval_dirs.")
     fold_transform = ckpt_raw.get("preprocessing_transform")
+
+    # Same-files guard at the basename level, as
+    # eval_finetuning.checkpoint_input_problems applies it. Neither the
+    # gene-order check below (every catalog file is generated over one gene
+    # universe, so all modalities share an order) nor
+    # apply_multimodal_transform's per-modality width check can tell two
+    # same-width modalities passed in swapped order from the trained order —
+    # each would then be pushed through the other's fitted impute / PCA /
+    # normalise statistics. Legacy checkpoints lack the key and are not
+    # refused.
+    ckpt_emb_paths = ckpt_raw.get("embeddings_paths")
+    if ckpt_emb_paths is not None:
+        want = [Path(p).name for p in ckpt_emb_paths]
+        got = [Path(p).name for p in args.embeddings_paths]
+        if want != got:
+            raise ValueError(
+                f"The checkpoint was trained on {want} (in that order); got "
+                f"{got}. Pass the same embedding file(s), in the same order, "
+                f"used for training.")
+
+    # CONTENT guard (eval_finetuning.checkpoint_input_problems applies the
+    # same one). The basename and gene_order checks both survive a rebuild of
+    # the SAME files at the SAME paths over the SAME gene universe, which
+    # run_generate_embeddings.sh does routinely and node2vec / go2vec /
+    # onto2vec do not reproduce bit for bit — leaving the checkpoint's fitted
+    # transform and weights scoring different vectors. train.py records the
+    # trained files' sha256; legacy checkpoints lack the key and are not
+    # refused.
+    ckpt_emb_sha = ckpt_raw.get("embeddings_sha256")
+    if ckpt_emb_sha is not None:
+        got_sha = [_file_sha256(p) for p in args.embeddings_paths]
+        if list(map(str, ckpt_emb_sha)) != got_sha:
+            raise ValueError(
+                "The embedding file(s) named have DIFFERENT CONTENTS from "
+                "the ones the checkpoint was trained on (same paths, "
+                "regenerated in place?). Its stored per-fold PCA basis and "
+                "these weights would score different vectors; pass the files "
+                "it was trained on, or retrain.")
 
     if fold_transform is not None:
         print("Loading embeddings (applying checkpoint's transform)...")
         raw_per_modality, gene_to_idx, idx_to_gene = load_raw_multimodal(
             args.embeddings_paths)
-        # The fitted transform (and thus every gene-row index) is aligned to
-        # the training gene order. apply_multimodal_transform only checks
-        # feature dims, so a differently-ordered embedding file would be
-        # silently scored against the wrong genes. Verify the row order matches
-        # the gene_order saved with the checkpoint before applying.
+        # A same-files guard, not an indexing one. The fitted transform is
+        # row-independent (every stored statistic is per feature — impute
+        # locations, PCA pre-center/scale, V — or a scalar center/scale), the
+        # model has no per-gene parameters, and gene_to_idx is rebuilt from
+        # these same files, so row order alone cannot misindex a prediction
+        # (feature dims are checked by apply_multimodal_transform, and the
+        # modality list and its order against the checkpoint's
+        # embeddings_paths above). But the training files load in exactly the
+        # stored gene_order, so a different order proves these are other (e.g.
+        # regenerated) embeddings, whose features the model was never trained
+        # on.
         ckpt_gene_order = ckpt_raw.get("gene_order")
         if ckpt_gene_order is not None:
             current_order = [idx_to_gene[i] for i in range(len(idx_to_gene))]
             if list(ckpt_gene_order) != current_order:
                 raise ValueError(
                     "Gene order of --embeddings_paths does not match the "
-                    "checkpoint's stored gene_order. Predictions would be "
-                    "indexed to the wrong genes. Pass the same embedding "
-                    "file(s) (same order) used for training.")
+                    "checkpoint's stored gene_order, so these are not the "
+                    "embedding file(s) the model was trained on (gene "
+                    "indexing itself is order-independent; their features "
+                    "may not be the trained ones). Pass the same embedding "
+                    "file(s), in the same order, used for training.")
         embeddings = apply_multimodal_transform(raw_per_modality,
                                                 fold_transform)
         print(f"  embeddings: {tuple(embeddings.shape)}")

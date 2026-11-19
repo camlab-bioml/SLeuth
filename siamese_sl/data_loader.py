@@ -11,15 +11,17 @@ Preprocessing pipeline (applied per modality, then concatenated):
   6. Post-concat PCA (optional) — applied once to the concatenated tensor
   7. Re-normalize after post-PCA (global scalar) to restore ~unit scale
 
-Each stage has two variants selected by `pca_method`:
+Each stage has three variants selected by `pca_method`:
   "plain"  (DEFAULT) — column-mean impute → per-column mean+std standardize →
              SVD → global mean/std normalize (classical PCA end-to-end)
   "robust" — Huber M-estimate impute → ROBPCA (Hubert et al. 2005; falls back
              to median-centered SVD) → global median/MAD normalize
-All robust measures (Huber / median / MAD) stay in the robust path; all
-classical measures (mean / std) stay in the plain path. "plain" is the default
-as of 2026-08-10 — one classical pipeline for every run, rather than three
-regimes whose selection varied by job.
+  "svd"    — Huber M-estimate impute → median-centered SVD (no per-column
+             standardize, no ROBPCA) → global median/MAD normalize
+All robust measures (Huber / median / MAD) stay in the robust and svd paths;
+all classical measures (mean / std) stay in the plain path. "plain" is the
+default as of 2026-08-10 — one classical pipeline for every run, rather than
+three regimes whose selection varied by job.
 
 Fit/apply split — every preprocessing statistic (impute locations, PCA
 standardization + projection, normalization center/scale) is fit on a
@@ -31,10 +33,17 @@ basis under CV2/CV3.
 predict.py and notebooks. Training-time per-fold preprocessing lives in
 SLDataManager.get_fold_embeddings.
 
-Cross-validation uses SLMGAE benchmark's splitting code for consistency:
-  - CV1: Edge-based split (random split of SL pairs)
-  - CV2: Gene-based split (hold out genes, test pairs have ≥1 unseen gene)
-  - CV3: Pair-based split (both genes in test pairs are unseen)
+Cross-validation reads the shared folds (sl_comparison/folds, built by
+sl_comparison/prepare_folds.py) that every benchmark model uses, each with a
+val split carved from train (SLDataManager._shared_ml_folds):
+  - CV1: Edge-based split (random split of the pairs; val = a random slice
+         of the training pairs)
+  - CV2: Gene-based split (hold out genes, test pairs have ≥1 unseen gene;
+         val = pairs touching a held-out slice of the non-test genes)
+  - CV3: Pair-based split (both genes in test pairs are unseen; val = pairs
+         with both genes in that slice)
+train.py refuses a run without --folds_dir. SLMGAE's SLDataSplitter and
+_make_ml_folds remain only for that refused own-fold path (no val split).
 """
 
 import sys
@@ -93,6 +102,7 @@ def _huber_location(x: torch.Tensor,
 # =============================================================================
 # PCA internals — all return projection matrices so fit and apply are decoupled.
 #   robust path: ROBPCA (Hubert et al. 2005) → median-centered-SVD fallback.
+#   svd    path: median-centered SVD directly (no ROBPCA, no standardize).
 #   plain  path: per-column mean+std standardize → classical SVD.
 # =============================================================================
 
@@ -220,8 +230,9 @@ def _fit_pca_fallback_V(embeddings: torch.Tensor,
                         n_components: int) -> torch.Tensor:
     """Plain PCA fallback: return the (orig_dim, n_components) projection V.
 
-    Median-centered SVD (still a robust centering — used only inside the
-    robust path when ROBPCA is unavailable or all alpha retries raise).
+    Median-centered SVD (still a robust centering). It is the whole PCA of
+    the "svd" path, and the robust path's fallback when ROBPCA is unavailable
+    or all alpha retries raise.
     Project with `X @ V` (location-preserving; matches _fit_robpca_V's
     convention).
 
@@ -351,7 +362,8 @@ def _fit_pca_V(emb_fit: torch.Tensor,
     projection (or None when the target is a no-op, target >= orig_dim).
 
     Return schema:
-        robust:  {"V": Tensor (orig_dim, k),
+        robust / svd:
+                 {"V": Tensor (orig_dim, k),
                   "pre_center": None, "pre_scale": None}
         plain:   {"V": Tensor (orig_dim, k),
                   "pre_center": Tensor (orig_dim,) — per-column mean,
@@ -367,6 +379,8 @@ def _fit_pca_V(emb_fit: torch.Tensor,
             "robust" — ROBPCA with alpha retries, plain-PCA fallback
             (median-centered SVD) on failure. Keeps all robust machinery
             even in the fallback.
+            "svd" — median-centered SVD directly: no per-column
+            standardization, no ROBPCA.
     """
     if method not in ("robust", "plain", "svd"):
         raise ValueError(
@@ -509,16 +523,19 @@ def _fit_column_standardize(
         embeddings: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     """Per-column mean + (unbiased) std on the fit matrix (no NaN).
 
-    Returns (mean, std), both shape (dim,). std is clamped to 1e-8 to
-    avoid divide-by-zero on constant columns. Used by the plain-PCA path
-    to z-score each embedding dimension before SVD — the "standardize"
-    step of classical PCA that the robust path skips.
+    Returns (mean, std), both shape (dim,). The std of an exactly-constant
+    column (std == 0) is set to 1 to avoid divide-by-zero; tiny but nonzero
+    stds are kept (no 1e-8 floor; see the comment below). Used by the
+    plain-PCA path to z-score each embedding dimension before SVD — the
+    "standardize" step of classical PCA that the robust path skips.
     """
     mean = embeddings.mean(dim=0)
     std = embeddings.std(dim=0, unbiased=True)
     # Constant-only guard, NOT an absolute floor. `clamp(std, min=1e-8)` cannot
     # tell a constant column from one whose real std is below 1e-8, and mashup's
-    # diffusion tail has 43 genuinely non-constant columns in that range. Under
+    # diffusion tail had 43 genuinely non-constant columns in that range (all
+    # figures in this comment measured on the pre-2026-09-22 eigen-log
+    # data/all_genes_mashup.pt; the guard is kept for any such file). Under
     # an absolute floor those columns come out with variance 0.44-0.74 instead
     # of 1, so the z-score stops being scale-invariant: multiplying the same
     # matrix by 1000 moved the retained k from 330 to 346 at the same 0.8
@@ -542,7 +559,7 @@ def _fit_normalize_scalars(
 
     Returns (center, scale):
       method="plain" (default) — global mean, global (unbiased) std.
-      method="robust"          — global median, MAD (× 1.4826 consistency).
+      method="robust" / "svd"  — global median, MAD (× 1.4826 consistency).
     Scale is clamped to 1e-8 to avoid divide-by-zero on constant matrices.
     """
     if method == "plain":
@@ -557,7 +574,9 @@ def _fit_normalize_scalars(
         # MAD measures the middle of the distribution. When more than half the
         # entries sit at (near) the center, it collapses toward 0 while the
         # actual signal lives in the tail — MAD is then not robust, it is
-        # meaningless. data/all_genes_mashup.pt is exactly this: 50.9% of its
+        # meaningless. The pre-2026-09-22 eigen-log data/all_genes_mashup.pt
+        # was exactly this (figures measured on that file; the guard stays for
+        # any such modality): 50.9% of its
         # values are below 1e-7, giving MAD 9.9e-08 against std 5.0e-03, a
         # MAD/std ratio of 2e-05. Dividing by that MAD multiplies the modality
         # by ~1e7, so after concatenation it carries ~5e4x the variance of its
@@ -633,6 +652,7 @@ def apply_pca(embeddings: torch.Tensor,
       standardization, then SVD. No robust measures.
     method="robust": ROBPCA first (Hubert et al. 2005); median-centered-SVD
       fallback when robpy is unavailable or all alpha retries raise.
+    method="svd": median-centered SVD directly, no per-column standardize.
     """
     pca_t = _fit_pca_V(embeddings, n_components, alpha=alpha, method=method)
     if pca_t is None:
@@ -649,7 +669,7 @@ def normalize_modality(embeddings: torch.Tensor,
     """Fit + apply global scalar normalization on ALL rows. Legacy convenience.
 
     method="plain" (default): global mean  / std.
-    method="robust":          global median / MAD.
+    method="robust" / "svd":  global median / MAD.
     """
     center, scale = _fit_normalize_scalars(embeddings, method=method)
     return _apply_normalize(embeddings, center, scale)
@@ -773,7 +793,10 @@ def load_raw_multimodal(
     paths: List[str],
     gene_list_path: Optional[str] = None,
 ) -> Tuple[List[torch.Tensor], Dict[str, int], Dict[int, str]]:
-    """Load embedding files and align gene order — NO preprocessing.
+    """Load embedding files that must share one gene order — NO preprocessing.
+
+    Nothing is reordered: a file whose gene order differs from the first
+    file's raises ValueError.
 
     Returns:
         (raw_per_modality, gene_to_idx, idx_to_gene)
@@ -825,13 +848,17 @@ def fit_multimodal_transform(
         raw_per_modality: list of (n_genes, dim_i) tensors (possibly with NaN).
         fit_mask: (n_genes,) bool — rows used to fit every statistic.
         pca_dims: per-modality PCA targets (int or float in (0,1)). None to skip.
-        post_pca: post-concat PCA target. None to skip.
+        post_pca: post-concat PCA target. None to skip. An int at or above
+            the concatenated width raises ValueError (it would skip the
+            joint PCA, see there); a float keeps _fit_pca_V's no-op.
         labels: optional per-modality display labels for logs.
         pca_method: "plain" (default) — mean-impute + per-column mean/std
             standardize + SVD + global mean/std normalize. All classical
             measures.
             "robust" — Huber-impute + ROBPCA (+ alpha retries +
             median-centered-SVD fallback) + global median/MAD normalize.
+            "svd" — Huber-impute + median-centered SVD (no per-column
+            standardize, no ROBPCA) + global median/MAD normalize.
             Selects the whole pipeline, applied uniformly to per-modality
             and post-concat stages.
 
@@ -852,7 +879,7 @@ def fit_multimodal_transform(
             "post_pca_V":          tensor or None,
             "post_median":         float  or None,
             "post_mad":            float  or None,
-            "pca_method":          "robust" | "plain",
+            "pca_method":          "plain" | "robust" | "svd",
           }
         Fields named `median`/`mad` carry the fitted scalar center/scale
         regardless of whether they came from the robust (median/MAD) or
@@ -888,6 +915,7 @@ def fit_multimodal_transform(
 
     # Pick the fit primitives that match the requested method.
     # robust: Huber-impute, ROBPCA (or median-SVD fallback), median/MAD normalize.
+    # svd   : Huber-impute, median-SVD directly,              median/MAD normalize.
     # plain : mean-impute,  classical PCA (mean+std),           mean/std normalize.
     impute_fitter = (_fit_mean_locations
                      if pca_method == "plain" else _fit_huber_locations)
@@ -912,7 +940,8 @@ def fit_multimodal_transform(
         # Fit PCA on fit rows (after imputation), apply to all.
         # Plain PCA additionally fits per-column mean/std (pre-standardize)
         # and stores them in the transform so apply-time reproduces the
-        # same standardization. Robust PCA has pre_center/pre_scale = None.
+        # same standardization. Robust and svd PCA have pre_center/pre_scale
+        # = None.
         fit_imputed = imputed_all[fit_mask]
         pca_t: Optional[Dict] = None
         if pca_dims is not None:
@@ -960,6 +989,33 @@ def fit_multimodal_transform(
     if post_pca is not None:
         concatenated_fit = torch.cat(imputed_fit_pieces, dim=1)
         post_pca_t = _fit_pca_V(concatenated_fit, post_pca, method=pca_method)
+        if post_pca_t is None and isinstance(post_pca, int):
+            # An EXACT count (--post_pca_dim) at or above the width it would
+            # reduce is refused, not skipped (2026-10-21). _fit_pca_V returns
+            # None for it (k >= width: no z-scoring, no projection, k == width
+            # included), and the run then trained without its joint PCA while
+            # config.json still recorded post_pca = k: arch_signature.pca_arm
+            # said joint / both, every banner and table "(k components)". One
+            # PCA_JOINT_DIM serves arms joint AND both (siamese_sl/slurm/
+            # config.conf), whose joint stages meet very different widths: in
+            # arm both its per-modality components (~1,951 on the 2026-08-11
+            # cv1 set at 0.8, fewer in every leave-one-category-out ablation),
+            # so a count pinned for capacity could silently turn a both combo
+            # or one of its ablations into per_modality. Raised per fold, here,
+            # where the width is known (train.py --print_arch loads no data);
+            # a variance target (a float) keeps the documented no-op, and so
+            # does an int per-modality --pca_dims entry (the loop above).
+            raise ValueError(
+                f"post-concat PCA to {post_pca} components (--post_pca_dim: "
+                f"PCA_JOINT_DIM of PCA arms joint and both, siamese_sl/slurm/"
+                f"config.conf), but the concatenation it would reduce has "
+                f"only {concatenated_fit.shape[1]} columns (after the "
+                f"per-modality PCA, if any): a count at or above that width "
+                f"runs no joint PCA, so this run would not be the arm it is "
+                f"labelled. Use a PCA_JOINT_DIM below the narrowest width the "
+                f"joint stage meets (every fold, CV and leave-one-category-"
+                f"out ablation of each arm that takes it), or "
+                f"PCA_JOINT_VARIANCE.")
         if post_pca_t is not None:
             post_pca_V = post_pca_t["V"]
             post_pca_pre_center = post_pca_t["pre_center"]
@@ -991,7 +1047,23 @@ def apply_multimodal_transform(
     """Apply a fitted multimodal transform to all rows — returns concatenated.
 
     Produces the full (n_genes, post_dim) embedding matrix used by the model.
+
+    A transform fitted on a SUBSET of the run's modalities (per-fold modality
+    selection, train.py --fold_modalities) carries "modality_idx": the
+    positions, in the run's embeddings_paths order, of the modalities it was
+    fitted on. raw_per_modality is then the run's FULL list (as every caller
+    loads it, from config.json embeddings_paths) and is subset here, so every
+    downstream reader applies each fold's own modalities without knowing.
     """
+    _idx = transform.get("modality_idx")
+    if _idx is not None:
+        if max(_idx) >= len(raw_per_modality):
+            raise ValueError(
+                f"transform was fitted on modalities {list(_idx)} of the run's "
+                f"embeddings_paths, but only {len(raw_per_modality)} raw "
+                f"tensors were given: load the run's full embeddings_paths "
+                f"(config.json), not one fold's subset")
+        raw_per_modality = [raw_per_modality[i] for i in _idx]
     if len(raw_per_modality) != len(transform["per_modality"]):
         raise ValueError(
             f"Transform has {len(transform['per_modality'])} modalities but "
@@ -1008,7 +1080,7 @@ def apply_multimodal_transform(
                 f"transform (order matters).")
         emb = _apply_huber_imputation(raw, mod_t["impute_locations"])
         # Pre-PCA per-column standardization (plain method only; both
-        # fields are None in the robust path).
+        # fields are None in the robust and svd paths).
         pre_center = mod_t.get("pca_pre_center")
         pre_scale = mod_t.get("pca_pre_scale")
         if pre_center is not None:
@@ -1065,8 +1137,8 @@ def load_multimodal_embeddings(
                            end-to-end). This is the default everywhere since
                            2026-08-10; the signature above defaults to it.
       "robust"           — Huber-impute + ROBPCA + median/MAD normalize.
-      "svd"              — Huber-impute + matrix-wise median/MAD rescale +
-                           median-centered SVD, no per-column standardize.
+      "svd"              — Huber-impute + median-centered SVD (no per-column
+                           standardize) + global median/MAD normalize.
     """
     n = len(paths)
     desc = "modality" if n == 1 else f"{n} modalities"
@@ -1095,7 +1167,8 @@ def load_multimodal_embeddings(
     print(f"  -> Concatenated: {total_dim_after_mod}d "
           f"({concatenated.shape[0]} genes)")
     if transform["post_pca_V"] is not None:
-        print(f"  -> Post-concat ROBPCA + renorm: {total_dim_after_mod}d -> "
+        print(f"  -> Post-concat PCA (pca_method={pca_method}) + renorm: "
+              f"{total_dim_after_mod}d -> "
               f"{concatenated.shape[1]}d (target={post_pca})")
 
     return concatenated, gene_to_idx, idx_to_gene
@@ -1171,17 +1244,20 @@ class SLDataManager:
     """
     Manages data loading and CV splits for SL prediction.
 
-    Uses SLMGAE benchmark's SLDataSplitter for CV1/CV2/CV3 splits
-    to ensure consistency with published results.
+    CV splits come from the shared folds (folds_dir), the train/val/test
+    partition every benchmark model uses. The own-fold paths (SLMGAE's
+    SLDataSplitter, _make_ml_folds) remain in code, but they carry no val
+    split and train.py refuses them.
 
     Preprocessing (impute → PCA → normalize) is fit PER FOLD on genes that
     appear in training pairs (plus non-SL genes that appear in no pair at
-    all). Genes that appear only in a test pair are excluded from the fit
-    so their embedding values cannot shape the PCA basis — closing the
-    CV2/CV3 leakage path. CV1 is unaffected because its test pairs reuse
-    training genes.
+    all). Genes that appear only in val or test pairs are excluded from the
+    fit so their embedding values cannot shape the PCA basis — closing the
+    CV2/CV3 leakage path. CV1 is affected too: its set is smaller but not
+    empty (see _fold_fit_mask).
 
-    NOTE: The --seed argument controls model init AND CV splitting.
+    NOTE: --seed controls model init and data order. It does not change the
+    shared-fold split (only the refused own-fold paths split with it).
     """
 
     def __init__(
@@ -1197,30 +1273,54 @@ class SLDataManager:
         pca_method: str = "plain",
         use_cell_lines: bool = False,
         folds_dir: Optional[str] = None,
+        pool_cell_lines: bool = False,
+        selection_frac: float = 0.0,
+        selection_seed: int = 42,
+        fold_modalities: Optional[Dict[int, List[int]]] = None,
     ):
         """
         Args:
+            selection_frac: Fraction of each fold's TRAINING pairs held out as
+                a modality-selection split (2026-11-12, per-fold per-tier
+                selection). 0 (default) = off, byte-identical to before. When
+                > 0 the split is a uniform random sample of the fold's
+                training pairs (random pairs at every tier, by request), it
+                is removed from training, and the selected checkpoint is scored
+                on it once (sel_* metrics). It depends only on
+                (selection_seed, cv_type, fold, the fold's training pairs), so
+                every run on the same folds — every embedding, variant and PCA
+                arm — holds out the identical pairs.
+            selection_seed: Seed of that split (independent of --seed).
+            fold_modalities: {fold: [positions in embeddings_paths]} — per-fold
+                modality sets (per-fold selection). None (default): every fold
+                uses every modality. The fitted transform records the subset
+                (modality_idx), so inference applies the right one.
             embeddings_paths: List of .pt embedding files.
             sl_pairs_path: Path to SL pairs file (gene1 TAB gene2 [TAB weight])
             neg_pairs_path: Optional path to a curated NON-SL pairs file
-                (gene1 TAB gene2). When given, these experimentally screened
-                negatives replace the benchmark's random negative sampling.
-                Only pairs whose BOTH genes also appear in a positive pair are
-                usable (the splitter works in SL-only index space); pairs that
-                coincide with a positive are dropped. When None, the benchmark
-                samples random non-edges as before.
+                (gene1 TAB gene2). With folds_dir it is required in cell-line
+                mode (the per-head negatives) and unused in single-output
+                mode. The rest of this entry is the own-fold path: when
+                given, these experimentally screened negatives replace the
+                benchmark's random negative sampling. Only pairs whose BOTH
+                genes also appear in a positive pair are usable (the splitter
+                works in SL-only index space); pairs that coincide with a
+                positive are dropped. When None, the benchmark samples random
+                non-edges as before.
             gene_list_path: Optional path to gene list (for ordering)
             seed: Random seed for reproducibility
             pca_dims: Per-modality PCA targets (one per embedding file).
                 Int for exact count, float in (0,1) for variance fraction.
-            post_pca: Optional post-concatenation ROBPCA target.
-            preprocessing_fit_scope: Which gene rows to fit preprocessing
-                stats (Huber locations, ROBPCA basis, median/MAD) on.
+            post_pca: Optional post-concatenation PCA target (method set by
+                pca_method).
+            preprocessing_fit_scope: Which gene rows fit the impute / PCA /
+                normalize statistics (estimators set by pca_method).
                 - "train" (default): per-fold fit on training-pair genes
-                  plus non-SL genes; test-only genes excluded — leak-free.
+                  plus genes in no pair; genes that appear only in val or
+                  test pairs are excluded, in every CV type — leak-free.
                 - "all": fit on every gene regardless of fold. Matches the
-                  pre-refactor behavior and reintroduces CV2/CV3 leakage
-                  of test-gene embeddings into the basis. Kept for A/B
+                  pre-refactor behavior and reintroduces the leakage of
+                  held-out gene embeddings into the basis. Kept for A/B
                   comparison so the effect of the fix can be quantified.
             pca_method: "plain" (DEFAULT) — per-column mean/std standardize
                 then classical SVD, with a global mean/std normalize.
@@ -1233,19 +1333,30 @@ class SLDataManager:
                 a per-head (label, mask) vector over cell_line_vocab.HEADS
                 (read from the ".sources.tsv" sidecars next to sl_pairs_path /
                 neg_pairs_path). The unified set of pairs that are SL and/or
-                non-SL in some head is split gene-disjointly (the splitter's
-                random negatives are discarded — supervision comes entirely
-                from the label/mask), and the model (SiameseSLMultiCell) emits
-                one logit per head. neg_pairs_path's pairs are NOT restricted
+                non-SL in some head is partitioned by the shared folds
+                (folds_dir; train.py requires it) or, on the refused own-fold
+                path, by _make_ml_folds. SLDataSplitter is not used and no
+                negatives are sampled — supervision comes entirely from the
+                label/mask. The model (SiameseSLMultiCell) emits one logit per
+                head. neg_pairs_path's pairs are NOT restricted
                 to the SL gene universe here; the gene universe is all pairs
                 that carry any known label.
             folds_dir: Use the shared canonical CV folds in this directory
                 (e.g. ../sl_comparison/folds) instead of siamese's own
-                gene-disjoint partition. This is what makes the four-model
+                partition; train.py requires it (the own
+                partition has no val split). This is what makes the four-model
                 comparison fair: identical train/val/test division and
-                identical gene index space. Per-head labels stay siamese's,
-                so cell-line conditioning is unaffected — only the PARTITION
-                is shared. Requires use_cell_lines=True.
+                identical gene index space. With use_cell_lines the per-head
+                labels stay siamese's, so cell-line conditioning is unaffected
+                — only the PARTITION is shared. Without it (single-output
+                mode) the labels are the fold files' own (pos = 1, neg = 0,
+                one column), neg_pairs_path is not used, and --sl_path is
+                checked against the fold positives.
+            pool_cell_lines: Collapse the per-head (label, mask) to ONE column:
+                label = SL in any supervised head (the OR rule the shared folds
+                use for every model), mask = 1 for every labeled pair. Same
+                pair universe and partition; the model is then single-headed
+                with no cell-line embedding. Requires use_cell_lines=True.
         """
         if not embeddings_paths:
             raise ValueError("embeddings_paths must be a non-empty list")
@@ -1259,16 +1370,38 @@ class SLDataManager:
 
         self.seed = seed
         set_seed(seed)
+        if not (0.0 <= float(selection_frac) < 1.0):
+            raise ValueError(f"selection_frac must be in [0, 1); got "
+                             f"{selection_frac!r}")
+        self.selection_frac = float(selection_frac)
+        self.selection_seed = int(selection_seed)
+        if fold_modalities is not None:
+            n_mod = len(embeddings_paths)
+            fold_modalities = {int(k): [int(i) for i in v]
+                               for k, v in fold_modalities.items()}
+            for k, v in fold_modalities.items():
+                if (not v or len(set(v)) != len(v)
+                        or min(v) < 0 or max(v) >= n_mod):
+                    raise ValueError(
+                        f"fold_modalities[{k}]={v}: need distinct positions "
+                        f"in 0..{n_mod - 1} (embeddings_paths)")
+        self.fold_modalities = fold_modalities
         self.use_cell_lines = bool(use_cell_lines)
         if self.use_cell_lines and not neg_pairs_path:
             raise ValueError(
                 "use_cell_lines=True requires neg_pairs_path (the screened "
                 "non-SL pairs provide the negative labels per cell line).")
         self.folds_dir = folds_dir or None
-        if self.folds_dir and not self.use_cell_lines:
+        # Single-output mode on the shared folds: every example is a pair with
+        # ONE label read from the fold files. It runs through the same masked
+        # one-column path as --cell_lines pooled (mask all ones), so selection,
+        # metrics and the shared-matrix export are the cell-line code's.
+        self.fold_labels = bool(self.folds_dir and not self.use_cell_lines)
+        self.pool_cell_lines = bool(pool_cell_lines)
+        if self.pool_cell_lines and not self.use_cell_lines:
             raise ValueError(
-                "folds_dir requires use_cell_lines=True; the shared-fold "
-                "reader maps onto the multi-label pair universe.")
+                "pool_cell_lines requires use_cell_lines=True (it collapses "
+                "the multi-label universe to the OR label).")
         self.embeddings_paths = list(embeddings_paths)
         self.pca_dims = pca_dims
         self.post_pca = post_pca
@@ -1313,6 +1446,18 @@ class SLDataManager:
             self.neg_pairs = np.zeros((0, 2), dtype=np.int64)
             neg_stats = None
             self._setup_multilabel(sl_pairs_path, neg_pairs_path)
+            if self.pool_cell_lines:
+                self._pool_multilabel()
+        elif self.fold_labels:
+            # Labels come from the shared fold files, read per CV type in
+            # _get_ml_splits (_setup_fold_labels); no negative pool here.
+            self.negative_strategy = "shared_folds"
+            self.neg_pairs = np.zeros((0, 2), dtype=np.int64)
+            neg_stats = None
+            if neg_pairs_path:
+                print(f"NOTE: neg_pairs_path={neg_pairs_path!r} is not used: "
+                      f"single-output labels come from the shared folds "
+                      f"({self.folds_dir}).")
         elif neg_pairs_path:
             self.negative_strategy = "experimental"
             self.neg_pairs, neg_stats = self._load_neg_pairs(neg_pairs_path)
@@ -1333,6 +1478,9 @@ class SLDataManager:
         print(f"SL pairs involve {self.num_sl_genes} unique genes")
         if self.negative_strategy == "multilabel":
             pass  # _setup_multilabel already printed a per-head summary
+        elif self.negative_strategy == "shared_folds":
+            print("Single-output labels: the shared folds' own (OR-collapsed) "
+                  "pos/neg pairs")
         elif self.negative_strategy == "experimental":
             print(f"Negative strategy: EXPERIMENTAL "
                   f"({len(self.neg_pairs):,} curated non-SL pairs in pool)")
@@ -1557,8 +1705,9 @@ class SLDataManager:
             is_ns = (i, j) in neg_set
             # The .txt pairs file and its .sources.tsv sidecar are written in
             # lockstep by download_synlethdb.py; a membership without a sidecar
-            # row means they drifted. Count it (a missing field falls back to
-            # "" -> the pair's known side becomes OTHER, which we surface).
+            # row means they drifted. Counted here and refused below (the
+            # missing field would fall back to "" and the pair's known side
+            # would become OTHER).
             if (is_sl and (i, j) not in pos_raw) or \
                (is_ns and (i, j) not in neg_raw):
                 n_sidecar_missing += 1
@@ -1594,9 +1743,16 @@ class SLDataManager:
                                    dtype=np.int64)
 
         if n_sidecar_missing:
-            print(f"    WARNING: {n_sidecar_missing:,} pair(s) present in a "
-                  f".txt set but missing from its .sources.tsv sidecar "
-                  f"(treated as OTHER-head). Check the files are in sync.")
+            # (a WARNING until 2026-10-07: every such pair was then supervised
+            # at the OTHER head, in each per_head training of the run)
+            raise RuntimeError(
+                f"{n_sidecar_missing:,} pair(s) of --sl_path / "
+                f"--neg_pairs_path have no row in their .sources.tsv sidecar: "
+                f"the pair files and sidecars are out of sync (a partial "
+                f"copy?). Their cell-line heads would silently become OTHER; "
+                f"re-copy the four files or rebuild them with "
+                f"download_synlethdb.py (it writes each .txt with its "
+                f"sidecar).")
 
         # Summary.
         known = self.ml_mask.sum(axis=0)  # per head, #supervised
@@ -1624,8 +1780,95 @@ class SLDataManager:
                 f"pos {int(pos_per[h]):>6,}  neg {int(known[h]-pos_per[h]):>7,}"
                 f"  (or-resolved {int(or_per_head[h]):>5,})")
 
+    def _pool_multilabel(self) -> None:
+        """Collapse ml_label / ml_mask (N, H) to one OR column (N, 1).
+
+        label = 1 if the pair is SL in ANY supervised head, else 0; mask = 1
+        wherever any head is supervised (every pair kept by _setup_multilabel).
+        This is the shared folds' conflict_policy=or_collapse label, so a
+        pooled run trains on exactly the outcome the other models train on.
+        """
+        sup = self.ml_mask > 0
+        label = (sup & (self.ml_label > 0)).any(axis=1)
+        mask = sup.any(axis=1)
+        self.ml_label = label.astype(np.float32).reshape(-1, 1)
+        self.ml_mask = mask.astype(np.float32).reshape(-1, 1)
+        print(f"Cell lines POOLED: one OR-collapsed label per pair — "
+              f"{int(label.sum()):,} SL / {int((mask & ~label).sum()):,} "
+              f"non-SL over {int(mask.sum()):,} pairs")
+
+    def _setup_fold_labels(self, cv_type: str, num_folds: int) -> None:
+        """Single-output mode: build ml_* from the shared fold files of one CV.
+
+        The labelled universe is every pair in <folds_dir>/<cv_type>/fold_*/
+        {train,val,test}_{pos,neg}.npy that has an embedding row for both
+        genes; label (N, 1) = 1 for *_pos, 0 for *_neg; mask all ones. This is
+        the shared folds' OR-collapsed label, the one every benchmark model
+        trains on, with no cell-line sidecars involved. A pair labelled both
+        ways across the fold files, a fold positive missing from --sl_path or
+        a fold negative listed in it raises: the run's SL file and the folds
+        must describe the same labels.
+        """
+        shared_genes, s2f = self._shared_gene_map()
+        base = Path(self.folds_dir) / cv_type
+        label_of: Dict[Tuple[int, int], int] = {}
+        n_unmapped = 0
+        for f in range(num_folds):
+            d = base / f"fold_{f}"
+            if not d.exists():
+                raise FileNotFoundError(
+                    f"{d} missing — prepare_folds.py was run with fewer than "
+                    f"{num_folds} folds, or a different cv_types list.")
+            for nm in ("train_pos", "train_neg", "val_pos", "val_neg",
+                       "test_pos", "test_neg"):
+                p = d / f"{nm}.npy"
+                if not p.exists():
+                    continue
+                y = 1 if nm.endswith("_pos") else 0
+                arr = np.asarray(np.load(p), dtype=np.int64).reshape(-1, 2)
+                fa, fb = s2f[arr[:, 0]], s2f[arr[:, 1]]
+                ok = (fa >= 0) & (fb >= 0)
+                n_unmapped += int((~ok).sum())
+                lo = np.minimum(fa[ok], fb[ok])
+                hi = np.maximum(fa[ok], fb[ok])
+                for key in zip(lo.tolist(), hi.tolist()):
+                    if label_of.setdefault(key, y) != y:
+                        raise RuntimeError(
+                            f"{cv_type}: pair {key} is labelled both SL and "
+                            f"non-SL across the shared fold files")
+
+        pairs = np.array(sorted(label_of), dtype=np.int64).reshape(-1, 2)
+        y = np.array([label_of[tuple(p)] for p in pairs.tolist()],
+                     dtype=np.float32)
+        sl_set = set(map(tuple, self.pos_pairs_full_idx.tolist()))
+        in_sl = np.array([tuple(p) in sl_set for p in pairs.tolist()],
+                         dtype=bool)
+        pos_not_sl = int(((y == 1) & ~in_sl).sum())
+        neg_in_sl = int(((y == 0) & in_sl).sum())
+        if pos_not_sl or neg_in_sl:
+            raise RuntimeError(
+                f"{cv_type}: the shared folds and --sl_path disagree "
+                f"({pos_not_sl:,} fold positives are not in the SL file, "
+                f"{neg_in_sl:,} fold negatives are); pass the SL file the "
+                f"folds were built from (folds meta.json pos_path)")
+
+        self.ml_pairs_full = pairs
+        self.ml_label = y.reshape(-1, 1)
+        self.ml_mask = np.ones_like(self.ml_label)
+        genes = sorted({int(g) for g in pairs.ravel()})
+        full_to_p = {g: p for p, g in enumerate(genes)}
+        self.num_p_genes = len(genes)
+        self.ml_pairs_p = np.array([[full_to_p[int(i)], full_to_p[int(j)]]
+                                    for i, j in pairs],
+                                   dtype=np.int64).reshape(-1, 2)
+        print(f"Single-output labels from {base}: {int(y.sum()):,} SL / "
+              f"{int((y == 0).sum()):,} non-SL pairs over "
+              f"{self.num_p_genes:,} genes" +
+              (f" ({n_unmapped:,} fold pair-slots dropped: a gene has no "
+               f"embedding row)" if n_unmapped else ""))
+
     def _make_ml_folds(self, cv_type: str, num_folds: int) -> List[Tuple]:
-        """Gene-disjoint CV folds for the multi-label universe (no benchmark
+        """Siamese's own CV folds for the multi-label universe (no benchmark
         splitter, no negative sampling — every pair is one example with a
         label/mask vector, so we just partition the pairs).
 
@@ -1714,21 +1957,29 @@ class SLDataManager:
             for r, (a, b) in enumerate(self.ml_pairs_full)
         }
 
-        def rows(arr: np.ndarray) -> Tuple[np.ndarray, int]:
-            """Shared-index pairs -> ml row indices; count unrepresentable."""
-            out, miss = [], 0
+        def rows(arr: np.ndarray) -> Tuple[np.ndarray, int, int]:
+            """Shared-index pairs -> ml row indices, with the two misses apart.
+
+            miss_gene — a gene with no embedding row (reported, unavoidable).
+            miss_pair — both genes embedded but the pair is not in the
+            labelled universe. That means --sl_path / --neg_pairs_path and the
+            folds describe different pair sets, which is never benign; part()
+            raises on it.
+            """
+            out, miss_gene, miss_pair = [], 0, 0
             for a, b in np.asarray(arr, dtype=np.int64):
                 fa, fb = s2f[a], s2f[b]
                 if fa < 0 or fb < 0:
-                    miss += 1
+                    miss_gene += 1
                     continue
                 key = (int(fa), int(fb)) if fa < fb else (int(fb), int(fa))
                 r = row_of.get(key)
                 if r is None:
-                    miss += 1
+                    miss_pair += 1
                     continue
                 out.append(r)
-            return np.array(sorted(set(out)), dtype=np.int64), miss
+            return (np.array(sorted(set(out)), dtype=np.int64), miss_gene,
+                    miss_pair)
 
         base = Path(self.folds_dir) / cv_type
         folds: List[Tuple] = []
@@ -1747,8 +1998,44 @@ class SLDataManager:
                     p = d / f"{nm}.npy"
                     if not p.exists():
                         continue
-                    r, m = rows(np.load(p))
-                    total_miss += m
+                    r, m_gene, m_pair = rows(np.load(p))
+                    total_miss += m_gene
+                    if m_pair:
+                        # Dropping these silently would train on fewer pairs
+                        # than SLMGAE / SLGNN / NSF4SL on the same folds AND
+                        # leave the test-only genes of a dropped test pair
+                        # inside the preprocessing fit (_fold_fit_mask sees
+                        # only the pairs that survived), while evaluate_model
+                        # still grades them off the dense matrix. Single-output
+                        # mode already raises on the same disagreement
+                        # (_setup_fold_labels).
+                        raise RuntimeError(
+                            f"{cv_type} fold {f} {nm}: {m_pair} fold pairs are "
+                            f"not in the labelled universe built from "
+                            f"--sl_path/--neg_pairs_path; pass the files the "
+                            f"folds were built from (folds meta.json "
+                            f"pos_path/neg_path)")
+                    if m_gene and nm.startswith("val_"):
+                        # Early stopping / checkpoint selection must see the
+                        # fold's val split exactly; a dropped val pair would
+                        # silently change the selection set.
+                        raise RuntimeError(
+                            f"{cv_type} fold {f} {nm}: {m_gene} val pairs have "
+                            f"a gene with no embedding row, so selection would "
+                            f"not use the fold's val split exactly")
+                    if len(r):
+                        # The OR label (SL in any supervised head; the pooled
+                        # label, or the per-head rows collapsed) must be the
+                        # shared folds' own label, in either --cell_lines mode.
+                        want = 1.0 if nm.endswith("_pos") else 0.0
+                        or_lab = ((self.ml_mask[r] > 0) &
+                                  (self.ml_label[r] > 0)).any(axis=1)
+                        bad = int((or_lab.astype(np.float32) != want).sum())
+                        if bad:
+                            raise RuntimeError(
+                                f"{cv_type} fold {f} {nm}: {bad} pairs carry "
+                                f"an OR label != {int(want)}; the labelled "
+                                f"universe and the shared folds disagree")
                     idxs.append(r)
                 if not idxs:
                     return np.array([], dtype=np.int64)
@@ -1769,8 +2056,11 @@ class SLDataManager:
             folds.append((tr, va, te))
 
         if total_miss:
-            print(f"    {total_miss:,} shared fold pair-slots carry no "
-                  f"cell-line head in this run and are not trainable examples "
+            # A pair missing from the labelled universe is fatal above, so the
+            # only miss that reaches here is the embedding-row one — the same
+            # cause in cell-line and single-output mode.
+            print(f"    {total_miss:,} shared fold pair-slots have a gene "
+                  f"with no embedding row and are not trainable examples "
                   f"(they are still scored — grading uses the dense matrix).")
         return folds
 
@@ -1793,12 +2083,58 @@ class SLDataManager:
             out["val"] = part(val_idx)
         return out
 
+    @staticmethod
+    def _pairs_digest(pairs: np.ndarray) -> str:
+        """sha256 over the canonically sorted (min, max) pair list."""
+        import hashlib
+        p = np.sort(np.asarray(pairs, dtype=np.int64).reshape(-1, 2), axis=1)
+        p = p[np.lexsort((p[:, 1], p[:, 0]))]
+        return hashlib.sha256(np.ascontiguousarray(p).tobytes()).hexdigest()
+
+    def _carve_selection_split(self, cv_type: str, fold: int,
+                               train_idx: np.ndarray
+                               ) -> Tuple[np.ndarray, np.ndarray]:
+        """Split a fold's training rows into (train, selection).
+
+        A uniform random selection_frac of the training PAIRS (no
+        stratification, no gene hold-out: random pairs at every tier). The
+        draw is a function of the pairs themselves, not of row numbers: the
+        training pairs are sorted canonically and permuted by a generator
+        seeded with (selection_seed, cv, fold), so any run on the same folds
+        gets the same held-out pairs whatever its embeddings, variant or PCA.
+        """
+        train_idx = np.asarray(train_idx, dtype=np.int64)
+        pairs = np.sort(self.ml_pairs_full[train_idx].astype(np.int64), axis=1)
+        order = np.lexsort((pairs[:, 1], pairs[:, 0]))
+        canon = train_idx[order]
+        cv_num = {"cv1": 1, "cv2": 2, "cv3": 3}.get(cv_type, 0)
+        rng = np.random.default_rng([self.selection_seed, cv_num, int(fold)])
+        perm = rng.permutation(len(canon))
+        n_sel = int(round(self.selection_frac * len(canon)))
+        if n_sel < 1 or n_sel >= len(canon):
+            raise RuntimeError(
+                f"{cv_type} fold {fold}: selection_frac={self.selection_frac} "
+                f"gives {n_sel} of {len(canon)} training pairs")
+        sel = np.sort(canon[perm[:n_sel]])
+        rest = np.sort(canon[perm[n_sel:]])
+        or_lab = ((self.ml_mask[sel] > 0) & (self.ml_label[sel] > 0)).any(axis=1)
+        if or_lab.all() or not or_lab.any():
+            raise RuntimeError(
+                f"{cv_type} fold {fold}: the selection split is single-class "
+                f"({int(or_lab.sum())} SL of {len(sel)}); AUPRG is undefined")
+        return rest, sel
+
     def _get_ml_splits(self, cv_type: str, num_folds: int) -> List[Dict]:
         """Build + report multi-label folds for one CV type.
 
         Shared canonical folds when folds_dir is set (fair four-model
-        comparison), otherwise siamese's own gene-disjoint partition.
+        comparison), otherwise siamese's own partition (_make_ml_folds: cv1
+        edge KFold, cv2/cv3 gene-held-out).
+        Single-output mode first builds its one-column labels from this CV's
+        fold files.
         """
+        if self.fold_labels:
+            self._setup_fold_labels(cv_type, num_folds)
         if self.folds_dir:
             folds = self._shared_ml_folds(cv_type, num_folds)
         else:
@@ -1806,11 +2142,25 @@ class SLDataManager:
                      for tr, te in self._make_ml_folds(cv_type, num_folds)]
         converted = []
         for f, (tr, va, te) in enumerate(folds):
+            sel = None
+            if self.selection_frac > 0:
+                tr, sel = self._carve_selection_split(cv_type, f, tr)
             fd = self._ml_fold_data(f, tr, te, va)
+            if sel is not None:
+                fd["sel"] = {
+                    "pairs": self.ml_pairs_full[sel],
+                    "labels": self.ml_label[sel],
+                    "mask": self.ml_mask[sel],
+                }
+                fd["sel_digest"] = self._pairs_digest(self.ml_pairs_full[sel])
             converted.append(fd)
             vtxt = (f"  val {len(va):,} pairs/"
                     f"{int(fd['val']['mask'].sum()):,} labels"
                     if "val" in fd else "")
+            if sel is not None:
+                vtxt += (f"  selection {len(sel):,} pairs/"
+                         f"{int(fd['sel']['mask'].sum()):,} labels "
+                         f"[{fd['sel_digest'][:12]}]")
             print(
                 f"  Fold {f + 1}: "
                 f"train {len(tr):,} pairs/{int(fd['train']['mask'].sum()):,} "
@@ -1908,13 +2258,18 @@ class SLDataManager:
         pos_neg_ratio: float = 1.0,
     ) -> List[Dict]:
         """
-        CV1: Edge-based cross-validation (from SLMGAE benchmark).
+        CV1: Edge-based cross-validation.
 
-        Randomly splits SL pairs into folds.
+        Shared folds when folds_dir is set (every train.py run); otherwise
+        siamese's own folds (SLMGAE's splitter, or _make_ml_folds with cell
+        lines), a path train.py refuses (no val split).
+
+        Randomly splits the labelled pairs into folds.
         Tests ability to predict held-out interactions between known genes.
         """
-        if self.use_cell_lines:
-            print("\nGenerating CV1 splits (edge-based, multi-label)...")
+        if self.use_cell_lines or self.fold_labels:
+            print(f"\nGenerating CV1 splits (edge-based, "
+                  f"{'shared folds' if self.folds_dir else 'multi-label'})...")
             return self._get_ml_splits("cv1", num_folds)
         print(
             f"\nGenerating CV1 splits (edge-based) using SLMGAE benchmark code..."
@@ -1930,10 +2285,15 @@ class SLDataManager:
         pos_neg_ratio: float = 1.0,
     ) -> List[Dict]:
         """
-        CV2: Gene-based cross-validation (from SLMGAE benchmark).
+        CV2: Gene-based cross-validation.
+
+        Shared folds when folds_dir is set (every train.py run); otherwise
+        siamese's own folds (SLMGAE's splitter, or _make_ml_folds with cell
+        lines), a path train.py refuses (no val split).
         """
-        if self.use_cell_lines:
-            print("\nGenerating CV2 splits (gene-based, multi-label)...")
+        if self.use_cell_lines or self.fold_labels:
+            print(f"\nGenerating CV2 splits (gene-based, "
+                  f"{'shared folds' if self.folds_dir else 'multi-label'})...")
             return self._get_ml_splits("cv2", num_folds)
         print(
             f"\nGenerating CV2 splits (gene-based) using SLMGAE benchmark code..."
@@ -1949,12 +2309,17 @@ class SLDataManager:
         pos_neg_ratio: float = 1.0,
     ) -> List[Dict]:
         """
-        CV3: Pair-based cross-validation (from SLMGAE benchmark).
+        CV3: Pair-based cross-validation.
+
+        Shared folds when folds_dir is set (every train.py run); otherwise
+        siamese's own folds (SLMGAE's splitter, or _make_ml_folds with cell
+        lines), a path train.py refuses (no val split).
 
         Both genes in test pairs are unseen during training.
         """
-        if self.use_cell_lines:
-            print("\nGenerating CV3 splits (pair-based, multi-label)...")
+        if self.use_cell_lines or self.fold_labels:
+            print(f"\nGenerating CV3 splits (pair-based, "
+                  f"{'shared folds' if self.folds_dir else 'multi-label'})...")
             return self._get_ml_splits("cv3", num_folds)
         print(
             f"\nGenerating CV3 splits (pair-based) using SLMGAE benchmark code..."
@@ -1972,22 +2337,22 @@ class SLDataManager:
         """Build the fit mask for preprocessing.
 
         scope = "all":
-          Every gene is a fit row. Preprocessing stats include test-only
-          gene embeddings — reintroduces CV2/CV3 leakage. Use only for
-          A/B comparison.
+          Every gene is a fit row. Preprocessing stats include val-only and
+          test-only gene embeddings — reintroduces the held-out-gene
+          leakage. Use only for A/B comparison.
 
         scope = "train" (default, leak-free):
           - Genes that appear in any training pair (positive or negative)
             stay in the fit — their labels are the supervision signal.
-          - Non-SL genes (absent from both training and test pairs) stay
+          - Genes in no pair at all (absent from train, val and test) stay
             in the fit — they carry no label information to leak and keep
-            the ROBPCA sample size high.
-          - Genes that appear in test pairs but NOT in training pairs are
-            excluded. In CV1 this set is small but NOT empty — an edge split
-            guarantees nothing about gene reuse for low-degree genes, and
-            2,629 genes have exactly one SL pair, so roughly a fifth of them
-            land test-only on any given 5-fold split; in CV3 it is
-            the full test-pair gene set.
+            the PCA sample size high.
+          - Genes that appear in val or test pairs but NOT in training pairs
+            are excluded. In CV1 this set is small but NOT empty — an edge
+            split guarantees nothing about gene reuse for low-degree genes:
+            3,994 of the 8,844 shared-fold genes carry exactly one labelled
+            pair, so about 1.2k genes per CV1 fold land val- or test-only;
+            in CV3 it is every gene of a val or test pair.
         """
         if self.preprocessing_fit_scope == "all":
             return torch.ones(self.num_genes, dtype=torch.bool)
@@ -2002,15 +2367,20 @@ class SLDataManager:
             test_genes.add(int(g2))
         # VAL is held out exactly like test and must be excluded on the same
         # terms. The shared cv2/cv3 folds carve val by holding out a GENE group
-        # (prepare_folds.py:228-240), so val-only genes appear in no train pair
+        # (prepare_folds.generate), so val-only genes appear in no train pair
         # and no test pair — without this they survive `test_genes -
-        # train_genes` and their raw embeddings shape the Huber locations, the
-        # ROBPCA basis and the median/MAD. That makes val transductive and
+        # train_genes` and their raw embeddings shape the impute locations, the
+        # PCA basis and the normalize stats. That makes val transductive and
         # optimistically biases the very number used both for per-epoch
         # checkpoint selection and for cross-config ranking in
         # collect_siamese.discover. Measured on the shared folds (fold 0):
         # 602 such genes in cv2, 154 in cv3.
         for g1, g2 in fold_data.get("val", {}).get("pairs", []):
+            test_genes.add(int(g1))
+            test_genes.add(int(g2))
+        # --selection_frac: a gene seen only in the selection split is held
+        # out of the fit exactly as a val-only gene is.
+        for g1, g2 in fold_data.get("sel", {}).get("pairs", []):
             test_genes.add(int(g1))
             test_genes.add(int(g2))
         exclude = test_genes - train_genes
@@ -2044,14 +2414,26 @@ class SLDataManager:
               f"scope={self.preprocessing_fit_scope}]" +
               (" (+ post-concat PCA + renorm)" if self.
                post_pca is not None else ""))
+        idx = None
+        if self.fold_modalities is not None:
+            idx = list(self.fold_modalities[int(fold_data["fold"])])
+            print(f"[fold {fold_data['fold']}] modalities (per-fold "
+                  f"selection): {[self._modality_labels[i] for i in idx]}")
+        sub = (self.raw_per_modality if idx is None
+               else [self.raw_per_modality[i] for i in idx])
         transform = fit_multimodal_transform(
-            self.raw_per_modality,
+            sub,
             fit_mask,
-            pca_dims=self.pca_dims,
+            pca_dims=(None if self.pca_dims is None else
+                      (self.pca_dims if idx is None
+                       else [self.pca_dims[i] for i in idx])),
             post_pca=self.post_pca,
-            labels=self._modality_labels,
+            labels=(self._modality_labels if idx is None
+                    else [self._modality_labels[i] for i in idx]),
             pca_method=self.pca_method,
         )
+        if idx is not None:
+            transform["modality_idx"] = idx
         embeddings = apply_multimodal_transform(self.raw_per_modality,
                                                 transform)
         print(f"[fold {fold_data['fold']}] fold embeddings: "
@@ -2069,8 +2451,10 @@ def create_fold_dataloaders(
     Create train and test DataLoaders for a CV fold.
 
     Args:
-        embeddings: Gene embeddings tensor (num_genes, dim). Should already
-            be imputed (no NaN) — imputation happens at load time.
+        embeddings: Gene embeddings tensor (num_genes, dim), already
+            imputed and transformed (no NaN) by
+            SLDataManager.get_fold_embeddings, which fits every statistic
+            per fold on the fold's fit rows (_fold_fit_mask).
         fold_data: Fold dict from get_cv*_splits()
         batch_size: Batch size
         num_workers: Number of data loading workers
@@ -2116,15 +2500,38 @@ def create_val_dataloader(
     fold_data: Dict,
     batch_size: int = 256,
     num_workers: int = 0,
+    select_metric: str = "auprg_any",
 ) -> Optional[DataLoader]:
     """Loader over the shared VAL split, or None when the fold has no val.
 
     Only shared canonical folds carry a val partition (prepare_folds.py
-    --val_frac); siamese's own folds do not, and those runs keep the legacy
-    select-on-test behaviour.
+    --val_frac); siamese's own folds do not, and train.py refuses to run
+    without one (early stopping and checkpoint selection are val-only).
+    A val split that is single-class in the population the selection metric
+    ranks raises, since AUPRG is undefined there and no checkpoint could be
+    selected: the pair-level OR label for "auprg_any" (and for either metric
+    with one label column), the observed (pair, head) cells for the
+    stratified "auprg" with several.
     """
     if "val" not in fold_data or len(fold_data["val"]["pairs"]) == 0:
         return None
+    lab = np.asarray(fold_data["val"]["labels"])
+    msk = fold_data["val"].get("mask")
+    msk = np.ones_like(lab) if msk is None else np.asarray(msk)
+    lab, msk = lab.reshape(len(lab), -1), msk.reshape(len(lab), -1)
+    if select_metric == "auprg" and msk.shape[1] > 1:
+        # stratified: every observed (pair, head) cell is one example
+        cells = lab[msk > 0] > 0
+        n_pos, n_neg, unit = int(cells.sum()), int((~cells).sum()), "cells"
+    else:
+        any_pos = ((msk > 0) & (lab > 0)).any(axis=1)
+        n_pos, n_neg, unit = int(any_pos.sum()), int((~any_pos).sum()), "pairs"
+    if n_pos == 0 or n_neg == 0:
+        raise ValueError(
+            f"fold {fold_data.get('fold')}: the validation split is "
+            f"single-class for --select_metric {select_metric} ({n_pos} SL / "
+            f"{n_neg} non-SL {unit}); AUPRG is undefined, so no checkpoint "
+            f"can be selected on it")
     return DataLoader(
         SLDataset(
             embeddings=embeddings,

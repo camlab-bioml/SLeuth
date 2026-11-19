@@ -13,13 +13,13 @@ Usage:
     # GO-only (200-dim)
     python generate_go_esm_embeddings.py --go_only \
         --esm_embeddings ../data/all_genes_esm2.pt \
-        --gaf ../uniprot_GO/goa_human.gaf.gz \
+        --gaf ../data/embeddings_cache/goa_human.gaf.gz \
         --output ../data/all_genes_go.pt
 
     # Combined ESM+GO (1480-dim)
     python generate_go_esm_embeddings.py \
         --esm_embeddings ../data/all_genes_esm2.pt \
-        --gaf ../uniprot_GO/goa_human.gaf.gz \
+        --gaf ../data/embeddings_cache/goa_human.gaf.gz \
         --output ../data/all_genes_esm_go.pt
 """
 
@@ -30,10 +30,10 @@ from collections import defaultdict
 
 import torch
 import numpy as np
-import requests
 from tqdm import tqdm
 
 from gene_name_utils import get_mapper
+from generate_all_genes_esm import EMBEDDING_GENERATOR_VERSION
 
 ANC2VEC_URL = "https://github.com/aedera/anc2vec/raw/main/anc2vec/data/embeddings.npz"
 
@@ -49,16 +49,39 @@ def load_anc2vec(npz_path: str) -> dict:
     return go_embeds
 
 
+def _is_npz(path: Path) -> bool:
+    """True if *path* is a non-empty file with the zip (.npz) magic."""
+    try:
+        with open(path, "rb") as f:
+            return f.read(4) == b"PK\x03\x04"
+    except OSError:
+        return False
+
+
 def download_anc2vec(cache_path: str) -> dict:
-    """Download anc2vec GO term embeddings, caching locally."""
+    """Download anc2vec GO term embeddings, caching locally.
+
+    Downloads to ``<cache_path>.part`` and renames only a complete .npz, so
+    an interrupted or HTML download is never reused as the cache.
+    """
+    import requests
     cache_path = Path(cache_path)
+    if cache_path.exists() and not _is_npz(cache_path):
+        print(f"Discarding invalid cached anc2vec: {cache_path}")
+        cache_path.unlink()
     if not cache_path.exists():
         print(f"Downloading anc2vec embeddings to {cache_path}...")
-        resp = requests.get(ANC2VEC_URL, stream=True)
+        part = cache_path.with_name(cache_path.name + ".part")
+        resp = requests.get(ANC2VEC_URL, stream=True, timeout=120)
         resp.raise_for_status()
-        with open(cache_path, "wb") as f:
+        with open(part, "wb") as f:
             for chunk in resp.iter_content(chunk_size=8192):
                 f.write(chunk)
+        if not _is_npz(part):
+            part.unlink()
+            raise RuntimeError(f"anc2vec download from {ANC2VEC_URL} is not "
+                               f"an .npz file")
+        part.replace(cache_path)
         print("Download complete.")
     else:
         print(f"Using cached anc2vec: {cache_path}")
@@ -96,6 +119,18 @@ def parse_gaf(gaf_path: str) -> dict:
 
     # Normalize gene symbols and convert to Entrez IDs
     mapper = get_mapper()
+    # gene_name_utils falls back to "custom corrections only" when the HGNC
+    # table is missing and cannot be downloaded, or holds no parsable row.
+    # Every GAF symbol then maps to None and the output would be an all-NaN
+    # matrix stamped as a current build, so stop here instead.
+    if not mapper.stats["entrez_ids"]:
+        raise RuntimeError(
+            f"HGNC table not loaded: hgnc_complete_set.txt in "
+            f"{Path(mapper._cache_dir).resolve()} is missing and could not "
+            f"be downloaded, or holds no Entrez ids, so no GAF symbol can be "
+            f"mapped. Refusing to write an all-NaN GO embedding (the table "
+            f"is tracked in git as data/cache/hgnc_complete_set.txt; run "
+            f"from siamese_sl/).")
     entrez_go = defaultdict(set)
     n_unmapped = 0
     for gene, terms in gene_to_go.items():
@@ -121,7 +156,9 @@ def build_go_embeddings(gene_order: list, gene_to_go: dict,
 
     For each gene, sums the anc2vec vectors of all its annotated GO terms.
     Genes with no annotations or no anc2vec coverage get NaN vectors
-    (Huber-imputed at load time by data_loader.py).
+    (imputed per fold by data_loader.SLDataManager.get_fold_embeddings, fit
+    on that fold's _fold_fit_mask rows; mean under the default pca_method
+    plain, Huber under robust/svd).
     """
     go_dim = next(iter(go_embeds.values())).shape[0]
     go_matrix = np.full((len(gene_order), go_dim), np.nan, dtype=np.float32)
@@ -134,10 +171,12 @@ def build_go_embeddings(gene_order: list, gene_to_go: dict,
         if not go_terms:
             continue
 
-        # Sum pool anc2vec vectors for all annotated GO terms
+        # Sum pool anc2vec vectors for all annotated GO terms, in sorted
+        # order: set order follows the per-process string hash seed, and a
+        # float32 sum depends on its order
         vec = np.zeros(go_dim, dtype=np.float32)
         terms_found = 0
-        for term in go_terms:
+        for term in sorted(go_terms):
             if term in go_embeds:
                 vec += go_embeds[term].astype(np.float32)
                 terms_found += 1
@@ -153,28 +192,6 @@ def build_go_embeddings(gene_order: list, gene_to_go: dict,
     return go_matrix, genes_with_go
 
 
-def standardize(matrix: np.ndarray) -> np.ndarray:
-    """
-    Global per-feature z-score standardization, excluding NaN and zero-vector
-    rows from mean/std computation. Applied at embedding generation time.
-    Note: data_loader.py loads raw_embeddings and applies its own
-    normalization pipeline (impute, optional PCA, MAD normalize). This
-    function is retained for potential direct consumers that bypass
-    data_loader.py.
-
-    Returns a new array; does not mutate the input.
-    """
-    result = matrix.copy()
-    # Exclude NaN rows (missing genes) first, then zero-vector rows
-    valid_mask = ~np.isnan(result).any(axis=1) & np.any(result != 0, axis=1)
-    if np.any(valid_mask):
-        valid = result[valid_mask]
-        mean = valid.mean(axis=0, keepdims=True)
-        std = valid.std(axis=0, keepdims=True) + 1e-8
-        result[valid_mask] = (valid - mean) / std
-    return result
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="Combine ESM embeddings with anc2vec GO embeddings")
@@ -188,7 +205,9 @@ def main():
         "--gaf",
         type=str,
         required=True,
-        help="Path to GAF annotation file (e.g. goa_human.gaf.gz)")
+        help="Path to GAF annotation file (the pipeline's, and the release "
+        "go2vec/onto2vec/kg_complex read: ../data/embeddings_cache/"
+        "goa_human.gaf.gz)")
     parser.add_argument("--output",
                         type=str,
                         required=True,
@@ -232,7 +251,7 @@ def main():
                                                        go_embeds)
     go_dim = go_matrix.shape[1]
 
-    # 6. Build output embeddings
+    # 5. Build output embeddings
     # No standardization in either branch: data_loader.py loads raw_embeddings
     # and applies its own normalization pipeline (impute, optional PCA, MAD normalize).
     output_path = Path(args.output)
@@ -256,6 +275,7 @@ def main():
                 "go_pooling": "sum",
                 "num_genes": len(gene_order),
                 "num_genes_with_go": num_genes_with_go,
+                "generator_version": EMBEDDING_GENERATOR_VERSION,
             },
             output_path)
 
@@ -275,6 +295,18 @@ def main():
         combined_tensor = torch.from_numpy(combined).float()
         print(f"\nCombined shape: {combined_tensor.shape}")
 
+        # The ESM half is copied from --esm_embeddings, so the output is a
+        # current build only if that file is one
+        esm_version = esm_data.get("generator_version")
+        generator_version = EMBEDDING_GENERATOR_VERSION
+        if esm_version != EMBEDDING_GENERATOR_VERSION:
+            generator_version = (f"{esm_version or 'unknown'} (ESM part from "
+                                 f"{args.esm_embeddings})")
+            print(f"WARNING: {args.esm_embeddings} was not built by this "
+                  f"generator version ({EMBEDDING_GENERATOR_VERSION}); the "
+                  f"output is stamped generator_version="
+                  f"{generator_version!r}")
+
         torch.save(
             {
                 "embeddings": combined_tensor,
@@ -290,6 +322,7 @@ def main():
                 "go_pooling": "sum",
                 "num_genes": len(gene_order),
                 "num_genes_with_go": num_genes_with_go,
+                "generator_version": generator_version,
             },
             output_path)
 

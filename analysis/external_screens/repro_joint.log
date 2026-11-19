@@ -1,0 +1,14 @@
+joint Adamson/cv1: 105 vectors [25.9s]
+joint Adamson/cv2: 105 vectors [55.3s]
+joint Adamson/cv3: 105 vectors [4.2s]
+joint AdamsonGI/cv1: 105 vectors [24.6s]
+joint AdamsonGI/cv2: 105 vectors [56.2s]
+joint AdamsonGI/cv3: 105 vectors [4.4s]
+joint Corn/cv1: 105 vectors [28.9s]
+joint Corn/cv2: 105 vectors [61.1s]
+joint Corn/cv3: 105 vectors [4.7s]
+joint Gilbert/cv1: 105 vectors [2.0s]
+joint Gilbert/cv2: 105 vectors [4.0s]
+joint Gilbert/cv3: 105 vectors [0.7s]
+{"n_point": 1260, "n_ci": 252, "n_diff": 168, "max_abs_err": 1.1102230246251565e-16, "arm": "joint", "manifest_started": "2026-11-17T10:12:04", "seconds": 272.04814314842224}
+exit 0

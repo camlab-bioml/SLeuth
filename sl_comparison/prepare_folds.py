@@ -6,7 +6,9 @@ train/test division, identical gene index space, one fixed seed.
 
 Data: SLDB 3.0 given pairs.
   positives = data/SL_SynLethDB_experimental.txt            (~22.2k pairs)
-  negatives = data/SL_SynLethDB_experimental_negatives.txt  (~112.2k pairs, ALL used)
+  negatives = data/SL_SynLethDB_experimental_negatives.txt  (~112.2k pairs; all
+              used except the 5,542 also listed as SL, which every policy
+              removes from the negatives)
 
 Gene universe = union of every gene appearing in a given positive OR negative
 pair (so every given negative is scorable). Genes are indexed 0..N-1 by sorted
@@ -20,26 +22,45 @@ each one (a side naming no usable line is attributed to OTHER). This is the same
 relation siamese's *_any OR-collapse is graded on, so the shared binary folds
 and the cell-line-conditioned model score identical ground truth.
 
-For each cv in {cv1, cv2, cv3} and each of k folds we write four (M,2) int32
+For each cv in {cv1, cv2, cv3} and each of k folds we write six (M,2) int32
 arrays of gene-index pairs:
-  train_pos, train_neg, test_pos, test_neg
-plus meta.json. GNN-structure models build their graph from train_pos only; the
-negatives are label-0 for train/eval (never graph edges).
+  train_pos, val_pos, test_pos, train_neg, val_neg, test_neg
+(val_* is carved from TRAIN only and is the sole early-stopping / selection
+split). At the root we also write genes.txt, all_pos.npy (every known SL pair,
+the grader's mask of known positives), meta.json, and conflicts.tsv when the
+policy attributes conflicts. A regeneration first removes the previous
+cv*/fold_* directories, conflicts.tsv and meta.json, so nothing from an older
+partition survives beside the new meta.json. GNN-structure models build their
+graph from train_pos only; the negatives are label-0 for train/eval (never
+graph edges).
 
 CV definitions (gene-disjoint for cv2/cv3, leak-free):
   cv1 : edge split  — positives and negatives each KFold'd by pair.
   cv2 : gene split  — hold out a gene group; test = pairs touching >=1 held gene,
                       train = pairs touching none (>=1 unseen gene at test).
   cv3 : pair split  — test = pairs with BOTH genes held out, train = pairs with
-                      NEITHER held out (cold-start; single-held-gene pairs dropped).
+                      NEITHER held out (cold-start; pairs with exactly one held
+                      gene are dropped, at the test split and again at the val
+                      split — see generate()).
+
+meta.json records source_sha256 = {"pos", "neg"[, "pos_sources",
+"neg_sources", "cell_line_vocab"]}: sha256 of every input file read (the
+.sources.tsv sidecars, and the cell-line vocabulary they are read through, only
+when the conflict attribution read them). `--check_sources` compares them with
+the files on disk now, read-only, and exits 1 on any difference or when a key
+is absent (run_shared_folds.sh then regenerates instead of reusing, or aborts
+under SHARED_FOLDS_FROZEN=1), 2 when a source cannot be read.
 
 Usage (from repo root):
+  chmod -R u+w sl_comparison/folds   # an orchestrated run leaves it read-only
   python sl_comparison/prepare_folds.py --verify
+  python sl_comparison/prepare_folds.py --check_sources   # read-only
 """
 
 import argparse
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -62,6 +83,93 @@ def sidecar_path(pair_path):
     return Path(pair_path).with_suffix(".sources.tsv")
 
 
+def _sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+# siamese's cell-line vocabulary: imported by _vocab() below and fingerprinted
+# by source_paths(), because the conflict attribution reads the sidecars THROUGH
+# it (parse_cell_field / heads_for_field).
+VOCAB_DIR = Path(__file__).resolve().parent.parent / "siamese_sl"
+VOCAB_PATH = VOCAB_DIR / "cell_line_vocab.py"
+
+
+def source_paths(pos_path, neg_path):
+    """source_sha256 key -> the input file it fingerprints."""
+    return {
+        "pos": Path(pos_path),
+        "neg": Path(neg_path),
+        "pos_sources": sidecar_path(pos_path),
+        "neg_sources": sidecar_path(neg_path),
+        # meta.json's num_conflicts_same_line/_cross_line/_same_head and every
+        # row of conflicts.tsv are a function of the VOCABULARY too, not just
+        # the pair files: adding one alias moved 1,782 -> 1,783 same-line and
+        # 1,876 -> 1,877 same-head with both sidecars byte-identical. Without
+        # this key --check_sources called such a fold set fresh, so
+        # run_shared_folds.sh reused it and paper_tables published the old
+        # attribution beside head statistics recomputed with the new
+        # vocabulary. Both --check_sources callers see that edit:
+        # run_shared_folds.sh before it reuses a fold set, and
+        # paper_tables.py (its item_folds_meta) before it publishes the head
+        # statistics beside this source_sha256.
+        "cell_line_vocab": VOCAB_PATH,
+    }
+
+
+def source_fingerprints(pos_path, neg_path, sidecars):
+    """sha256 of the pair files (and, when `sidecars`, the sidecars plus the
+    cell-line vocabulary they are read through).
+
+    The fold set and its conflict attribution are a function of these bytes,
+    but meta.json's other fields (paths, counts, policy) survive a re-download
+    that moves pairs between files, so a reuse check on them alone would keep
+    stale folds."""
+    keys = ("pos", "neg") + (("pos_sources", "neg_sources", "cell_line_vocab")
+                             if sidecars else ())
+    paths = source_paths(pos_path, neg_path)
+    return {k: _sha256(paths[k]) for k in keys}
+
+
+def check_sources(out_dir, pos_path, neg_path):
+    """Differences between meta.json's source_sha256 and the files now.
+
+    Returns a list of human-readable problems; empty means the recorded
+    sources still match. Read-only."""
+    meta_p = Path(out_dir) / "meta.json"
+    if not meta_p.exists():
+        return [f"{meta_p} missing"]
+    try:
+        rec = json.loads(meta_p.read_text()).get("source_sha256")
+    except (OSError, json.JSONDecodeError) as e:
+        return [f"{meta_p} unreadable ({e})"]
+    if not isinstance(rec, dict) or not rec:
+        return [f"{meta_p} has no source_sha256 (built before source "
+                f"fingerprints were recorded)"]
+    paths = source_paths(pos_path, neg_path)
+    problems = [f"source_sha256 lacks '{k}'" for k in ("pos", "neg")
+                if k not in rec]
+    # A fold set whose attribution read the sidecars but recorded no
+    # vocabulary hash cannot be shown to be fresh — the vocabulary may have
+    # moved since, with every pair file byte-identical — so it is stale, not
+    # matching.
+    if "pos_sources" in rec and "cell_line_vocab" not in rec:
+        problems.append("source_sha256 lacks 'cell_line_vocab' (built before "
+                        "the cell-line vocabulary was fingerprinted)")
+    for key, want in sorted(rec.items()):
+        p = paths.get(key)
+        if p is None:
+            problems.append(f"source_sha256 has unknown key '{key}'")
+        elif not p.exists():
+            problems.append(f"{key}: {p} missing")
+        elif _sha256(p) != want:
+            problems.append(f"{key}: {p} changed since the folds were built")
+    return problems
+
+
 def _vocab():
     """Return siamese's cell_line_vocab module, or None if unavailable.
 
@@ -73,7 +181,7 @@ def _vocab():
     between "same-line contradiction" and "cross-line".
     """
     import sys
-    vocab_dir = Path(__file__).resolve().parent.parent / "siamese_sl"
+    vocab_dir = VOCAB_DIR  # the file source_paths fingerprints
     if str(vocab_dir) not in sys.path:
         sys.path.insert(0, str(vocab_dir))
     try:
@@ -83,8 +191,12 @@ def _vocab():
         return None
 
 
-def read_pair_cell_lines(path):
+def read_pair_cell_lines(path, vocab):
     """Map canonical (entrez1, entrez2) -> set of cell lines it was screened in.
+
+    `vocab` is the cell_line_vocab module (see _vocab) and is REQUIRED: there is
+    deliberately no raw-string fallback, because one would give the shared folds
+    and siamese different labels.
 
     Returns {} if the sidecar is absent, which callers must treat as "cannot
     resolve conflicts by cell line".
@@ -92,7 +204,6 @@ def read_pair_cell_lines(path):
     p = Path(path)
     if not p.exists():
         return {}
-    vocab = _vocab()
     out = {}
     with open(p) as f:
         next(f, None)  # header
@@ -102,14 +213,7 @@ def read_pair_cell_lines(path):
                 continue
             a, b = t[0], t[1]
             key = (a, b) if a < b else (b, a)
-            if vocab is not None:
-                cells = vocab.parse_cell_field(t[3])
-            else:
-                cells = {
-                    c.strip().upper()
-                    for c in t[3].split(";") if c.strip()
-                }
-            out.setdefault(key, set()).update(cells)
+            out.setdefault(key, set()).update(vocab.parse_cell_field(t[3]))
     return out
 
 
@@ -141,8 +245,8 @@ def conflict_cell_lines(pos_path, neg_path, conflict_keys, policy):
             "siamese trains on. Falling back to raw string matching would give "
             "the two pipelines different labels — use --conflict_policy drop "
             "if you genuinely want the vocabulary-free behaviour.")
-    pc = read_pair_cell_lines(sidecar_path(pos_path))
-    nc = read_pair_cell_lines(sidecar_path(neg_path))
+    pc = read_pair_cell_lines(sidecar_path(pos_path), vocab)
+    nc = read_pair_cell_lines(sidecar_path(neg_path), vocab)
     if not pc or not nc:
         raise FileNotFoundError(
             f"conflict_policy={policy!r} needs the provenance sidecars "
@@ -303,6 +407,15 @@ def generate(pos_idx, neg_idx, num_nodes, cv_type, k, seed, val_frac=0.1):
     would cost ~40-55% of the training pairs (cv2 fold 0 measured 5,405 train
     vs 6,738 val positives), which is a worse trade than the selection is
     worth.
+
+    On cv3 the slice is still not free. Val keeps only pairs with BOTH genes in
+    the slice and train only pairs with NEITHER, so every training pair with
+    exactly one slice gene goes to neither and is DISCARDED. At val_frac=0.1 on
+    the seed-42 folds that is 16-26% of cv3's eligible training positives
+    (fold 0: 16,141 -> 13,369 train + 153 val) and 16-21% of the negatives, to
+    build a val set of 87-350 positives (~1-2% of the eligible pairs). cv2
+    discards nothing. Because cv2 and cv3 draw the same gene groups and the
+    same val slices, cv3's train_* arrays are exactly cv2's.
     """
     rng = np.random.RandomState(seed)
     folds = []
@@ -376,6 +489,28 @@ def split_digest(folds):
     return h.hexdigest()[:16]
 
 
+def clear_stale_outputs(out_root):
+    """Remove the fold-set files a previous run of this script wrote.
+
+    A regeneration REPLACES the fold set. mkdir(exist_ok) alone left every
+    fold_k >= --num_folds, every cv dir outside --cv_types and an old
+    conflicts.tsv (never rewritten under --conflict_policy drop) beside the new
+    meta.json. Every consumer globs fold_*, and split_digest covers only the new
+    folds, so those leftovers were trained on and graded as current under a
+    MATCHING fold stamp. meta.json goes too: it is written last, so its absence
+    marks an interrupted regeneration (run_shared_folds.sh reuses folds only
+    when it exists). Only this script's own layout is touched: cv1-3/fold_<k>
+    directories holding train_pos.npy, conflicts.tsv and meta.json.
+    """
+    import shutil
+    out_root = Path(out_root)
+    for fdir in sorted(out_root.glob("cv[123]/fold_*")):
+        if fdir.is_dir() and (fdir / "train_pos.npy").exists():
+            shutil.rmtree(fdir)
+    for name in ("conflicts.tsv", "meta.json"):
+        (out_root / name).unlink(missing_ok=True)
+
+
 def verify_fold(cv_type, fold):
     """Assert leak-free gene-disjointness for cv2/cv3; basic non-emptiness.
 
@@ -430,7 +565,12 @@ def main():
     ap.add_argument("--out_dir", default="sl_comparison/folds")
     ap.add_argument("--num_folds", type=int, default=5)
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--cv_types", nargs="+", default=["cv1", "cv2", "cv3"])
+    # choices: generate() treats any name other than cv1/cv2 as cv3, so a typo
+    # ("CV2") silently built cv3-semantics folds under the wrong directory.
+    ap.add_argument("--cv_types",
+                    nargs="+",
+                    choices=["cv1", "cv2", "cv3"],
+                    default=["cv1", "cv2", "cv3"])
     ap.add_argument("--verify",
                     action="store_true",
                     help="Run leak-free assertions on every generated fold")
@@ -442,9 +582,13 @@ def main():
         "cv1 splits pairs; cv2/cv3 hold out a val_frac-sized "
         "random slice of the NON-TEST genes, so val is cold-start "
         "in the same sense as test. Note this makes val a fraction "
-        "of GENES, not of pairs: 0.1 yields ~10%% of pairs on cv1 "
-        "but ~18%% on cv2 and ~1%% on cv3, because cv3 keeps only "
-        "pairs with BOTH genes held. 0 disables (legacy).")
+        "of GENES, not of pairs: 0.1 yields 10%% of train+val pairs "
+        "on cv1 but ~17-28%% on cv2 and ~1-3%% on cv3, because cv3 "
+        "keeps only pairs with BOTH genes held. On cv3 the training "
+        "pairs with exactly ONE val gene can go to neither train "
+        "nor val and are DISCARDED: 16-26%% of cv3's eligible "
+        "training pairs on the seed-42 folds (cv3 then trains on "
+        "exactly cv2's training pairs). 0 disables (legacy).")
     ap.add_argument(
         "--conflict_policy",
         choices=["or_collapse", "cell_aware", "drop", "positive"],
@@ -456,7 +600,7 @@ def main():
         "graded on, so the shared binary relation and the cell-line "
         "model agree; each pair's lines and heads are written to "
         "conflicts.tsv (a side naming no usable line is attributed "
-        "to OTHER). 'cell_aware' additionally DROPS the 1,782 "
+        "to OTHER). 'cell_aware' additionally DROPS the 1,783 "
         "same-cell-line contradictions; 'drop' removes all 5,542; "
         "'positive' is a deprecated alias for 'or_collapse'. Every "
         "policy removes them from the negative set.")
@@ -470,11 +614,36 @@ def main():
         "--print_defaults",
         action="store_true",
         help="Emit this script's fold-defining defaults as JSON and exit. "
-        "run_shared_models.sh uses it to decide whether an existing "
+        "run_shared_folds.sh uses it to decide whether an existing "
         "sl_comparison/folds is stale, so the staleness check can never drift "
         "from the generator (comparing only the seed silently reused folds "
         "built under a different --conflict_policy).")
+    ap.add_argument(
+        "--check_sources",
+        action="store_true",
+        help="Read-only: compare --out_dir/meta.json's source_sha256 with "
+        "the current --pos_path / --neg_path (and, when it records them, the "
+        "sidecars and siamese_sl/cell_line_vocab.py, which the conflict "
+        "attribution reads them through); exit 1 on any difference or when a "
+        "key is absent, 2 when a source cannot be read, 0 otherwise. Writes "
+        "nothing.")
     args = ap.parse_args()
+
+    if args.check_sources:
+        # A crash must not exit 1: run_shared_folds.sh reads 1 as "the sources
+        # differ" and any other code as "not checked".
+        try:
+            problems = check_sources(args.out_dir, args.pos_path,
+                                     args.neg_path)
+        except Exception as e:  # noqa: BLE001
+            print(f"ERROR: could not fingerprint the sources ({e!r})")
+            sys.exit(2)
+        for p in problems:
+            print(f"STALE: {p}")
+        if problems:
+            sys.exit(1)
+        print(f"sources match {Path(args.out_dir) / 'meta.json'}")
+        return
 
     if args.print_defaults:
         print(
@@ -484,6 +653,9 @@ def main():
                 "conflict_policy": args.conflict_policy,
                 "pos_path": args.pos_path,
                 "neg_path": args.neg_path,
+                # clear_stale_outputs empties every cv dir outside --cv_types,
+                # so a fold set built for a subset is stale for a full run.
+                "cv_types": args.cv_types,
                 # A real benchmark run never subsamples; a fold set that did is
                 # stale by definition.
                 "max_genes": None,
@@ -580,9 +752,23 @@ def main():
 
     out_root = Path(args.out_dir)
     out_root.mkdir(parents=True, exist_ok=True)
+    try:
+        clear_stale_outputs(out_root)
+    except PermissionError as e:
+        # run_benchmarking_siamese_vs_others.sh's step 0 leaves the fold set
+        # read-only until its next step 0; nothing was deleted yet.
+        sys.exit(f"ERROR: {out_root} is read-only ({e}); an orchestrated run "
+                 f"froze it. Make it writable first: chmod -R u+w {out_root}")
     if detail_by_key:
         write_conflict_report(out_root / "conflicts.tsv", gene_order,
                               conflicts, detail_by_key, kept_conflicts)
+    # Replaced, never overwritten in place: clear_stale_outputs needs only
+    # DIRECTORY write permission, so with read-only files in writable
+    # directories (an archive of a frozen set unpacked over a checkout) the
+    # fold dirs and meta.json were already gone when open(genes.txt, "w")
+    # died with a PermissionError and no chmod hint.
+    for name in ("genes.txt", "all_pos.npy"):
+        (out_root / name).unlink(missing_ok=True)
     with open(out_root / "genes.txt", "w") as f:
         f.write("\n".join(gene_order) + "\n")
 
@@ -590,10 +776,11 @@ def main():
     # test gene against the whole universe, so any known positive that is not
     # this fold's answer key must be MASKED OUT — otherwise a model is punished
     # for correctly ranking a genuine SL pair, and the punishment scales with
-    # how many known positives the fold happens to withhold. Masking only
-    # train_pos left 1,631 such pairs unmasked per cv1 fold but 7,640-11,036 per
-    # cv3 fold (against only 409-1,433 cv3 test positives), so it depressed cv3
-    # ~10x harder than cv1 for reasons unrelated to cold-start difficulty.
+    # how many known positives the fold happens to withhold. On the seed-42
+    # or_collapse folds, masking only train_pos would leave 1,773 such pairs
+    # (the fold's val positives) unmasked per cv1 fold but 8,375-11,828 per
+    # cv3 fold (against only 422-1,502 cv3 test positives), depressing cv3 far
+    # harder than cv1 for reasons unrelated to cold-start difficulty.
     np.save(out_root / "all_pos.npy", pos_idx.astype(np.int32))
 
     meta = {
@@ -643,11 +830,17 @@ def main():
         # PREFLIGHT MARKER. --max_genes builds a tiny smoke-test fold set. Left
         # in sl_comparison/folds it is indistinguishable from the real thing to
         # any check that looks only at seed/policy, and a whole benchmark would
-        # silently run on 300 genes. Recorded so run_shared_models.sh can treat
+        # silently run on 300 genes. Recorded so run_shared_folds.sh can treat
         # any subsampled fold set as stale. (This is not hypothetical: an audit
         # agent overwrote the real fold set with a --max_genes 300 run.)
         "max_genes":
         args.max_genes,
+        # Content of every input read — the pair files, and (when the conflict
+        # attribution ran) their sidecars and the cell-line vocabulary those
+        # are parsed with; --check_sources compares it.
+        "source_sha256":
+        source_fingerprints(args.pos_path, args.neg_path,
+                            sidecars=bool(detail_by_key)),
     }
 
     for cv in args.cv_types:

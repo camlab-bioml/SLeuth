@@ -1,0 +1,212 @@
+==================================================
+SL comparison — task 3 of 9
+  Model: SLGNN
+  CV:    cv2
+Start: Fri Nov 13 22:22:37 EST 2026 | Job: 1265880 | Node: gpu3
+==================================================
+  python: <home>/pytorch/bin/python3
+  inputs OK: SLGNN
+--- training SLGNN / cv2 ---
+Device: cuda | arch: original
+Shared folds from ../sl_comparison/folds/cv2: 5 folds, 8844 genes
+SynLethKG (../data/synlethkg): 54,035 entities, 48 relations, 4,463,842 edges | 8821/8844 genes in the KG, 23 as isolated entities
+
+============================================================
+Fold 1/5
+============================================================
+Train: 13369 pos, 55161 neg | Val: 2772 pos, 11815 neg | Test: 6025 pos, 39728 neg | select on val:auprg
+  training rows: 137,060 (each training pair in both orientations, as the original's fold files list them)
+  Trainable parameters: 5,219,712 (total 5,219,712) [SLGNNOriginal]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  epoch   1 | loss 0.7787 cor 0.6498 | val AUPRG 0.8753 (select) AUROC 0.7836 AUPR 0.6218
+  epoch   2 | loss 0.6754 cor 0.3095 | val AUPRG 0.9194 (select) AUROC 0.8144 AUPR 0.7050
+  epoch   3 | loss 0.6528 cor 0.2373 | val AUPRG 0.9426 (select) AUROC 0.8612 AUPR 0.7460
+  epoch   4 | loss 0.6492 cor 0.2032 | val AUPRG 0.9497 (select) AUROC 0.8757 AUPR 0.7623
+  epoch   5 | loss 0.6477 cor 0.1908 | val AUPRG 0.9543 (select) AUROC 0.8862 AUPR 0.7736
+  epoch   6 | loss 0.6467 cor 0.1826 | val AUPRG 0.9548 (select) AUROC 0.8877 AUPR 0.7749
+  epoch   7 | loss 0.6459 cor 0.1752 | val AUPRG 0.9566 (select) AUROC 0.8916 AUPR 0.7798
+  epoch   8 | loss 0.6452 cor 0.1665 | val AUPRG 0.9550 (select) AUROC 0.8887 AUPR 0.7749
+  epoch   9 | loss 0.6447 cor 0.1616 | val AUPRG 0.9549 (select) AUROC 0.8893 AUPR 0.7742
+  epoch  10 | loss 0.6442 cor 0.1534 | val AUPRG 0.9559 (select) AUROC 0.8922 AUPR 0.7766
+  epoch  11 | loss 0.6437 cor 0.1428 | val AUPRG 0.9558 (select) AUROC 0.8918 AUPR 0.7764
+  epoch  12 | loss 0.6433 cor 0.1379 | val AUPRG 0.9550 (select) AUROC 0.8895 AUPR 0.7749
+  Early stopping at epoch 12
+  Restored epoch-7 checkpoint (val auprg 0.9566)
+  Best fold 1: AUPR=0.7216, AUROC=0.8729, F1=0.6577
+
+============================================================
+Fold 2/5
+============================================================
+Train: 9745 pos, 53347 neg | Val: 2037 pos, 15111 neg | Test: 10384 pos, 38246 neg | select on val:auprg
+  training rows: 126,184 (each training pair in both orientations, as the original's fold files list them)
+  Trainable parameters: 5,219,712 (total 5,219,712) [SLGNNOriginal]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  epoch   1 | loss 0.7944 cor 0.6067 | val AUPRG 0.8679 (select) AUROC 0.7108 AUPR 0.4341
+  epoch   2 | loss 0.6847 cor 0.2923 | val AUPRG 0.9187 (select) AUROC 0.7679 AUPR 0.5232
+  epoch   3 | loss 0.6631 cor 0.2078 | val AUPRG 0.9334 (select) AUROC 0.7886 AUPR 0.5595
+  epoch   4 | loss 0.6601 cor 0.1749 | val AUPRG 0.9359 (select) AUROC 0.7929 AUPR 0.5668
+  epoch   5 | loss 0.6588 cor 0.1578 | val AUPRG 0.9357 (select) AUROC 0.7923 AUPR 0.5661
+  epoch   6 | loss 0.6578 cor 0.1459 | val AUPRG 0.9361 (select) AUROC 0.7922 AUPR 0.5676
+  epoch   7 | loss 0.6570 cor 0.1364 | val AUPRG 0.9379 (select) AUROC 0.7964 AUPR 0.5711
+  epoch   8 | loss 0.6564 cor 0.1310 | val AUPRG 0.9371 (select) AUROC 0.7922 AUPR 0.5705
+  epoch   9 | loss 0.6558 cor 0.1243 | val AUPRG 0.9360 (select) AUROC 0.7905 AUPR 0.5669
+  epoch  10 | loss 0.6554 cor 0.1193 | val AUPRG 0.9379 (select) AUROC 0.7941 AUPR 0.5734
+  epoch  11 | loss 0.6548 cor 0.1136 | val AUPRG 0.9384 (select) AUROC 0.7955 AUPR 0.5743
+  epoch  12 | loss 0.6544 cor 0.1076 | val AUPRG 0.9367 (select) AUROC 0.7914 AUPR 0.5702
+  epoch  13 | loss 0.6542 cor 0.1035 | val AUPRG 0.9364 (select) AUROC 0.7898 AUPR 0.5696
+  epoch  14 | loss 0.6537 cor 0.1006 | val AUPRG 0.9367 (select) AUROC 0.7900 AUPR 0.5705
+  epoch  15 | loss 0.6535 cor 0.0966 | val AUPRG 0.9389 (select) AUROC 0.7975 AUPR 0.5747
+  epoch  16 | loss 0.6532 cor 0.0954 | val AUPRG 0.9382 (select) AUROC 0.7933 AUPR 0.5745
+  epoch  17 | loss 0.6530 cor 0.0914 | val AUPRG 0.9393 (select) AUROC 0.7961 AUPR 0.5780
+  epoch  18 | loss 0.6526 cor 0.0910 | val AUPRG 0.9404 (select) AUROC 0.7968 AUPR 0.5821
+  epoch  19 | loss 0.6523 cor 0.0902 | val AUPRG 0.9390 (select) AUROC 0.7948 AUPR 0.5769
+  epoch  20 | loss 0.6521 cor 0.0870 | val AUPRG 0.9386 (select) AUROC 0.7964 AUPR 0.5736
+  epoch  21 | loss 0.6518 cor 0.0861 | val AUPRG 0.9378 (select) AUROC 0.7914 AUPR 0.5738
+  epoch  22 | loss 0.6516 cor 0.0846 | val AUPRG 0.9389 (select) AUROC 0.7946 AUPR 0.5762
+  epoch  23 | loss 0.6514 cor 0.0835 | val AUPRG 0.9391 (select) AUROC 0.7960 AUPR 0.5759
+  Early stopping at epoch 23
+  Restored epoch-18 checkpoint (val auprg 0.9404)
+  Best fold 2: AUPR=0.6353, AUROC=0.8160, F1=0.5697
+
+============================================================
+Fold 3/5
+============================================================
+Train: 9031 pos, 54664 neg | Val: 3407 pos, 11230 neg | Test: 9728 pos, 40810 neg | select on val:auprg
+  training rows: 127,390 (each training pair in both orientations, as the original's fold files list them)
+  Trainable parameters: 5,219,712 (total 5,219,712) [SLGNNOriginal]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  epoch   1 | loss 0.8088 cor 0.6394 | val AUPRG 0.5568 (select) AUROC 0.7279 AUPR 0.5020
+  epoch   2 | loss 0.6940 cor 0.3089 | val AUPRG 0.7278 (select) AUROC 0.7488 AUPR 0.5724
+  epoch   3 | loss 0.6705 cor 0.2238 | val AUPRG 0.8496 (select) AUROC 0.8264 AUPR 0.6685
+  epoch   4 | loss 0.6671 cor 0.1786 | val AUPRG 0.8860 (select) AUROC 0.8522 AUPR 0.7117
+  epoch   5 | loss 0.6658 cor 0.1543 | val AUPRG 0.8958 (select) AUROC 0.8590 AUPR 0.7258
+  epoch   6 | loss 0.6649 cor 0.1352 | val AUPRG 0.8996 (select) AUROC 0.8611 AUPR 0.7315
+  epoch   7 | loss 0.6641 cor 0.1274 | val AUPRG 0.9044 (select) AUROC 0.8676 AUPR 0.7385
+  epoch   8 | loss 0.6635 cor 0.1229 | val AUPRG 0.9117 (select) AUROC 0.8741 AUPR 0.7507
+  epoch   9 | loss 0.6631 cor 0.1211 | val AUPRG 0.9137 (select) AUROC 0.8778 AUPR 0.7544
+  epoch  10 | loss 0.6627 cor 0.1169 | val AUPRG 0.9180 (select) AUROC 0.8820 AUPR 0.7626
+  epoch  11 | loss 0.6623 cor 0.1155 | val AUPRG 0.9158 (select) AUROC 0.8809 AUPR 0.7590
+  epoch  12 | loss 0.6620 cor 0.1141 | val AUPRG 0.9136 (select) AUROC 0.8759 AUPR 0.7548
+  epoch  13 | loss 0.6617 cor 0.1115 | val AUPRG 0.9182 (select) AUROC 0.8830 AUPR 0.7633
+  epoch  14 | loss 0.6614 cor 0.1075 | val AUPRG 0.9226 (select) AUROC 0.8898 AUPR 0.7724
+  epoch  15 | loss 0.6612 cor 0.1048 | val AUPRG 0.9129 (select) AUROC 0.8764 AUPR 0.7536
+  epoch  16 | loss 0.6609 cor 0.1019 | val AUPRG 0.9209 (select) AUROC 0.8877 AUPR 0.7691
+  epoch  17 | loss 0.6606 cor 0.0983 | val AUPRG 0.9206 (select) AUROC 0.8849 AUPR 0.7682
+  epoch  18 | loss 0.6604 cor 0.0967 | val AUPRG 0.9220 (select) AUROC 0.8918 AUPR 0.7725
+  epoch  19 | loss 0.6601 cor 0.0950 | val AUPRG 0.9227 (select) AUROC 0.8908 AUPR 0.7732
+  epoch  20 | loss 0.6598 cor 0.0943 | val AUPRG 0.9186 (select) AUROC 0.8874 AUPR 0.7667
+  epoch  21 | loss 0.6596 cor 0.0927 | val AUPRG 0.9155 (select) AUROC 0.8832 AUPR 0.7611
+  epoch  22 | loss 0.6593 cor 0.0917 | val AUPRG 0.9216 (select) AUROC 0.8944 AUPR 0.7736
+  epoch  23 | loss 0.6590 cor 0.0916 | val AUPRG 0.9172 (select) AUROC 0.8918 AUPR 0.7658
+  epoch  24 | loss 0.6588 cor 0.0913 | val AUPRG 0.9162 (select) AUROC 0.8905 AUPR 0.7648
+  Early stopping at epoch 24
+  Restored epoch-19 checkpoint (val auprg 0.9227)
+  Best fold 3: AUPR=0.6467, AUROC=0.8356, F1=0.5776
+
+============================================================
+Fold 4/5
+============================================================
+Train: 11416 pos, 57071 neg | Val: 3532 pos, 15039 neg | Test: 7218 pos, 34594 neg | select on val:auprg
+  training rows: 136,974 (each training pair in both orientations, as the original's fold files list them)
+  Trainable parameters: 5,219,712 (total 5,219,712) [SLGNNOriginal]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  epoch   1 | loss 0.7858 cor 0.7247 | val AUPRG 0.6633 (select) AUROC 0.6959 AUPR 0.4605
+  epoch   2 | loss 0.6799 cor 0.3236 | val AUPRG 0.8494 (select) AUROC 0.7724 AUPR 0.5883
+  epoch   3 | loss 0.6603 cor 0.2138 | val AUPRG 0.8903 (select) AUROC 0.8176 AUPR 0.6376
+  epoch   4 | loss 0.6573 cor 0.1718 | val AUPRG 0.9081 (select) AUROC 0.8351 AUPR 0.6660
+  epoch   5 | loss 0.6560 cor 0.1531 | val AUPRG 0.9144 (select) AUROC 0.8400 AUPR 0.6774
+  epoch   6 | loss 0.6552 cor 0.1467 | val AUPRG 0.9172 (select) AUROC 0.8433 AUPR 0.6827
+  epoch   7 | loss 0.6544 cor 0.1418 | val AUPRG 0.9174 (select) AUROC 0.8444 AUPR 0.6829
+  epoch   8 | loss 0.6538 cor 0.1371 | val AUPRG 0.9203 (select) AUROC 0.8474 AUPR 0.6886
+  epoch   9 | loss 0.6532 cor 0.1325 | val AUPRG 0.9216 (select) AUROC 0.8497 AUPR 0.6911
+  epoch  10 | loss 0.6528 cor 0.1281 | val AUPRG 0.9258 (select) AUROC 0.8561 AUPR 0.7001
+  epoch  11 | loss 0.6524 cor 0.1241 | val AUPRG 0.9278 (select) AUROC 0.8596 AUPR 0.7043
+  epoch  12 | loss 0.6521 cor 0.1180 | val AUPRG 0.9266 (select) AUROC 0.8579 AUPR 0.7022
+  epoch  13 | loss 0.6517 cor 0.1102 | val AUPRG 0.9277 (select) AUROC 0.8598 AUPR 0.7048
+  epoch  14 | loss 0.6514 cor 0.1033 | val AUPRG 0.9303 (select) AUROC 0.8634 AUPR 0.7109
+  epoch  15 | loss 0.6511 cor 0.1001 | val AUPRG 0.9314 (select) AUROC 0.8659 AUPR 0.7131
+  epoch  16 | loss 0.6507 cor 0.0965 | val AUPRG 0.9322 (select) AUROC 0.8666 AUPR 0.7155
+  epoch  17 | loss 0.6505 cor 0.0938 | val AUPRG 0.9324 (select) AUROC 0.8660 AUPR 0.7167
+  epoch  18 | loss 0.6502 cor 0.0918 | val AUPRG 0.9348 (select) AUROC 0.8693 AUPR 0.7233
+  epoch  19 | loss 0.6498 cor 0.0914 | val AUPRG 0.9343 (select) AUROC 0.8688 AUPR 0.7219
+  epoch  20 | loss 0.6496 cor 0.0881 | val AUPRG 0.9350 (select) AUROC 0.8689 AUPR 0.7241
+  epoch  21 | loss 0.6492 cor 0.0876 | val AUPRG 0.9350 (select) AUROC 0.8683 AUPR 0.7249
+  epoch  22 | loss 0.6490 cor 0.0868 | val AUPRG 0.9364 (select) AUROC 0.8694 AUPR 0.7289
+  epoch  23 | loss 0.6487 cor 0.0856 | val AUPRG 0.9356 (select) AUROC 0.8686 AUPR 0.7264
+  epoch  24 | loss 0.6485 cor 0.0843 | val AUPRG 0.9355 (select) AUROC 0.8694 AUPR 0.7253
+  epoch  25 | loss 0.6482 cor 0.0836 | val AUPRG 0.9366 (select) AUROC 0.8706 AUPR 0.7286
+  epoch  26 | loss 0.6480 cor 0.0822 | val AUPRG 0.9388 (select) AUROC 0.8753 AUPR 0.7344
+  epoch  27 | loss 0.6477 cor 0.0824 | val AUPRG 0.9384 (select) AUROC 0.8740 AUPR 0.7330
+  epoch  28 | loss 0.6475 cor 0.0824 | val AUPRG 0.9376 (select) AUROC 0.8725 AUPR 0.7313
+  epoch  29 | loss 0.6473 cor 0.0813 | val AUPRG 0.9380 (select) AUROC 0.8742 AUPR 0.7324
+  epoch  30 | loss 0.6470 cor 0.0799 | val AUPRG 0.9396 (select) AUROC 0.8755 AUPR 0.7373
+  epoch  31 | loss 0.6468 cor 0.0800 | val AUPRG 0.9356 (select) AUROC 0.8697 AUPR 0.7261
+  epoch  32 | loss 0.6467 cor 0.0801 | val AUPRG 0.9361 (select) AUROC 0.8736 AUPR 0.7268
+  epoch  33 | loss 0.6466 cor 0.0785 | val AUPRG 0.9368 (select) AUROC 0.8736 AUPR 0.7285
+  epoch  34 | loss 0.6463 cor 0.0789 | val AUPRG 0.9368 (select) AUROC 0.8744 AUPR 0.7287
+  epoch  35 | loss 0.6462 cor 0.0779 | val AUPRG 0.9374 (select) AUROC 0.8748 AUPR 0.7309
+  Early stopping at epoch 35
+  Restored epoch-30 checkpoint (val auprg 0.9396)
+  Best fold 4: AUPR=0.6653, AUROC=0.8321, F1=0.5887
+
+============================================================
+Fold 5/5
+============================================================
+Train: 11309 pos, 56214 neg | Val: 4340 pos, 11757 neg | Test: 6517 pos, 38733 neg | select on val:auprg
+  training rows: 135,046 (each training pair in both orientations, as the original's fold files list them)
+  Trainable parameters: 5,219,712 (total 5,219,712) [SLGNNOriginal]
+  Fold stamp: genes 42ff034debb48f84 all_pos 20be58a407d6aa9a meta 1a5aa49fb909a0e1
+  epoch   1 | loss 0.7847 cor 0.6903 | val AUPRG 0.2578 (select) AUROC 0.6177 AUPR 0.4426
+  epoch   2 | loss 0.6859 cor 0.2929 | val AUPRG 0.6953 (select) AUROC 0.7615 AUPR 0.6160
+  epoch   3 | loss 0.6618 cor 0.2177 | val AUPRG 0.7950 (select) AUROC 0.8262 AUPR 0.6818
+  epoch   4 | loss 0.6579 cor 0.1766 | val AUPRG 0.8251 (select) AUROC 0.8366 AUPR 0.7038
+  epoch   5 | loss 0.6564 cor 0.1493 | val AUPRG 0.8417 (select) AUROC 0.8421 AUPR 0.7187
+  epoch   6 | loss 0.6553 cor 0.1339 | val AUPRG 0.8448 (select) AUROC 0.8432 AUPR 0.7222
+  epoch   7 | loss 0.6544 cor 0.1232 | val AUPRG 0.8381 (select) AUROC 0.8393 AUPR 0.7155
+  epoch   8 | loss 0.6538 cor 0.1146 | val AUPRG 0.8374 (select) AUROC 0.8367 AUPR 0.7142
+  epoch   9 | loss 0.6532 cor 0.1074 | val AUPRG 0.8412 (select) AUROC 0.8355 AUPR 0.7174
+  epoch  10 | loss 0.6527 cor 0.1007 | val AUPRG 0.8469 (select) AUROC 0.8418 AUPR 0.7245
+  epoch  11 | loss 0.6523 cor 0.0967 | val AUPRG 0.8502 (select) AUROC 0.8463 AUPR 0.7288
+  epoch  12 | loss 0.6520 cor 0.0931 | val AUPRG 0.8472 (select) AUROC 0.8439 AUPR 0.7248
+  epoch  13 | loss 0.6517 cor 0.0908 | val AUPRG 0.8496 (select) AUROC 0.8448 AUPR 0.7275
+  epoch  14 | loss 0.6513 cor 0.0871 | val AUPRG 0.8491 (select) AUROC 0.8452 AUPR 0.7271
+  epoch  15 | loss 0.6510 cor 0.0852 | val AUPRG 0.8450 (select) AUROC 0.8441 AUPR 0.7230
+  epoch  16 | loss 0.6507 cor 0.0827 | val AUPRG 0.8366 (select) AUROC 0.8384 AUPR 0.7146
+  Early stopping at epoch 16
+  Restored epoch-11 checkpoint (val auprg 0.8502)
+  Best fold 5: AUPR=0.6631, AUROC=0.8461, F1=0.5850
+
+============================================================
+Cross-validation results:
+============================================================
+  auroc         : 0.8406 +/- 0.0188
+  f1            : 0.5957 +/- 0.0317
+  aupr          : 0.6664 +/- 0.0297
+  auprg         : 0.9153 +/- 0.0424
+  ndcg@10       : 0.1723 +/- 0.0787
+  ndcg@20       : 0.1854 +/- 0.0820
+  ndcg@50       : 0.2007 +/- 0.0847
+  recall@10     : 0.1977 +/- 0.1053
+  recall@20     : 0.2303 +/- 0.1149
+  recall@50     : 0.2653 +/- 0.1222
+  precision@10  : 0.2049 +/- 0.1075
+  precision@20  : 0.2337 +/- 0.1157
+  precision@50  : 0.2661 +/- 0.1222
+  map@10        : 0.1559 +/- 0.0684
+  map@20        : 0.1566 +/- 0.0680
+  map@50        : 0.1540 +/- 0.0677
+
+Results saved to results/slgnn_cv2/results.json
+--- scoring SLGNN / cv2 ---
+  fold 0: AUROC 0.8729 AP 0.7216 AUPRG 0.9675 NDCG@10 0.2645 (corrected 0.2516)
+  fold 1: AUROC 0.8160 AP 0.6353 AUPRG 0.8481 NDCG@10 0.0607 (corrected 0.0472)
+  fold 2: AUROC 0.8356 AP 0.6467 AUPRG 0.8899 NDCG@10 0.0985 (corrected 0.0879)
+  fold 3: AUROC 0.8321 AP 0.6653 AUPRG 0.9240 NDCG@10 0.2083 (corrected 0.1787)
+  fold 4: AUROC 0.8461 AP 0.6632 AUPRG 0.9470 NDCG@10 0.2296 (corrected 0.1842)
+
+SLGNN(5,219,712)/cv2: AUROC 0.8406 | AP 0.6664 | AUPRG 0.9153 | R@50 0.2653  -> sl_comparison/results/SLGNN_cv2.json
+
+==================================================
+SUCCESS: SLGNN / cv2
+Completed at: Fri Nov 13 23:41:26 EST 2026
+==================================================

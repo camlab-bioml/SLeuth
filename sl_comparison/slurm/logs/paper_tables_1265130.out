@@ -1,0 +1,81 @@
+  python: <home>/pytorch/bin/python3
+  PCA arm: none (no PCA): siamese_sl/results/, sl_comparison/results/
+==================================================
+Paper tables: PCA arm none (no PCA)
+Start: Mon Nov 16 20:24:01 EST 2026 | Job: 1265130 | Node: gpu3
+  run token: 20261113T113339-1225758
+  output: sl_comparison/results/paper_tables/
+==================================================
+  variants: pd:pooled pd:per_head | selection: pd:pooled | pcavar0.8 | BESTCAT_EXTRA_VARIANTS=1
+  code manifest: <repo>/sl_comparison/slurm/logs/code_20261113T113339-1225758_20261113T113540.sha256
+paper tables -> sl_comparison/results/paper_tables
+  tab_tiers        ok (30 rows)
+  tab_solo         ok (114 rows)
+  tab_loco         ok (42 rows)
+  tab_cellline     ok (21 rows)
+  tab_external     ok (252 rows)
+  tab_external_ft  ok (240 rows)
+  tab_sldb_agreement ok (20 rows)
+  3 absent by design; see README.md
+PAPER COMPLETE
+
+--- bootstrap CIs -> sl_comparison/results/bootstrap/ (Mon Nov 16 20:24:15 EST 2026) ---
+=== tiers (PCA arm none) ===
+  cv1/fold_0: 11 rows, n=25,775 (4,434 pos), B=1000  [23.9s]
+  cv1/fold_1: 11 rows, n=25,774 (4,433 pos), B=1000  [23.2s]
+  cv1/fold_2: 11 rows, n=25,774 (4,433 pos), B=1000  [24.1s]
+  cv1/fold_3: 11 rows, n=25,774 (4,433 pos), B=1000  [23.0s]
+  cv1/fold_4: 11 rows, n=25,773 (4,433 pos), B=1000  [22.6s]
+  cv2/fold_0: 11 rows, n=45,753 (6,025 pos), B=1000  [39.2s]
+  cv2/fold_1: 11 rows, n=48,630 (10,384 pos), B=1000  [72.0s]
+  cv2/fold_2: 11 rows, n=50,538 (9,728 pos), B=1000  [45.6s]
+  cv2/fold_3: 11 rows, n=41,812 (7,218 pos), B=1000  [46.8s]
+  cv2/fold_4: 11 rows, n=45,250 (6,517 pos), B=1000  [41.3s]
+  cv3/fold_0: 11 rows, n=5,006 (422 pos), B=1000  [12.8s]
+  cv3/fold_1: 11 rows, n=5,689 (1,502 pos), B=1000  [16.5s]
+  cv3/fold_2: 11 rows, n=6,142 (1,307 pos), B=1000  [13.1s]
+  cv3/fold_3: 11 rows, n=4,111 (711 pos), B=1000  [12.0s]
+  cv3/fold_4: 11 rows, n=4,809 (518 pos), B=1000  [9.9s]
+wrote sl_comparison/results/bootstrap/ci_tiers.csv (1386 rows) and sl_comparison/results/bootstrap/ci_tiers_diffs.csv (2520 rows)
+=== external (PCA arm none) ===
+  Adamson/cv1: 37 score sources over 4 row set(s)  [90.3s]
+  Adamson/cv2: 37 score sources over 4 row set(s)  [169.8s]
+  Adamson/cv3: 37 score sources over 4 row set(s)  [11.8s]
+  AdamsonGI/cv1: 37 score sources over 4 row set(s)  [87.5s]
+  AdamsonGI/cv2: 37 score sources over 4 row set(s)  [175.0s]
+  AdamsonGI/cv3: 37 score sources over 4 row set(s)  [12.6s]
+  Corn/cv1: 37 score sources over 4 row set(s)  [96.7s]
+  Corn/cv2: 37 score sources over 4 row set(s)  [184.3s]
+  Corn/cv3: 37 score sources over 4 row set(s)  [13.0s]
+  Gilbert/cv1: 37 score sources over 4 row set(s)  [42.1s]
+  Gilbert/cv2: 37 score sources over 4 row set(s)  [79.4s]
+  Gilbert/cv3: 37 score sources over 4 row set(s)  [5.6s]
+wrote sl_comparison/results/bootstrap/ci_external.csv (2664 rows) and sl_comparison/results/bootstrap/ci_external_diffs.csv (2736 rows)
+wrote sl_comparison/results/bootstrap/manifest.json
+
+--- paper tables again, with the CI columns (Mon Nov 16 20:49:26 EST 2026) ---
+paper tables -> sl_comparison/results/paper_tables
+  tab_tiers        ok (30 rows)
+  tab_solo         ok (114 rows)
+  tab_loco         ok (42 rows)
+  tab_cellline     ok (21 rows)
+  tab_external     ok (252 rows)
+  tab_external_ft  ok (240 rows)
+  tab_sldb_agreement ok (20 rows)
+  3 absent by design; see README.md
+PAPER COMPLETE
+
+==================================================
+Written to sl_comparison/results/paper_tables/:
+  README.md
+  numbers.json
+  tab_cellline.csv
+  tab_external.csv
+  tab_external_ft.csv
+  tab_loco.csv
+  tab_sldb_agreement.csv
+  tab_solo.csv
+  tab_tiers.csv
+verdict: PAPER COMPLETE
+Completed at: Mon Nov 16 20:50:04 EST 2026
+==================================================

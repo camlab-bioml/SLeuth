@@ -6,8 +6,9 @@ Supports downloading, processing, aligning, and concatenating gene embeddings
 for use with the Siamese SL prediction pipeline.
 
 Supported embedding types (precomputed, auto-download/extract):
-  geneformer    (auto)  Geneformer token embeddings (V1: 256d, V2: 1152d)
-  scgpt         (512d)  scGPT token embeddings
+  geneformer    (1152d) Geneformer-V2-316M token embeddings (HF root model,
+                        pinned revision; V2-104M is 768d, V1-10M 256d)
+  scgpt         (512d)  scGPT whole-human token embeddings
   gene2vec      (200d)  Gene2Vec co-expression embeddings
   genept        (1536d) GenePT (Data Leakage with SL)
   bioconceptvec (100d)  BioConceptVec PubMed concepts
@@ -21,7 +22,7 @@ Supported embedding types (precomputed, auto-download/extract):
   text_embed    (1024d) Open-source text embeddings (mxbai, GenePT alternative)
   go2vec        (128d)  GO2Vec: Node2Vec on GO graph
   onto2vec      (128d)  Onto2Vec: Word2Vec on GO axioms
-  mashup        (500d)  Mashup diffusion-based network embeddings
+  mashup        (500d)  Mashup (Cho et al.) RWR diffusion embeddings
   ppi_raw       (1024d) PPI adjacency high-dim SVD baseline
   kg_complex    (512d)  ComplEx KG embeddings (STRING + GO)
 
@@ -48,6 +49,8 @@ Usage:
 import argparse
 import os
 import pickle
+import re
+import shlex
 import sys
 import urllib.request
 import zipfile
@@ -58,9 +61,15 @@ import numpy as np
 import torch
 
 from gene_name_utils import get_mapper
+from generate_all_genes_esm import (EMBEDDING_GENERATOR_VERSION,
+                                    SEQUENCE_SOURCE, _file_md5)
 
-# Module-level gene list for NCBI sequence fetching (set by generate_embedding)
+# Module-level gene list for protein sequence resolution (set by
+# generate_embedding)
 _ACTIVE_GENE_LIST: Optional[List[str]] = None
+
+# Types embedded from resolve_protein_sequences() sequences
+_PROTEIN_TYPES = ("prot_t5", "esm1b", "esmc", "seqvec")
 
 # =============================================================================
 # Embedding Registry
@@ -68,24 +77,36 @@ _ACTIVE_GENE_LIST: Optional[List[str]] = None
 
 EMBEDDING_REGISTRY = {
     "geneformer": {
-        "dim": None,  # auto-detected from model (V1-10M: 256d, V2-104M: 1152d)
+        # auto-detected from the model: the HF root model.safetensors is
+        # Geneformer-V2-316M, 1152d (V2-104M is 768d, V1-10M 256d)
+        "dim": None,
         "description": "Geneformer token embeddings (auto-detected dim)",
-        "source": "GenePert (https://github.com/zou-group/GenePert)",
+        "source": ("HuggingFace ctheodoris/Geneformer root model "
+                   "(Geneformer-V2-316M), pinned revision"),
         "filename": "geneformer_gene_embeddings.pkl",
         "alt_filenames": ["gene_to_geneformer_embed.pkl"],
         "format": "pkl_dict",
         "download_url": None,  # no public direct download
-        "notes": "Transformer embeddings from ~30M single-cell transcriptomes",
+        "notes": ("Token embeddings of the V2 model trained on ~104M "
+                  "single-cell transcriptomes (Genecorpus-104M). A GenePert "
+                  "pkl (https://github.com/zou-group/GenePert) under the alt "
+                  "filename is used only when the HF build fails."),
     },
     "scgpt": {
         "dim": 512,
         "description": "scGPT token embeddings (512d)",
-        "source": "GenePert (https://github.com/zou-group/GenePert)",
+        "source": ("scGPT whole-human checkpoint (scGPT_human/best_model.pt "
+                   "+ vocab.json, https://github.com/bowang-lab/scGPT)"),
         "filename": "scgpt_gene_embeddings.pkl",
         "alt_filenames": ["all_scgpt_gene_embeddings.pkl"],
         "format": "pkl_dict",
         "download_url": None,  # no public direct download
-        "notes": "Generative transformer embeddings from 33M+ single cells",
+        "notes": ("Generative transformer embeddings from 33M+ single cells. "
+                  "The checkpoint folder must be placed by hand in the cache "
+                  "dir (git-ignored); a GenePert pkl under the alt filename "
+                  "is used (stamped as not built by this code) only when the "
+                  "checkpoint build fails. The SLURM generation job deletes "
+                  "a cache_dir/ copy of it; a cache_dir/scgpt/ one is kept."),
     },
     "gene2vec": {
         "dim": 200,
@@ -136,7 +157,10 @@ EMBEDDING_REGISTRY = {
         "download_url":
         None,  # generated from concept_cbow.json + gene_info
         "notes":
-        "Word2Vec on PubMed concepts; no SL data leakage (concept-level, not relation-level)",
+        ("Word2Vec CBOW on PubMed concept co-occurrence. Literature-derived "
+         "like GenePT: genes co-mentioned in abstracts (e.g. SynLethDB Low "
+         "Throughput / Text Mining SL pairs) get nearer vectors, so some SL "
+         "label leakage is possible (smaller than GenePT's, not zero)"),
     },
     "node2vec_ppi": {
         "dim": 128,
@@ -240,7 +264,7 @@ EMBEDDING_REGISTRY = {
         "dim":
         1024,
         "description":
-        "Open-source text embeddings of gene summaries (1024d)",
+        "Open-source text embeddings of NCBI gene names and designations (1024d)",
         "source":
         "mxbai-embed-large (https://huggingface.co/mixedbread-ai/mxbai-embed-large-v1)",
         "filename":
@@ -252,7 +276,9 @@ EMBEDDING_REGISTRY = {
         None,
         "notes":
         "GenePT alternative: open-source, no API cost, no SL data leakage. "
-        "Embeds NCBI gene descriptions via sentence-transformers.",
+        "Embeds '<symbol>: <gene_info description (full name)>. Also known "
+        "as: <Other_designations>' from NCBI gene_info via "
+        "sentence-transformers (no RefSeq summaries).",
     },
     "go2vec": {
         "dim": 128,
@@ -298,7 +324,9 @@ EMBEDDING_REGISTRY = {
         "download_url":
         None,
         "notes":
-        "Diffusion kernel on STRING PPI via spectral decomposition + log transform.",
+        ("Single-network Mashup (authors' SVD approximation): RWR restart "
+         "0.5 on binary STRING >= 700, log(Q + 1/n), top-500 eigenvectors of "
+         "R R^T scaled by eigenvalue^(1/4)."),
     },
     "ppi_raw": {
         "dim":
@@ -316,7 +344,8 @@ EMBEDDING_REGISTRY = {
         None,
         "notes":
         "Higher-dim SVD of PPI adjacency (cf. ppi_svd at 256d). "
-        "Strong zero-compute baseline for interaction tasks.",
+        "An SVD approximation of, not the same as, Zhong et al.'s raw-row "
+        "PPI-RAW baseline.",
     },
     "kg_complex": {
         "dim":
@@ -434,36 +463,27 @@ def _load_protein_sequences(
     cache_dir: str,
     gene_ids: Optional[List[str]] = None,
 ) -> Dict[str, str]:
-    """Load protein sequences from NCBI via Entrez Gene ID → RefSeq protein.
+    """Canonical protein sequence per gene, for the protein language models.
 
-    Uses NCBI elink (Gene → Protein RefSeq) + efetch to retrieve canonical
-    protein sequences. Results are cached as JSON (symbol → sequence) to
-    avoid repeated downloads and fragile FASTA header re-parsing.
-
-    Falls back to cached UniProt FASTA if NCBI fetch fails.
+    Delegates to ``generate_all_genes_esm.resolve_protein_sequences`` (UniProt
+    reviewed canonical sequence via HGNC entrez_id -> uniprot_ids; NCBI RefSeq,
+    NP_ preferred, for the few genes UniProt misses), the same resolver ESM-2
+    uses, so ESM-2, ProtT5, ESM-1b, ESM-C and SeqVec all embed the same
+    sequence per gene. Its JSON cache (``protein_sequences_canonical.json``,
+    checked against the source files and the gene set) is shared with the
+    ESM-2 step, and an NCBI failure raises instead of leaving a gap.
 
     Args:
         cache_dir: Directory for caching downloaded data.
-        gene_ids: List of Entrez Gene IDs. If None, loads from any existing
+        gene_ids: List of Entrez Gene IDs. If None, uses the gene list passed
+                  to generate_embedding(), else the gene_order of an existing
                   ESM .pt file in the data directory.
 
     Returns:
-        Dict mapping gene_symbol -> protein_sequence.
+        Dict mapping Entrez Gene ID -> protein sequence (align_embeddings
+        passes digit keys straight through). Only when no gene list can be
+        found at all: gene symbol -> sequence from the cached UniProt FASTA.
     """
-    import json
-    import time
-    import xml.etree.ElementTree as ET
-
-    json_cache = os.path.join(cache_dir, "ncbi_gene_sequences.json")
-    fasta_cache = os.path.join(cache_dir, "ncbi_protein_sequences.fasta")
-
-    # Prefer JSON cache (symbol → sequence, no re-parsing needed)
-    if os.path.exists(json_cache) and gene_ids is None:
-        with open(json_cache) as f:
-            gene_seqs = json.load(f)
-        print(f"  Loaded {len(gene_seqs)} protein sequences from cache")
-        return gene_seqs
-
     if gene_ids is None:
         # Use module-level gene list if available
         gene_ids = _ACTIVE_GENE_LIST
@@ -481,180 +501,12 @@ def _load_protein_sequences(
                 break
 
     if gene_ids is None:
-        print("  WARNING: No gene list available for NCBI fetch")
-        # Fall back to UniProt if available
+        print("  WARNING: No gene list available; using the UniProt FASTA "
+              "keyed by GN= symbol")
         return _load_uniprot_sequences_fallback(cache_dir)
 
-    # Get gene symbol mapping for return value
-    from gene_name_utils import get_mapper
-    mapper = get_mapper()
-
-    # Step 1: elink Gene ID → RefSeq protein UIDs
-    elink_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi"
-    efetch_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
-
-    gene_to_protein: Dict[str, str] = {}
-    batch_size = 200
-
-    print(f"  Linking {len(gene_ids)} Gene IDs → RefSeq proteins...")
-    for i in range(0, len(gene_ids), batch_size):
-        batch = gene_ids[i:i + batch_size]
-        for attempt in range(3):
-            try:
-                import requests as _req
-                # Use separate id params (not comma-joined) so elink
-                # returns one LinkSet per gene instead of merging them.
-                params = [("dbfrom", "gene"), ("db", "protein"),
-                          ("linkname", "gene_protein_refseq"),
-                          ("retmode", "xml")]
-                params.extend(("id", gid) for gid in batch)
-                resp = _req.post(elink_url, data=params, timeout=60)
-                resp.raise_for_status()
-                root = ET.fromstring(resp.text)
-                for linkset in root.findall(".//LinkSet"):
-                    id_elem = linkset.find("IdList/Id")
-                    if id_elem is None:
-                        continue
-                    gid = id_elem.text
-                    link_db = linkset.find(".//LinkSetDb")
-                    if link_db is None:
-                        continue
-                    pids = [
-                        l.find("Id").text for l in link_db.findall("Link")
-                        if l.find("Id") is not None
-                    ]
-                    if pids:
-                        gene_to_protein[gid] = pids[0]
-                break
-            except Exception as e:
-                if attempt < 2:
-                    time.sleep(2**attempt)
-                else:
-                    print(f"  elink batch failed: {e}")
-        time.sleep(0.35)
-
-    print(
-        f"  Found RefSeq protein links for {len(gene_to_protein)}/{len(gene_ids)} genes"
-    )
-
-    # Step 2: Resolve GI numbers → accessions via esummary, so we can
-    # match FASTA headers (which use accessions, not GIs).
-    esummary_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
-    gi_to_acc: Dict[str, str] = {}
-    protein_gis = list(gene_to_protein.values())
-
-    print(f"  Resolving {len(protein_gis)} protein GIs → accessions...")
-    for i in range(0, len(protein_gis), batch_size):
-        batch = protein_gis[i:i + batch_size]
-        for attempt in range(3):
-            try:
-                import requests as _req
-                resp = _req.post(esummary_url,
-                                 data={
-                                     "db": "protein",
-                                     "id": ",".join(batch),
-                                     "retmode": "json",
-                                 },
-                                 timeout=60)
-                resp.raise_for_status()
-                data = resp.json()
-                for gi in batch:
-                    info = data.get("result", {}).get(gi, {})
-                    acc = info.get("accessionversion")
-                    if acc:
-                        gi_to_acc[gi] = acc
-                break
-            except Exception as e:
-                if attempt < 2:
-                    time.sleep(2**attempt)
-                else:
-                    print(f"  esummary batch failed: {e}")
-        time.sleep(0.35)
-
-    # Step 3: efetch protein sequences
-    all_fasta: List[str] = []
-
-    print(f"  Fetching {len(protein_gis)} protein sequences...")
-    for i in range(0, len(protein_gis), batch_size):
-        batch = protein_gis[i:i + batch_size]
-        for attempt in range(3):
-            try:
-                import requests as _req
-                resp = _req.post(efetch_url,
-                                 data={
-                                     "db": "protein",
-                                     "id": ",".join(batch),
-                                     "rettype": "fasta",
-                                     "retmode": "text",
-                                 },
-                                 timeout=60)
-                resp.raise_for_status()
-                all_fasta.append(resp.text)
-                break
-            except Exception as e:
-                if attempt < 2:
-                    time.sleep(2**attempt)
-                else:
-                    print(f"  efetch batch failed: {e}")
-        time.sleep(0.35)
-
-    # Save raw FASTA cache
-    with open(fasta_cache, "w") as f:
-        f.write("\n".join(all_fasta))
-
-    # Build reverse map: accession (with/without version) → gene_id
-    # This handles both old-style ">gi|123|ref|NP_...| ..." and
-    # new-style ">NP_... ..." FASTA headers.
-    acc_to_gene: Dict[str, str] = {}
-    for gid, gi in gene_to_protein.items():
-        # Map by GI (for old-style headers)
-        acc_to_gene[gi] = gid
-        # Map by accession (for new-style headers)
-        acc = gi_to_acc.get(gi)
-        if acc:
-            acc_to_gene[acc] = gid
-            if "." in acc:
-                acc_to_gene[acc.split(".")[0]] = gid
-
-    gene_seqs: Dict[str, str] = {}
-    current_gene_id = None
-    current_seq: List[str] = []
-
-    def _save():
-        if current_gene_id and current_seq:
-            seq = "".join(current_seq)
-            # Map Entrez ID → symbol for backward compat with extract functions
-            sym = mapper.entrez_to_symbol(current_gene_id)
-            if sym:
-                if sym not in gene_seqs or len(seq) > len(gene_seqs[sym]):
-                    gene_seqs[sym] = seq
-
-    for fasta_text in all_fasta:
-        for line in fasta_text.strip().split("\n"):
-            line = line.strip()
-            if line.startswith(">"):
-                _save()
-                current_seq = []
-                current_gene_id = None
-                # Match header tokens against our accession/GI reverse map
-                tokens = line[1:].replace("|", " ").split()
-                for token in tokens:
-                    if token in acc_to_gene:
-                        current_gene_id = acc_to_gene[token]
-                        break
-                    base = token.split(".")[0]
-                    if base in acc_to_gene:
-                        current_gene_id = acc_to_gene[base]
-                        break
-            elif line:
-                current_seq.append(line)
-    _save()
-
-    # Save JSON cache (symbol → sequence) so future loads don't re-parse FASTA
-    with open(json_cache, "w") as f:
-        json.dump(gene_seqs, f)
-
-    print(f"  Loaded {len(gene_seqs)} protein sequences from NCBI")
+    from generate_all_genes_esm import resolve_protein_sequences
+    gene_seqs, _ = resolve_protein_sequences(list(gene_ids), cache_dir)
     return gene_seqs
 
 
@@ -710,21 +562,17 @@ def _load_go_graph_and_annotations(
     # cache_dir must already exist (server does not allow mkdir)
 
     obo_path = os.path.join(cache_dir, "go-basic.obo")
-    if not os.path.exists(obo_path):
-        print("  Downloading GO ontology (go-basic.obo)...")
-        _run_download("http://purl.obolibrary.org/obo/go/go-basic.obo",
-                      obo_path)
+    _ensure_download("http://purl.obolibrary.org/obo/go/go-basic.obo",
+                     obo_path, "GO ontology (go-basic.obo)")
 
     gaf_path = os.path.join(cache_dir, "goa_human.gaf.gz")
-    if not os.path.exists(gaf_path):
-        print("  Downloading human GO annotations (GAF)...")
-        _run_download(
-            "http://geneontology.org/gene-associations/goa_human.gaf.gz",
-            gaf_path)
+    _ensure_download(
+        "http://geneontology.org/gene-associations/goa_human.gaf.gz",
+        gaf_path, "human GO annotations (GAF)")
 
     # Parse GO graph
     go_graph = None
-    if os.path.exists(obo_path):
+    if _cache_ok(obo_path):
         try:
             import obonet
             go_graph = obonet.read_obo(obo_path)
@@ -735,7 +583,7 @@ def _load_go_graph_and_annotations(
 
     # Parse GAF annotations
     gene_to_go: Dict[str, set] = {}
-    if os.path.exists(gaf_path):
+    if _cache_ok(gaf_path):
         with _gzip.open(gaf_path, "rt") as f:
             for line in f:
                 if line.startswith("!"):
@@ -772,7 +620,13 @@ def _load_go_graph_and_annotations(
 
 
 def load_gene_list(path: str) -> List[str]:
-    """Load gene list from a ``.pt`` embedding file or a plain text file."""
+    """Load gene list from a ``.pt`` embedding file or a plain text file.
+
+    A ``.pt`` keeps its stored order. A text list is deduplicated and sorted
+    lexically, the order generate_all_genes_esm.py writes whatever its input
+    (gene_universe.txt is numeric): data_loader.load_raw_multimodal refuses
+    to combine files whose ordered gene lists differ.
+    """
     if path.endswith(".pt"):
         data = torch.load(path, map_location="cpu", weights_only=False)
         if isinstance(data, dict):
@@ -790,12 +644,74 @@ def load_gene_list(path: str) -> List[str]:
         raise ValueError(f"Cannot extract gene list from {path}")
     else:
         with open(path) as f:
-            return [line.strip() for line in f if line.strip()]
+            return sorted({line.strip() for line in f if line.strip()})
 
 
 # =============================================================================
 # Alignment
 # =============================================================================
+
+
+# Source keys that HGNC lists as a PREVIOUS symbol of two genes, pinned to the
+# gene the source means. GeneNameMapper keeps the last HGNC row within one
+# field, so gene2vec's QARS (glutaminyl-tRNA synthetase, QARS1 since 2019)
+# went to EPRS1, whose row also lists QARS: EPRS1 carried that vector (its
+# own, under the key EPRS, was dropped as a collision) and QARS1 was left NaN.
+# The same pin as eval_finetuning.SCREEN_SYMBOL_OVERRIDES and
+# train_slmgae_shared.LP_SYMBOL_OVERRIDES, and local for the same reason:
+# gene_corrections_config.py and gene_name_utils.py are hashed into NSF4SL's
+# features.
+SOURCE_SYMBOL_OVERRIDES: Dict[str, str] = {
+    "QARS": "5859",  # QARS1 (EPRS1 also lists QARS as a previous symbol)
+}
+
+
+def _keys_to_entrez(
+        emb_dict: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+    """Re-key an embedding dict by Entrez Gene ID.
+
+    All-digit keys already are Entrez IDs and pass through. Symbol keys go
+    through the HGNC normalizer (custom corrections -> current symbol ->
+    alias/previous symbol -> Entrez). When two keys reach the same Entrez ID,
+    the key that IS that gene's current HGNC symbol (or its Entrez ID) wins
+    over an alias/previous symbol whatever the dict order: NCBI still keeps
+    separate records under many old HGNC symbols (ATD, the asphyxiating
+    thoracic dystrophy locus, is a previous symbol of ATM; COX1/COX2 are NCBI's
+    symbols for MT-CO1/MT-CO2 and HGNC aliases of PTGS1/PTGS2), and keeping the
+    first key gave those genes another gene's vector. Among several non-exact
+    keys the first one is kept.
+    """
+    mapper = get_mapper()
+    out: Dict[str, np.ndarray] = {}
+    exact_ids: set = set()
+    n_unmapped = n_collisions = n_replaced = 0
+    for key, vec in emb_dict.items():
+        key = str(key).strip()
+        if key.isdigit():
+            eid, exact = key, True
+        else:
+            eid = (SOURCE_SYMBOL_OVERRIDES.get(key.upper())
+                   or mapper.symbol_to_entrez(key))
+            exact = (eid is not None
+                     and mapper.entrez_to_symbol(eid) == key.upper())
+        if eid is None:
+            n_unmapped += 1
+            continue
+        if eid in out:
+            n_collisions += 1
+            if exact and eid not in exact_ids:
+                out[eid] = vec
+                exact_ids.add(eid)
+                n_replaced += 1
+            continue
+        out[eid] = vec
+        if exact:
+            exact_ids.add(eid)
+    if n_unmapped or n_collisions:
+        print(f"  Key->Entrez mapping: {len(out)} mapped, {n_unmapped} "
+              f"unmapped (dropped), {n_collisions} collisions (the gene's own "
+              f"symbol replaced an alias in {n_replaced}; the rest dropped)")
+    return out
 
 
 def align_embeddings(
@@ -807,18 +723,20 @@ def align_embeddings(
     """Align precomputed embeddings to a reference gene list.
 
     The reference gene_list contains Entrez Gene IDs (strings).
-    The emb_dict keys are gene symbols (from external sources).
+    The emb_dict keys are Entrez Gene IDs (all-digit keys, passed through) or
+    gene symbols (from external sources).
 
     Pipeline:
-      1. Convert emb_dict keys: symbol -> normalize -> Entrez ID
+      1. Convert emb_dict keys to Entrez IDs (see _keys_to_entrez)
       2. Match against gene_list (Entrez IDs)
-      3. Genes with no match receive NaN vectors (Huber-imputed at load time)
+      3. Genes with no match receive NaN vectors (imputed per fold by
+         SLDataManager.get_fold_embeddings, with impute locations fit on that
+         fold's _fold_fit_mask rows: mean under the default pca_method plain,
+         Huber under robust/svd)
 
     Returns ``(embeddings_tensor, stats_dict)``.
     """
-    # Convert embedding dict keys from symbols to Entrez IDs
-    mapper = get_mapper()
-    emb_entrez = mapper.symbols_to_entrez_dict(emb_dict, report=True)
+    emb_entrez = _keys_to_entrez(emb_dict)
 
     embeddings = np.full((len(gene_list), embedding_dim),
                          np.nan,
@@ -860,12 +778,16 @@ def align_embeddings(
         if len(missing) > 20:
             print(f"  ... and {len(missing) - 20} more")
     print(f"  Missing genes receive NaN vectors "
-          f"(Huber-imputed per dimension at load time)")
+          f"(imputed per dimension and per fold at training time, fit on "
+          f"that fold's training rows; method set by train.py --pca_method)")
 
     if embedding_type == "genept":
         print(
             "  WARNING: GenePT (Data Leakage with SL) -- literature embeddings "
             "may encode known SL relationships")
+    elif embedding_type == "bioconceptvec":
+        print("  NOTE: BioConceptVec is PubMed co-occurrence: genes co-mentioned "
+              "in SL papers sit closer (smaller leakage risk than GenePT)")
 
     return torch.tensor(embeddings, dtype=torch.float32), stats
 
@@ -876,45 +798,167 @@ def align_embeddings(
 
 
 def find_precomputed_file(embedding_type: str,
-                          cache_dir: str) -> Optional[str]:
-    """Search *cache_dir* for the expected precomputed file."""
+                          cache_dir: str,
+                          primary_only: bool = False) -> Optional[str]:
+    """Search *cache_dir* for the expected precomputed file.
+
+    primary_only: only ``cache_dir/<filename>``, the path every extract_*
+    builder writes, not the alt filenames or the ``cache_dir/<type>/``
+    copies. The SLURM job's cleanup deletes every ``cache_dir/*_gene_
+    embeddings.pkl`` (the primaries, and the alt names all_scgpt_ / mxbai_
+    that match it) and keeps the other alt names (e.g. GenePert's
+    gene_to_geneformer_embed.pkl) and every ``cache_dir/<type>/`` copy.
+    """
     info = EMBEDDING_REGISTRY[embedding_type]
+    if primary_only:
+        path = os.path.join(cache_dir, info["filename"])
+        return path if _cache_ok(path) else None
     filenames = [info["filename"]] + info.get("alt_filenames", [])
     for fname in filenames:
         for path in [
                 os.path.join(cache_dir, fname),
                 os.path.join(cache_dir, embedding_type, fname),
         ]:
-            if os.path.exists(path):
+            if _cache_ok(path):
                 return path
     return None
 
 
+# Sidecar next to a pkl an extract_* builder wrote: JSON with the
+# EMBEDDING_GENERATOR_VERSION that built it, the pkl's md5 and, for the
+# protein models (which embed only the genes of the list they were built
+# for), the sha256 of that gene set.
+_BUILD_STAMP_SUFFIX = ".generator_version"
+
+
+def _genes_sha256(gene_list: List[str]) -> str:
+    """Order-free fingerprint of a gene list."""
+    import hashlib
+    return hashlib.sha256("\n".join(sorted(set(map(
+        str, gene_list)))).encode()).hexdigest()
+
+
+def _write_build_stamp(path: str, genes_sha256: Optional[str] = None) -> None:
+    """Record that *path* was just built by this generator version (for
+    genes_sha256's gene set, when given)."""
+    import json as _json
+    stamp = {
+        "generator_version": EMBEDDING_GENERATOR_VERSION,
+        "md5": _file_md5(path),
+    }
+    if genes_sha256 is not None:
+        stamp["genes_sha256"] = genes_sha256
+    part = path + _BUILD_STAMP_SUFFIX + ".part"
+    with open(part, "w") as f:
+        _json.dump(stamp, f)
+    os.replace(part, path + _BUILD_STAMP_SUFFIX)
+
+
+def _read_stamp(path: str) -> dict:
+    """*path*'s build stamp, or {} when it has no sidecar or changed since
+    it was stamped (built by older code, placed by hand)."""
+    import json as _json
+    try:
+        with open(path + _BUILD_STAMP_SUFFIX) as f:
+            stamp = _json.load(f)
+        if stamp.get("md5") == _file_md5(path):
+            return stamp
+    except (OSError, ValueError, AttributeError):
+        pass
+    return {}
+
+
+def _cache_ok(path: str, name: Optional[str] = None) -> bool:
+    """True if *path* is a usable cached download.
+
+    Non-empty, not an HTML error page, and its first bytes match the type
+    implied by *name* (default: *path*): gzip / zip / HDF5 magic, or an
+    opening bracket for ``.json``. A 0-byte or HTML file used to pass every
+    ``os.path.exists`` cache check and was trusted forever.
+    """
+    try:
+        if not os.path.isfile(path) or os.path.getsize(path) == 0:
+            return False
+        with open(path, "rb") as f:
+            head = f.read(512)
+    except OSError:
+        return False
+    kind = (name or path).lower()
+    if kind.endswith(".gz"):
+        return head[:2] == b"\x1f\x8b"
+    if kind.endswith((".zip", ".npz")):
+        return head[:4] == b"PK\x03\x04"
+    if kind.endswith((".hdf5", ".h5")):
+        return head[:8] == b"\x89HDF\r\n\x1a\n"
+    text = head.lstrip()[:15].lower()
+    if text.startswith((b"<!doctype html", b"<html")):
+        return False
+    if kind.endswith(".json"):
+        return text[:1] in (b"{", b"[")
+    return True
+
+
 def _run_download(url: str, output_path: str) -> bool:
-    """Download a file using wget, curl, or urllib (in that order)."""
+    """Download a file using wget, curl, or urllib (in that order).
+
+    Each attempt writes ``output_path + '.part'``, which replaces
+    *output_path* only once it passes _cache_ok, and is deleted otherwise.
+    (``wget -O`` used to leave a 0-byte file on failure, and curl without
+    ``-f`` saved HTTP error pages with exit status 0.) Returns True on
+    success.
+    """
     import shutil
     import subprocess
 
-    # Try wget first (most reliable for large files)
-    if shutil.which("wget"):
-        ret = subprocess.run(["wget", "-q", "-O", output_path, url],
-                             capture_output=True)
-        if ret.returncode == 0:
-            return True
+    part = output_path + ".part"
 
-    # Try curl
-    if shutil.which("curl"):
-        ret = subprocess.run(["curl", "-sL", "-o", output_path, url],
-                             capture_output=True)
-        if ret.returncode == 0:
+    def _promote() -> bool:
+        if _cache_ok(part, name=output_path):
+            os.replace(part, output_path)
             return True
-
-    # Fallback to urllib
-    try:
-        urllib.request.urlretrieve(url, output_path)
-        return True
-    except Exception:
         return False
+
+    def _drop_part() -> None:
+        if os.path.exists(part):
+            os.remove(part)
+
+    cmds = []
+    if shutil.which("wget"):  # most reliable for large files
+        cmds.append(["wget", "-q", "--tries=3", "-O", part, url])
+    if shutil.which("curl"):
+        cmds.append(["curl", "-fsSL", "--retry", "3", "-o", part, url])
+    for cmd in cmds:
+        ret = subprocess.run(cmd, capture_output=True)
+        if ret.returncode == 0 and _promote():
+            return True
+        _drop_part()
+
+    # Fallback to urllib (raises on HTTP 4xx/5xx)
+    try:
+        urllib.request.urlretrieve(url, part)
+        if _promote():
+            return True
+    except Exception:
+        pass
+    _drop_part()
+    return False
+
+
+def _ensure_download(url: str, path: str, what: str) -> bool:
+    """Make *path* a valid cached copy of *url*, downloading when it is
+    missing or fails _cache_ok (an invalid file is deleted first).
+    Returns whether a valid file is now in place."""
+    if _cache_ok(path):
+        return True
+    if os.path.exists(path):
+        print(f"  Discarding invalid cached {os.path.basename(path)} "
+              f"(empty, HTML or wrong file type)")
+        os.remove(path)
+    print(f"  Downloading {what}...")
+    if _run_download(url, path):
+        return True
+    print(f"  ERROR: download failed: {url}")
+    return False
 
 
 def download_precomputed(embedding_type: str, cache_dir: str) -> Optional[str]:
@@ -999,32 +1043,89 @@ def download_precomputed(embedding_type: str, cache_dir: str) -> Optional[str]:
         return None
 
 
+# The HF repo's root model is its "current default" and has changed before
+# (V1-10M -> V2-316M), so the build is pinned: this revision's three files,
+# checked by sha256 (their LFS oids; HF main 1f7fbae4 still serves the same
+# blobs as of 2026-09-22). Changing any of these changes the embedding, so it
+# needs an EMBEDDING_GENERATOR_VERSION bump.
+GENEFORMER_REPO = "ctheodoris/Geneformer"
+GENEFORMER_REVISION = "05fcbeb8a27d49e0a7a4349152202ee2c1cbfd28"
+GENEFORMER_MODEL = "Geneformer-V2-316M (18 layers, 1152d)"
+GENEFORMER_SHA256 = {
+    "model.safetensors":
+    "965ceccea81953d362081ef3843560a0e4fef88d396c28017881f1e94b1246f3",
+    "geneformer/token_dictionary_gc104M.pkl":
+    "67c445f4385127adfc48dcc072320cd65d6822829bf27dd38070e6e787bc597f",
+    "geneformer/gene_name_id_dict_gc104M.pkl":
+    "fabfa0c2f49c598c59ae432a32c3499a5908c033756c663b5e0cddf58deea8e1",
+}
+
+
+def _file_sha256(path: str) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _geneformer_file(filename: str) -> str:
+    """Local path of *filename* from the pinned Geneformer revision.
+
+    The pinned revision is tried first (served from the HF cache without a
+    network call when that snapshot is cached); if it cannot be fetched (e.g.
+    an offline node whose cache holds another snapshot), the default revision
+    is accepted only with the same sha256. Raises otherwise.
+    """
+    from huggingface_hub import hf_hub_download
+    want = GENEFORMER_SHA256[filename]
+    errors = []
+    for rev in (GENEFORMER_REVISION, None):
+        try:
+            path = hf_hub_download(GENEFORMER_REPO, filename, revision=rev)
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"revision {rev or 'default'}: "
+                          f"{type(e).__name__}: {e}")
+            continue
+        got = _file_sha256(path)
+        if got == want:
+            return path
+        errors.append(f"revision {rev or 'default'}: sha256 {got} != "
+                      f"pinned {want}")
+    raise RuntimeError(f"{GENEFORMER_REPO} {filename} unavailable at the "
+                       f"pinned content ({'; '.join(errors)})")
+
+
 def extract_geneformer_from_hf(cache_dir: str) -> Optional[str]:
     """Extract Geneformer gene embeddings from HuggingFace model.
 
-    Downloads the model + dictionary files, extracts the token embedding
-    layer, and maps Ensembl IDs to gene symbols.
+    Downloads the model + dictionary files of the pinned revision
+    (GENEFORMER_REVISION: root model.safetensors = Geneformer-V2-316M, whose
+    token embeddings are 1152d), extracts the token embedding layer, and maps
+    Ensembl IDs to gene symbols.
 
     Requires: transformers, huggingface_hub (pip install transformers).
     Returns path to saved pkl, or None on failure.
     """
     try:
-        from huggingface_hub import hf_hub_download
+        from huggingface_hub import hf_hub_download  # noqa: F401
     except ImportError:
         print("  huggingface_hub not installed (pip install transformers)")
         return None
 
-    print("  Extracting Geneformer embeddings from HuggingFace...")
+    print(f"  Extracting Geneformer embeddings from HuggingFace "
+          f"({GENEFORMER_REPO}@{GENEFORMER_REVISION[:8]}, {GENEFORMER_MODEL})...")
     # cache_dir must already exist (server does not allow mkdir)
 
     try:
         # Download dictionary files
         print("  Downloading token dictionary...")
-        token_dict_path = hf_hub_download(
-            "ctheodoris/Geneformer", "geneformer/token_dictionary_gc104M.pkl")
+        token_dict_path = _geneformer_file(
+            "geneformer/token_dictionary_gc104M.pkl")
         print("  Downloading gene name dictionary...")
-        gene_name_path = hf_hub_download(
-            "ctheodoris/Geneformer", "geneformer/gene_name_id_dict_gc104M.pkl")
+        gene_name_path = _geneformer_file(
+            "geneformer/gene_name_id_dict_gc104M.pkl")
 
         with open(token_dict_path, "rb") as f:
             token_dict = pickle.load(f)  # {ensembl_id: token_index}
@@ -1038,8 +1139,7 @@ def extract_geneformer_from_hf(cache_dir: str) -> Optional[str]:
 
         # Download and load model embedding layer
         print("  Downloading model (this may take a few minutes)...")
-        model_path = hf_hub_download("ctheodoris/Geneformer",
-                                     "model.safetensors")
+        model_path = _geneformer_file("model.safetensors")
 
         # Load just the embedding weights (avoid loading full model into GPU)
         # Key may be "bert.embeddings.word_embeddings.weight" or
@@ -1189,19 +1289,14 @@ def _load_string_ppi(cache_dir: str):
     links_path = os.path.join(cache_dir, "9606.protein.links.v12.0.txt.gz")
     info_path = os.path.join(cache_dir, "9606.protein.info.v12.0.txt.gz")
 
-    if not os.path.exists(links_path):
-        # Try auto-download
-        print("  Downloading STRING PPI network...")
-        _run_download(
-            "https://stringdb-downloads.org/download/protein.links.v12.0/9606.protein.links.v12.0.txt.gz",
-            links_path)
-    if not os.path.exists(info_path):
-        print("  Downloading STRING protein info...")
-        _run_download(
-            "https://stringdb-downloads.org/download/protein.info.v12.0/9606.protein.info.v12.0.txt.gz",
-            info_path)
+    ok_links = _ensure_download(
+        "https://stringdb-downloads.org/download/protein.links.v12.0/9606.protein.links.v12.0.txt.gz",
+        links_path, "STRING PPI network")
+    ok_info = _ensure_download(
+        "https://stringdb-downloads.org/download/protein.info.v12.0/9606.protein.info.v12.0.txt.gz",
+        info_path, "STRING protein info")
 
-    if not os.path.exists(links_path) or not os.path.exists(info_path):
+    if not (ok_links and ok_info):
         print("  ERROR: STRING files not found and download failed")
         return None, None
 
@@ -1241,8 +1336,10 @@ def _load_string_ppi(cache_dir: str):
 def extract_bioconceptvec(cache_dir: str) -> Optional[str]:
     """Extract gene embeddings from BioConceptVec concept_cbow.json.
 
-    BioConceptVec indexes genes as "Gene_NCBI_ID". We map to gene symbols
-    using NCBI Homo_sapiens.gene_info.
+    BioConceptVec indexes genes as "Gene_NCBI_ID", i.e. by the Entrez Gene ID
+    itself, so the pkl is keyed by that ID (no symbol round trip, which gave
+    ATM the vector of NCBI's separate ATD record); NCBI
+    Homo_sapiens.gene_info only restricts the concepts to human genes.
 
     Returns path to saved pkl, or None on failure.
     """
@@ -1252,32 +1349,28 @@ def extract_bioconceptvec(cache_dir: str) -> Optional[str]:
     concept_path = os.path.join(cache_dir, "concept_cbow.json")
     gene_info_path = os.path.join(cache_dir, "Homo_sapiens.gene_info.gz")
 
-    if not os.path.exists(concept_path):
-        print("  Downloading BioConceptVec concepts (798MB)...")
-        _run_download(
-            "https://ftp.ncbi.nlm.nih.gov/pub/lu/BioConceptVec/concept_cbow.json",
-            concept_path)
-    if not os.path.exists(gene_info_path):
-        print("  Downloading NCBI gene info...")
-        _run_download(
-            "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Homo_sapiens.gene_info.gz",
-            gene_info_path)
+    ok_concepts = _ensure_download(
+        "https://ftp.ncbi.nlm.nih.gov/pub/lu/BioConceptVec/concept_cbow.json",
+        concept_path, "BioConceptVec concepts (798MB)")
+    ok_info = _ensure_download(
+        "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Homo_sapiens.gene_info.gz",
+        gene_info_path, "NCBI gene info")
 
-    if not os.path.exists(concept_path) or not os.path.exists(gene_info_path):
+    if not (ok_concepts and ok_info):
         print("  ERROR: Required files not found")
         return None
 
     print("  Loading BioConceptVec concepts...")
     try:
-        # Build NCBI Gene ID -> gene symbol mapping
-        geneid_to_symbol = {}
+        # Human NCBI Gene IDs (BioConceptVec covers every species)
+        human_geneids = set()
         with gzip.open(gene_info_path, "rt") as f:
             f.readline()  # skip header
             for line in f:
                 parts = line.strip().split("\t")
                 if len(parts) >= 3:
-                    geneid_to_symbol[parts[1]] = parts[2]  # GeneID -> Symbol
-        print(f"  NCBI gene info: {len(geneid_to_symbol)} genes")
+                    human_geneids.add(parts[1])
+        print(f"  NCBI gene info: {len(human_geneids)} genes")
 
         # Load concept embeddings and extract gene concepts
         with open(concept_path, "r") as f:
@@ -1290,10 +1383,8 @@ def extract_bioconceptvec(cache_dir: str) -> Optional[str]:
             # Skip multi-gene concepts like "Gene_123_456"
             if concept_id.startswith("Gene_") and concept_id.count("_") == 1:
                 ncbi_id = concept_id[5:]  # strip "Gene_" prefix
-                symbol = geneid_to_symbol.get(ncbi_id)
-                if symbol:
-                    emb_dict[symbol.upper()] = np.array(vector,
-                                                        dtype=np.float32)
+                if ncbi_id in human_geneids:
+                    emb_dict[ncbi_id] = np.array(vector, dtype=np.float32)
 
         print(f"  Mapped {len(emb_dict)} gene embeddings")
 
@@ -1317,10 +1408,11 @@ def extract_node2vec_ppi(cache_dir: str) -> Optional[str]:
     try:
         import networkx as nx
         from node2vec import Node2Vec
-    except ImportError:
-        print(
-            "  node2vec/networkx not installed (pip install node2vec networkx)"
-        )
+    except ImportError as e:
+        # The cause can be a missing dependency of node2vec itself (e.g.
+        # pkg_resources, gone from setuptools>=81), not node2vec/networkx.
+        print(f"  node2vec/networkx import failed ({type(e).__name__}: {e}); "
+              f"pip install node2vec networkx")
         return None
 
     edges, _ = _load_string_ppi(cache_dir)
@@ -1354,7 +1446,9 @@ def extract_node2vec_ppi(cache_dir: str) -> Optional[str]:
                            p=1.0,
                            q=1.0,
                            workers=4)
-        model = n2v.fit(window=10, min_count=1, batch_words=4)
+        # seed goes to gensim's Word2Vec; the multi-worker walks and
+        # training are still not bit-for-bit reproducible
+        model = n2v.fit(window=10, min_count=1, batch_words=4, seed=42)
 
         emb_dict = {}
         for gene in G.nodes():
@@ -1371,6 +1465,16 @@ def extract_node2vec_ppi(cache_dir: str) -> Optional[str]:
     except Exception as e:
         print(f"  Node2Vec training failed: {e}")
         return None
+
+
+def _svds_start(n: int) -> np.ndarray:
+    """Fixed, generic ARPACK start vector for svds on an n x n matrix.
+
+    svds otherwise draws v0 from the unseeded global RNG. Not all-ones: on a
+    graph a constant start stays in the automorphism-invariant subspace and
+    can miss eigenvectors.
+    """
+    return np.random.RandomState(42).uniform(-1.0, 1.0, size=n)
 
 
 def extract_ppi_svd(cache_dir: str) -> Optional[str]:
@@ -1406,8 +1510,9 @@ def extract_ppi_svd(cache_dir: str) -> Optional[str]:
 
         svd_dim = 256
         print(f"  Running truncated SVD (k={svd_dim})...")
-        U, S, _ = svds(A, k=svd_dim)
-        embeddings = U * S  # (n, svd_dim)
+        # Fixed ARPACK start + canonical signs: reproducible across runs
+        U, S, _ = svds(A, k=svd_dim, v0=_svds_start(n))
+        embeddings = _canonical_signs(U) * S  # (n, svd_dim)
 
         emb_dict = {}
         for gene, idx in gene2idx.items():
@@ -1426,11 +1531,31 @@ def extract_ppi_svd(cache_dir: str) -> Optional[str]:
         return None
 
 
+def _prot_t5_residue_mask(input_ids: torch.Tensor,
+                          attention_mask: torch.Tensor,
+                          eos_token_id: int) -> torch.Tensor:
+    """Attention mask with the appended ``</s>`` zeroed (T5 pads on the
+    right, so it is the last attended position of each row).
+
+    input_ids, attention_mask: (B, T). Returns a (B, T) mask covering the
+    residue tokens only.
+    """
+    mask = attention_mask.clone()
+    rows = torch.arange(mask.size(0), device=mask.device)
+    last = mask.sum(1).long() - 1
+    is_eos = (last >= 0) & (input_ids[rows, last.clamp(min=0)] == eos_token_id)
+    mask[rows[is_eos], last[is_eos]] = 0
+    return mask
+
+
 def extract_prot_t5(cache_dir: str) -> Optional[str]:
-    """Generate ProtT5-XL gene embeddings from UniProt sequences.
+    """Generate ProtT5-XL gene embeddings from canonical protein sequences.
 
     Runs the Rostlab/prot_t5_xl_uniref50 encoder on each protein sequence
-    and mean-pools over residue positions.
+    and mean-pools over residue positions, following the ProtTrans recipe:
+    rare/ambiguous residues U, Z, O, B are mapped to X (the model never saw
+    them in training) and the ``</s>`` token the tokenizer appends is
+    excluded from the mean (``last_hidden_state[i, :seq_len]``).
 
     Requires: transformers, sentencepiece, torch.
     """
@@ -1463,9 +1588,10 @@ def extract_prot_t5(cache_dir: str) -> Optional[str]:
 
         for i in tqdm(range(0, len(genes), batch_size), desc="  ProtT5"):
             batch_genes = genes[i:i + batch_size]
-            # ProtT5 expects space-separated amino acids
+            # ProtT5 expects space-separated amino acids, with U/Z/O/B -> X
             sequences = [
-                " ".join(list(gene_seqs[g][:1022])) for g in batch_genes
+                " ".join(re.sub(r"[UZOB]", "X", gene_seqs[g][:1022]))
+                for g in batch_genes
             ]
             ids = tokenizer(sequences,
                             return_tensors="pt",
@@ -1477,7 +1603,10 @@ def extract_prot_t5(cache_dir: str) -> Optional[str]:
             with _torch.no_grad():
                 output = model(**ids)
 
-            attn = ids["attention_mask"].unsqueeze(-1).float()
+            res_mask = _prot_t5_residue_mask(ids["input_ids"],
+                                             ids["attention_mask"],
+                                             tokenizer.eos_token_id)
+            attn = res_mask.unsqueeze(-1).float()
             embs = (output.last_hidden_state * attn).sum(1) / attn.sum(1)
 
             for j, gene in enumerate(batch_genes):
@@ -1567,8 +1696,9 @@ def extract_esmc(cache_dir: str) -> Optional[str]:
     the EvolutionaryScale ``esm`` package which conflicts with ``fair-esm``
     (both claim the ``esm`` namespace).
 
-    Mean-pooled over residue positions (excluding BOS/EOS tokens) to get
-    1152d per gene.
+    Mean-pooled by ESM++'s own ``embed_dataset`` (Pooler 'mean' over the
+    tokenizer's attention mask, so the CLS and EOS positions are averaged in
+    along with the residues) to get 1152d per gene.
 
     Requires: transformers, torch, GPU recommended.
     """
@@ -1750,18 +1880,14 @@ def extract_seqvec(cache_dir: str) -> Optional[str]:
     weights_path = os.path.join(cache_dir, "seqvec_weights.hdf5")
     options_path = os.path.join(cache_dir, "seqvec_options.json")
 
-    if not os.path.exists(weights_path):
-        print("  Downloading SeqVec weights (~400 MB)...")
-        _run_download(
-            "https://rostlab.org/~deepppi/seqvec/uniref50_v2/weights.hdf5",
-            weights_path)
-    if not os.path.exists(options_path):
-        print("  Downloading SeqVec options...")
-        _run_download(
-            "https://rostlab.org/~deepppi/seqvec/uniref50_v2/options.json",
-            options_path)
+    ok_weights = _ensure_download(
+        "https://rostlab.org/~deepppi/seqvec/uniref50_v2/weights.hdf5",
+        weights_path, "SeqVec weights (~400 MB)")
+    ok_options = _ensure_download(
+        "https://rostlab.org/~deepppi/seqvec/uniref50_v2/options.json",
+        options_path, "SeqVec options")
 
-    if not os.path.exists(weights_path) or not os.path.exists(options_path):
+    if not (ok_weights and ok_options):
         print("  ERROR: Could not download SeqVec model files")
         return None
 
@@ -1800,13 +1926,17 @@ def extract_seqvec(cache_dir: str) -> Optional[str]:
 
 
 def extract_text_embed(cache_dir: str) -> Optional[str]:
-    """Generate gene embeddings from NCBI gene descriptions using mxbai.
+    """Generate gene embeddings from NCBI gene names using mxbai.
 
-    Open-source GenePT alternative: embeds NCBI gene functional descriptions
-    using mixedbread-ai/mxbai-embed-large-v1 (335M params, 1024d output).
+    Open-source GenePT alternative: embeds, per gene,
+    "<symbol>: <description>. Also known as: <Other_designations>" from NCBI
+    gene_info (``description`` is the official full name; there are no RefSeq
+    summaries in gene_info) using mixedbread-ai/mxbai-embed-large-v1 (335M
+    params, 1024d output). Keyed by NCBI GeneID, so no symbol round trip
+    (NCBI's COX1/COX2 are MT-CO1/MT-CO2, HGNC aliases of PTGS1/PTGS2).
 
-    No API costs, no SL data leakage (uses short functional descriptions,
-    not full literature summaries that might mention SL relationships).
+    No API costs, no SL data leakage (uses names and designations only,
+    not literature summaries that might mention SL relationships).
 
     Requires: sentence-transformers (pip install sentence-transformers).
     Gene descriptions are auto-fetched from NCBI gene_info.
@@ -1822,27 +1952,55 @@ def extract_text_embed(cache_dir: str) -> Optional[str]:
     import json as _json
 
     # cache_dir must already exist (server does not allow mkdir)
-    summaries_path = os.path.join(cache_dir, "ncbi_gene_summaries.json")
+    # Keyed by GeneID (the old symbol-keyed ncbi_gene_summaries.json is not
+    # read: its keys cannot be told apart from another gene's alias).
+    # This cache holds DERIVED texts, and the SLURM job keeps it across
+    # --force-generate, so it is keyed by the composition format and
+    # gene_info.gz's md5, like protein_sequences_canonical.json: otherwise a
+    # refreshed gene_info (a tracked file) or a change to the text below would
+    # re-embed the old descriptions under the current EMBEDDING_GENERATOR_
+    # VERSION, which nothing downstream can tell from a fresh build. Bump
+    # TEXT_CACHE_FORMAT with every change to the composed text.
+    TEXT_CACHE_FORMAT = "geneid_text_v1"
+    summaries_path = os.path.join(cache_dir,
+                                  "ncbi_gene_descriptions_by_geneid.json")
+    gene_info_path = os.path.join(cache_dir, "Homo_sapiens.gene_info.gz")
+    if not _ensure_download(
+            "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/"
+            "Mammalia/Homo_sapiens.gene_info.gz", gene_info_path,
+            "NCBI gene info"):
+        print("  ERROR: Could not download NCBI gene_info")
+        return None
+    fingerprint = {"format": TEXT_CACHE_FORMAT,
+                   "gene_info_md5": _file_md5(gene_info_path)}
 
-    if not os.path.exists(summaries_path):
+    summaries: Optional[Dict[str, str]] = None
+    if _cache_ok(summaries_path):
+        try:
+            with open(summaries_path, "r") as f:
+                cached = _json.load(f)
+            if (isinstance(cached, dict)
+                    and cached.get("format") == fingerprint["format"]
+                    and cached.get("gene_info_md5")
+                    == fingerprint["gene_info_md5"]):
+                summaries = cached["texts"]
+                print(f"  Loaded {len(summaries)} gene descriptions from cache")
+            else:
+                print(f"  Ignoring stale {os.path.basename(summaries_path)} "
+                      f"(different gene_info or cache format)")
+        except (OSError, ValueError, KeyError, TypeError) as e:
+            print(f"  Ignoring unreadable {summaries_path}: {e}")
+
+    if summaries is None:
         print("  Fetching NCBI gene descriptions...")
-        gene_info_path = os.path.join(cache_dir, "Homo_sapiens.gene_info.gz")
-        if not os.path.exists(gene_info_path):
-            _run_download(
-                "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/"
-                "Mammalia/Homo_sapiens.gene_info.gz", gene_info_path)
-
-        if not os.path.exists(gene_info_path):
-            print("  ERROR: Could not download NCBI gene_info")
-            return None
-
-        summaries: Dict[str, str] = {}
+        summaries = {}
         with _gzip.open(gene_info_path, "rt") as f:
             f.readline()  # skip header
             for line in f:
                 parts = line.strip().split("\t")
                 if len(parts) < 9:
                     continue
+                geneid = parts[1]
                 symbol = parts[2]
                 description = parts[8] if parts[8] != "-" else ""
                 other = parts[13] if len(
@@ -1850,15 +2008,12 @@ def extract_text_embed(cache_dir: str) -> Optional[str]:
                 text = f"{symbol}: {description}"
                 if other:
                     text += f". Also known as: {other}"
-                summaries[symbol] = text
+                summaries[geneid] = text
 
-        with open(summaries_path, "w") as f:
-            _json.dump(summaries, f)
+        with open(summaries_path + ".part", "w") as f:
+            _json.dump(dict(fingerprint, texts=summaries), f)
+        os.replace(summaries_path + ".part", summaries_path)
         print(f"  Saved {len(summaries)} gene descriptions")
-    else:
-        with open(summaries_path, "r") as f:
-            summaries = _json.load(f)
-        print(f"  Loaded {len(summaries)} gene descriptions from cache")
 
     print("  Loading mxbai-embed-large-v1 model...")
     try:
@@ -1900,9 +2055,10 @@ def extract_go2vec(cache_dir: str) -> Optional[str]:
     try:
         import networkx as nx
         from node2vec import Node2Vec
-    except ImportError:
-        print("  node2vec/networkx not installed "
-              "(pip install node2vec networkx obonet)")
+    except ImportError as e:
+        # See extract_node2vec_ppi: the cause may be a node2vec dependency.
+        print(f"  node2vec/networkx import failed ({type(e).__name__}: {e}); "
+              f"pip install node2vec networkx obonet")
         return None
 
     go_graph, gene_to_go = _load_go_graph_and_annotations(cache_dir)
@@ -1931,11 +2087,13 @@ def extract_go2vec(cache_dir: str) -> Optional[str]:
                            walk_length=30,
                            num_walks=20,
                            workers=4)
-        model = n2v.fit(window=10, min_count=1, batch_words=4)
+        # seed goes to gensim's Word2Vec; the multi-worker walks and
+        # training are still not bit-for-bit reproducible
+        model = n2v.fit(window=10, min_count=1, batch_words=4, seed=42)
 
         emb_dict: Dict[str, np.ndarray] = {}
         for gene, go_terms in gene_to_go.items():
-            vectors = [model.wv[t] for t in go_terms if t in model.wv]
+            vectors = [model.wv[t] for t in sorted(go_terms) if t in model.wv]
             if vectors:
                 emb_dict[gene.upper()] = np.mean(vectors,
                                                  axis=0).astype(np.float32)
@@ -1995,25 +2153,29 @@ def extract_onto2vec(cache_dir: str) -> Optional[str]:
                 sentences.append(u_name.lower().split() + [rel] +
                                  v_name.lower().split())
 
-        # Gene-GO annotation sentences
-        for gene, terms in gene_to_go.items():
-            for term in terms:
+        # Gene-GO annotation sentences (sorted: set order follows the
+        # per-process hash seed)
+        for gene in sorted(gene_to_go):
+            for term in sorted(gene_to_go[gene]):
                 sentences.append([gene, "annotated_with", term])
 
         print(f"  Generated {len(sentences)} sentences from GO axioms")
 
         print("  Training Word2Vec (skip-gram)...")
+        # seed fixes the initialisation; with workers > 1 gensim is still
+        # not bit-for-bit reproducible (thread scheduling)
         w2v = Word2Vec(sentences,
                        vector_size=128,
                        window=5,
                        min_count=1,
                        workers=4,
                        epochs=10,
-                       sg=1)
+                       sg=1,
+                       seed=42)
 
         emb_dict: Dict[str, np.ndarray] = {}
         for gene, go_terms in gene_to_go.items():
-            vectors = [w2v.wv[t] for t in go_terms if t in w2v.wv]
+            vectors = [w2v.wv[t] for t in sorted(go_terms) if t in w2v.wv]
             if vectors:
                 emb_dict[gene.upper()] = np.mean(vectors,
                                                  axis=0).astype(np.float32)
@@ -2031,23 +2193,39 @@ def extract_onto2vec(cache_dir: str) -> Optional[str]:
         return None
 
 
+def _canonical_signs(M: np.ndarray) -> np.ndarray:
+    """Flip each column of *M* so its largest-magnitude entry is positive.
+
+    Eigen/singular vectors are defined only up to sign, and the solvers pick
+    one arbitrarily (ARPACK from a random start), so without this a
+    regenerated embedding file differed from the last one by column signs.
+    """
+    idx = np.abs(M).argmax(axis=0)
+    signs = np.sign(M[idx, np.arange(M.shape[1])])
+    signs[signs == 0] = 1.0
+    return M * signs[np.newaxis, :]
+
+
 def extract_mashup(cache_dir: str) -> Optional[str]:
-    """Generate Mashup embeddings via diffusion kernel on STRING PPI.
+    """Generate Mashup embeddings (Cho et al., 2016) on the STRING PPI.
 
-    Implements the Mashup algorithm (Cho et al., 2016) for a single network:
-    1. Compute normalized adjacency eigenvectors (spectral decomposition)
-    2. Apply diffusion kernel weighting: alpha / (1 - (1-alpha)*lambda)
-    3. Log-transform the kernel weights
-    4. Result: 500-dim embedding per gene
+    Single-network port of the authors' code (rwr.m + mashup.m with
+    svd_approx), on the binary STRING (combined_score >= 700) network:
+    1. RWR diffusion states with restart 0.5: P = A ./ sum(A) (column-
+       stochastic), Q = 0.5 (I - 0.5 P)^-1
+    2. Smoothed log: R = log(Q + 1/n), elementwise
+    3. Top-500 eigenpairs (V, d) of R R^T; gene i -> V[i, :] * d^(1/4)
+       (mashup.m: x = diag(sqrt(sqrt(d))) * V')
 
-    This is the spectral equivalent of the RWR + log + SVD pipeline from
-    the original paper, but more memory-efficient for large networks.
+    (The previous version took the log of the diffusion-kernel EIGENVALUES,
+    which is not Mashup: it zeroed the smoothest component and weighted the
+    highest-frequency ones most.) Dense n x n float64, so at n ~ 16k genes
+    the peak memory is ~5 GB and the inverse + eigensolve take minutes.
 
     Requires: scipy.  STRING PPI is auto-downloaded.
     """
     try:
-        from scipy.sparse import lil_matrix, diags
-        from scipy.sparse.linalg import eigsh
+        from scipy.linalg import eigh, inv
     except ImportError:
         print("  scipy not installed (pip install scipy)")
         return None
@@ -2063,34 +2241,48 @@ def extract_mashup(cache_dir: str) -> Optional[str]:
         n = len(genes)
         print(f"  Genes: {n}")
 
-        # Build sparse adjacency
-        A = lil_matrix((n, n), dtype=np.float32)
-        for g1, g2 in edges:
-            i, j = gene2idx[g1], gene2idx[g2]
-            A[i, j] = 1
-            A[j, i] = 1
-        A = A.tocsr()
+        svd_dim = min(500, n)
+        alpha = 0.5  # restart probability (mashup.m: rwr(A, 0.5))
 
-        # Normalized adjacency: D^{-1/2} A D^{-1/2}
-        degrees = np.array(A.sum(axis=1)).flatten()
-        d_inv_sqrt = 1.0 / np.sqrt(np.maximum(degrees, 1e-10))
-        D_inv_sqrt = diags(d_inv_sqrt)
-        A_norm = D_inv_sqrt @ A @ D_inv_sqrt
+        # Dense symmetric binary adjacency, zero diagonal (rwr.m)
+        A = np.zeros((n, n), dtype=np.float64)
+        rows = np.fromiter((gene2idx[g1] for g1, _ in edges), dtype=np.int64)
+        cols = np.fromiter((gene2idx[g2] for _, g2 in edges), dtype=np.int64)
+        A[rows, cols] = 1.0
+        A[cols, rows] = 1.0
+        np.fill_diagonal(A, 0.0)
+        diag = np.diag_indices(n)
+        A[diag] += (A.sum(axis=0) == 0)  # rwr.m: self-loop on isolated nodes
 
-        svd_dim = min(500, n - 2)
-        alpha = 0.5
+        # M = I - (1 - alpha) P with P = A ./ sum(A), then Q = alpha M^-1
+        print("  Running RWR diffusion (dense inverse)...")
+        A /= A.sum(axis=0)[np.newaxis, :]
+        A *= -(1.0 - alpha)
+        A[diag] += 1.0
+        Q = inv(A, overwrite_a=True, check_finite=False)
+        del A
+        Q *= alpha
+        np.maximum(Q, 0.0, out=Q)  # Q >= 0 exactly; clip round-off
+        Q += 1.0 / n
+        np.log(Q, out=Q)  # R = log(Q + 1/n)
 
-        print(f"  Computing spectral decomposition (k={svd_dim})...")
-        eigenvalues, eigenvectors = eigsh(A_norm, k=svd_dim, which='LM')
-
-        # Diffusion kernel weights: alpha / (1 - (1-alpha) * lambda)
-        # Then log-transform as in original Mashup
-        diff_weights = alpha / np.maximum(1.0 -
-                                          (1.0 - alpha) * eigenvalues, 1e-10)
-        diff_weights = np.log(np.maximum(diff_weights, 1e-10))
-
-        embeddings = (eigenvectors * diff_weights[np.newaxis, :]).astype(
-            np.float32)
+        print(f"  Eigendecomposition of R R^T (top {svd_dim})...")
+        RR = Q @ Q.T
+        del Q
+        try:
+            d, V = eigh(RR,
+                        subset_by_index=[n - svd_dim, n - 1],
+                        overwrite_a=True,
+                        check_finite=False)
+        except TypeError:  # scipy < 1.5
+            d, V = eigh(RR,
+                        eigvals=(n - svd_dim, n - 1),
+                        overwrite_a=True,
+                        check_finite=False)
+        del RR
+        d, V = d[::-1], _canonical_signs(V[:, ::-1])  # descending
+        embeddings = (V * np.sqrt(np.sqrt(np.maximum(d, 0.0)))[
+            np.newaxis, :]).astype(np.float32)
 
         emb_dict: Dict[str, np.ndarray] = {}
         for gene, idx in gene2idx.items():
@@ -2113,8 +2305,11 @@ def extract_ppi_raw(cache_dir: str) -> Optional[str]:
     """Build high-dimensional SVD of PPI adjacency matrix (1024d).
 
     Same as ppi_svd but retains more dimensions (1024 vs 256) to preserve
-    more of the raw adjacency structure.  This is the strong "PPI-RAW"
-    baseline from Zhong et al. (2025): AUROC SL=0.79, NG=0.73, TF=0.74.
+    more of the raw adjacency structure: the rank-1024 truncated SVD (U * S)
+    of the binary STRING (combined_score >= 700) adjacency. Named after, but
+    NOT the same as, the "PPI-RAW" baseline of Zhong et al. (2025), which
+    uses each gene's raw adjacency row (dimension = number of genes) as its
+    embedding; the AUROCs published for that baseline do not apply here.
 
     Requires: scipy.  STRING PPI is auto-downloaded.
     """
@@ -2145,8 +2340,9 @@ def extract_ppi_raw(cache_dir: str) -> Optional[str]:
 
         svd_dim = min(1024, n - 1)
         print(f"  Running truncated SVD (k={svd_dim})...")
-        U, S, _ = svds(A, k=svd_dim)
-        embeddings = (U * S).astype(np.float32)
+        # Fixed ARPACK start + canonical signs: reproducible across runs
+        U, S, _ = svds(A, k=svd_dim, v0=_svds_start(n))
+        embeddings = (_canonical_signs(U) * S).astype(np.float32)
 
         emb_dict: Dict[str, np.ndarray] = {}
         for gene, idx in gene2idx.items():
@@ -2173,7 +2369,8 @@ def extract_kg_complex(cache_dir: str) -> Optional[str]:
     2. GO annotations   -> (gene, annotated_with, GO_term) triples
 
     Trains ComplEx (Trouillon et al., 2016) using PyKEEN and extracts
-    the learned gene entity embeddings (256d).
+    the learned gene entity embeddings (256 complex dims, stored as 512d
+    real ⊕ imag).
 
     Requires: pykeen (pip install pykeen).
     STRING PPI + GO annotations are auto-downloaded.
@@ -2190,8 +2387,11 @@ def extract_kg_complex(cache_dir: str) -> Optional[str]:
     if edges is None:
         return None
 
-    # Load GO annotations
+    # Load GO annotations (required: the embedding is labelled PPI + GO)
     _, gene_to_go = _load_go_graph_and_annotations(cache_dir)
+    if not gene_to_go:
+        print("  ERROR: no GO annotations loaded; kg_complex needs PPI + GO")
+        return None
 
     print("  Building biological knowledge graph...")
     try:
@@ -2204,10 +2404,13 @@ def extract_kg_complex(cache_dir: str) -> Optional[str]:
         ppi_count = len(triples)
         print(f"  PPI triples: {ppi_count}")
 
-        # GO annotation triples: (gene, annotated_with, GO_term)
+        # GO annotation triples: (gene, annotated_with, GO_term). Sorted:
+        # gene_to_go holds sets, whose order follows the per-process string
+        # hash seed, and the seeded split below permutes triples in input
+        # order, so unsorted input held out a different 1% in every run.
         if gene_to_go:
-            for gene, go_terms in gene_to_go.items():
-                for term in go_terms:
+            for gene in sorted(gene_to_go):
+                for term in sorted(gene_to_go[gene]):
                     triples.append([gene.upper(), "annotated_with", term])
             go_count = len(triples) - ppi_count
             print(f"  GO triples: {go_count}")
@@ -2217,10 +2420,12 @@ def extract_kg_complex(cache_dir: str) -> Optional[str]:
         triples_array = np.array(triples, dtype=str)
         tf = TriplesFactory.from_labeled_triples(triples_array)
 
-        # Use all triples for training so every entity gets an embedding.
-        # A 90/10 split would leave ~10% of entities only in the test set,
-        # and PyKEEN doesn't learn embeddings for test-only entities.
-        # We only care about the learned embeddings, not evaluation metrics.
+        # PyKEEN's pipeline needs a testing set. tf.split's default
+        # "coverage" method keeps every entity and relation in the training
+        # split, so every gene still gets an embedding. The 1% of triples
+        # held out here are NOT trained on; they only feed PyKEEN's
+        # rank-based evaluation, whose metrics are discarded (only
+        # result.model is used).
         training_tf, testing_tf = tf.split([0.99, 0.01], random_state=42)
 
         print("  Training ComplEx (this may take 10-60 minutes)...")
@@ -2278,31 +2483,26 @@ def print_download_instructions(embedding_type: str, cache_dir: str) -> None:
         print(f"    - {fname}")
     if embedding_type == "geneformer":
         print()
-        print("  To extract from HuggingFace (requires transformers):")
-        print("    from transformers import AutoModel")
-        print('    model = AutoModel.from_pretrained("ctheodoris/Geneformer")')
-        print(
-            "    emb = model.embeddings.word_embeddings.weight.detach().numpy()"
-        )
-        print(
-            "    # Then map token indices to gene names via token_dictionary.pkl"
-        )
+        print("  The HuggingFace build failed (see the error above). It needs")
+        print("  huggingface_hub + safetensors and network access (or an HF")
+        print(f"  cache holding {GENEFORMER_REPO}@{GENEFORMER_REVISION}):")
+        for fname in GENEFORMER_SHA256:
+            print(f"    {fname}")
+        print("  A hand-placed GenePert pkl is not the same model and is")
+        print("  stamped as not built by this code.")
     elif embedding_type == "scgpt":
         print()
-        print("  To download scGPT checkpoint from Google Drive:")
+        print("  Place the scGPT whole-human checkpoint folder (best_model.pt +")
+        print(f"  vocab.json) at {cache_dir}/scGPT_human/ (git-ignored, so copy")
+        print("  it to every checkout); the SLURM generation job deletes cached")
+        print("  *_gene_embeddings.pkl files and rebuilds scgpt from it:")
         print("    pip install gdown")
-        print(
-            "    gdown --folder https://drive.google.com/drive/folders/1oWh_-ZRdhtoGQ2Fw24HP41FgLoomVo-y"
-        )
-        print(
-            "  Then extract gene embeddings from best_model.pt + vocab.json:")
-        print("    import torch, json")
-        print("    vocab = json.load(open('vocab.json'))")
-        print("    ckpt = torch.load('best_model.pt', map_location='cpu')")
-        print(
-            "    emb = ckpt['encoder.embedding.gene_encoder.embedding.weight']"
-        )
-        print("    gene_emb = {g: emb[i].numpy() for g, i in vocab.items()}")
+        # -O without a trailing slash writes the files into that directory
+        # (without -O they land in ./<Drive folder name>, never searched).
+        dest = shlex.quote(os.path.abspath(os.path.join(cache_dir,
+                                                         "scGPT_human")))
+        print("    gdown --folder https://drive.google.com/drive/folders/"
+              f"1oWh_-ZRdhtoGQ2Fw24HP41FgLoomVo-y -O {dest}")
     elif embedding_type == "genept":
         print()
         print(
@@ -2323,7 +2523,10 @@ def print_download_instructions(embedding_type: str, cache_dir: str) -> None:
         print()
         print(f"  Requires: pip install {pkgs[embedding_type]}")
         print("  Also needs GPU for practical runtime (~20k proteins).")
-        print("  Protein sequences are fetched from NCBI on first run.")
+        print("  Protein sequences: UniProt reviewed canonical "
+              "(human_proteome_reviewed.fasta + hgnc_complete_set.txt in "
+              "data/embeddings_cache or data/cache, both in git); NCBI "
+              "RefSeq only for the few genes UniProt misses.")
     elif embedding_type == "text_embed":
         print()
         print("  Requires: pip install sentence-transformers")
@@ -2357,7 +2560,7 @@ def generate_embedding(
     precomputed_file: Optional[str] = None,
 ) -> None:
     """Load a precomputed embedding, align to *gene_list*, and save as ``.pt``."""
-    # Make gene_list available for NCBI sequence fetching
+    # Make gene_list available to the protein sequence resolver
     global _ACTIVE_GENE_LIST
     _ACTIVE_GENE_LIST = gene_list
 
@@ -2369,68 +2572,109 @@ def generate_embedding(
     print(f"  Dimension   : {info['dim'] or 'auto-detect'}")
     print(f"  Source      : {info['source']}")
 
-    # Locate the precomputed file: check cache, then try auto-download
-    if precomputed_file and os.path.exists(precomputed_file):
+    # Types whose cached pkl is built by this module (extract_*), so its
+    # content depends on this code; gene2vec / genept are upstream downloads.
+    builders = {
+        "geneformer": extract_geneformer_from_hf,  # from the HF model
+        "scgpt": extract_scgpt_from_checkpoint,
+        "bioconceptvec": extract_bioconceptvec,
+        "node2vec_ppi": extract_node2vec_ppi,
+        "ppi_svd": extract_ppi_svd,
+        "prot_t5": extract_prot_t5,
+        "esm1b": extract_esm1b,
+        "esmc": extract_esmc,
+        "scprint": extract_scprint,
+        "seqvec": extract_seqvec,
+        "text_embed": extract_text_embed,
+        "go2vec": extract_go2vec,
+        "onto2vec": extract_onto2vec,
+        "mashup": extract_mashup,
+        "ppi_raw": extract_ppi_raw,
+        "kg_complex": extract_kg_complex,
+    }
+
+    # The protein builders embed only the genes of the active list, so their
+    # pkl is tied to that gene set (recorded in its build stamp)
+    genes_sha = (_genes_sha256(gene_list)
+                 if embedding_type in _PROTEIN_TYPES else None)
+
+    # Locate the precomputed file: check cache, then try auto-download, then
+    # build. A builder type first reuses only the file its builder writes
+    # (cache_dir/<filename>; the SLURM job deletes it): an alt-named or
+    # per-type-subdir file (e.g. GenePert's gene_to_geneformer_embed.pkl,
+    # which that cleanup keeps unless it matches cache_dir/*_gene_embeddings.
+    # pkl) is used only when the builder fails, stamped non-current, and the
+    # SLURM job then fails its closing embedding_versions.py check.
+    # A path the caller named explicitly ("overrides cache_dir lookup") must be
+    # used or the run must stop: falling through on a typo (or a directory,
+    # which os.path.exists accepts) would quietly embed the cached / freshly
+    # built source instead, with only source_file in the .pt recording it.
+    if precomputed_file and not os.path.isfile(precomputed_file):
+        print(f"  ERROR: --precomputed_file is not a file: {precomputed_file}")
+        sys.exit(1)
+    if precomputed_file:
         filepath = precomputed_file
     else:
-        filepath = find_precomputed_file(embedding_type, cache_dir)
+        filepath = find_precomputed_file(
+            embedding_type, cache_dir, primary_only=embedding_type in builders)
+        stamp = _read_stamp(filepath) if filepath is not None else {}
+        if (genes_sha is not None
+                and stamp.get("generator_version") == EMBEDDING_GENERATOR_VERSION
+                and stamp.get("genes_sha256") != genes_sha):
+            print(f"  {filepath} was built for another gene list (genes it "
+                  f"never embedded would be NaN); rebuilding it for this one")
+            filepath = None
+    reused = filepath is not None
 
     if filepath is None:
         # Try auto-download (gene2vec, genept have direct URLs)
         filepath = download_precomputed(embedding_type, cache_dir)
 
-    if filepath is None and embedding_type == "geneformer":
-        # Try extracting from HuggingFace model
-        filepath = extract_geneformer_from_hf(cache_dir)
-
-    if filepath is None and embedding_type == "scgpt":
-        filepath = extract_scgpt_from_checkpoint(cache_dir)
-
-    if filepath is None and embedding_type == "bioconceptvec":
-        filepath = extract_bioconceptvec(cache_dir)
-
-    if filepath is None and embedding_type == "node2vec_ppi":
-        filepath = extract_node2vec_ppi(cache_dir)
-
-    if filepath is None and embedding_type == "ppi_svd":
-        filepath = extract_ppi_svd(cache_dir)
-
-    if filepath is None and embedding_type == "prot_t5":
-        filepath = extract_prot_t5(cache_dir)
-
-    if filepath is None and embedding_type == "esm1b":
-        filepath = extract_esm1b(cache_dir)
-
-    if filepath is None and embedding_type == "esmc":
-        filepath = extract_esmc(cache_dir)
-
-    if filepath is None and embedding_type == "scprint":
-        filepath = extract_scprint(cache_dir)
-
-    if filepath is None and embedding_type == "seqvec":
-        filepath = extract_seqvec(cache_dir)
-
-    if filepath is None and embedding_type == "text_embed":
-        filepath = extract_text_embed(cache_dir)
-
-    if filepath is None and embedding_type == "go2vec":
-        filepath = extract_go2vec(cache_dir)
-
-    if filepath is None and embedding_type == "onto2vec":
-        filepath = extract_onto2vec(cache_dir)
-
-    if filepath is None and embedding_type == "mashup":
-        filepath = extract_mashup(cache_dir)
-
-    if filepath is None and embedding_type == "ppi_raw":
-        filepath = extract_ppi_raw(cache_dir)
-
-    if filepath is None and embedding_type == "kg_complex":
-        filepath = extract_kg_complex(cache_dir)
+    build_failed = False
+    if filepath is None and embedding_type in builders:
+        filepath = builders[embedding_type](cache_dir)
+        if filepath is None:
+            build_failed = True
+            filepath = find_precomputed_file(embedding_type, cache_dir)
+            reused = filepath is not None
+            if reused:
+                print(f"  WARNING: the {embedding_type} build failed; falling "
+                      f"back to the cached {filepath}")
 
     if filepath is None:
         print_download_instructions(embedding_type, cache_dir)
         sys.exit(1)
+
+    # Provenance: a builder's pkl counts as this generator version only when
+    # built in this call or carrying a matching sidecar from such a build (for
+    # a protein model, for this gene set). A reused pkl without one (older
+    # code, e.g. symbol-keyed newest-RefSeq isoforms, placed by hand, or built
+    # for another gene list) is stamped as such, not as a current build.
+    generator_version = EMBEDDING_GENERATOR_VERSION
+    if embedding_type in builders:
+        if not reused:
+            _write_build_stamp(filepath, genes_sha)
+        else:
+            stamp = _read_stamp(filepath)
+            built_by = stamp.get("generator_version")
+            note = None
+            if built_by != EMBEDDING_GENERATOR_VERSION:
+                note = f"reused cached {os.path.basename(filepath)}"
+            elif genes_sha is not None and stamp.get("genes_sha256") != genes_sha:
+                note = (f"reused cached {os.path.basename(filepath)} built "
+                        f"for another gene list")
+            if note:
+                generator_version = f"{built_by or 'unknown'} ({note})"
+                # after a failed build, deleting the file would only end in
+                # print_download_instructions + exit 1
+                todo = ("The build with the current code failed (see above); "
+                        "fix that to rebuild it." if build_failed else
+                        "Delete the file to rebuild it with the current code.")
+                print(f"  WARNING: {filepath} is not a build of this generator "
+                      f"version ({EMBEDDING_GENERATOR_VERSION})"
+                      f"{' for this gene list' if genes_sha else ''}; the "
+                      f"output is stamped generator_version="
+                      f"{generator_version!r}. {todo}")
 
     print(f"  Loading from: {filepath}")
 
@@ -2466,15 +2710,36 @@ def generate_embedding(
         "num_genes_with_embedding": stats["matched"],
         "coverage_pct": stats["coverage_pct"],
         "source": info["source"],
+        "source_file": os.path.basename(filepath),
+        "generator_version": generator_version,
     }
+    current = generator_version == EMBEDDING_GENERATOR_VERSION
+    if embedding_type in builders and not current:
+        # a reused file of unknown origin: the registry source describes only
+        # what this code's builder reads
+        output["source"] = (f"unverified: reused {os.path.basename(filepath)} "
+                            f"(this builder's source: {info['source']})")
+    if embedding_type in _PROTEIN_TYPES and current:
+        output["sequence_source"] = SEQUENCE_SOURCE
+    if embedding_type == "geneformer" and current:
+        output["source_model"] = (f"{GENEFORMER_REPO}@{GENEFORMER_REVISION} "
+                                  f"model.safetensors ({GENEFORMER_MODEL})")
 
     if embedding_type == "genept":
         output["WARNING"] = (
             "GenePT (Data Leakage with SL): literature embeddings "
             "may encode known SL relationships")
 
-    # output parent dir must already exist (server does not allow mkdir)
-    torch.save(output, output_path)
+    # output parent dir must already exist (server does not allow mkdir).
+    # Saved under a .part name and renamed only when whole: a save that dies
+    # midway must not leave a file the SLURM loop's `[ -f "$OUTPUT" ]` counts
+    # as generated. torch.save returns normally when only the archive's last
+    # few KB (its directory) could not be written, hence the zip check.
+    part = output_path + ".part"
+    torch.save(output, part)
+    if not zipfile.is_zipfile(part):
+        raise OSError(f"{part} was not written in full (disk or quota full?)")
+    os.replace(part, output_path)
     print(f"\n  Saved to : {output_path}")
     print(f"  Shape    : {embeddings.shape}")
 
@@ -2488,8 +2753,9 @@ def concatenate_embeddings(input_paths: List[str], output_path: str) -> None:
     """Concatenate multiple ``.pt`` embedding files along the feature axis.
 
     All files must share the same ``gene_order``.  Missing genes (NaN)
-    in individual embeddings are preserved; ``data_loader.py`` handles
-    per-dimension Huber imputation at load time.
+    in individual embeddings are preserved; ``data_loader.py`` imputes
+    them per dimension at load time (mean under the default pca_method
+    plain, Huber under robust/svd).
     """
     print(f"\nConcatenating {len(input_paths)} embedding files ...")
 
@@ -2623,7 +2889,8 @@ Examples
         "--gene_list",
         type=str,
         help=
-        "Gene list source (.pt with gene_order, or .txt one gene per line)",
+        "Gene list source (.pt with gene_order, kept in its order; or .txt one "
+        "gene per line, sorted lexically as generate_all_genes_esm.py sorts)",
     )
     parser.add_argument(
         "--output",

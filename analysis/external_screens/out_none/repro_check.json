@@ -1,0 +1,10 @@
+{
+ "n_point": 1260,
+ "n_ci": 252,
+ "n_diff": 168,
+ "max_abs_err": 1.1102230246251565e-16,
+ "problems": [],
+ "arm": "none",
+ "manifest_started": "2026-11-16T20:24:17",
+ "seconds": 270.81117701530457
+}

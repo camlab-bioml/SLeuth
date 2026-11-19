@@ -1,0 +1,323 @@
+============================================================================
+Job: eval_finetuning | ID: 1270701 | Node: gpu3
+Array task: 0 (of job 1265124)
+PCA arm: joint (PCA on the concatenation of all modalities (variance 0.8)) | results: results/pca_joint/
+Start: Mon Nov 16 17:49:30 EST 2026
+NVIDIA L40, 46068 MiB, 805 MiB
+NVIDIA L40, 46068 MiB, 847 MiB
+NVIDIA L40, 46068 MiB, 0 MiB
+NVIDIA L40, 46068 MiB, 687 MiB
+============================================================================
+
+[eval_finetuning.conf] MODEL_DIR resolved from marker results/pca_joint/var_pd_pooled__latest_combo_cv3.txt: results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3
+[eval_finetuning.sh] Auto-resolving embeddings_paths from results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/config.json
+PCA arm:          joint (PCA on the concatenation of all modalities (variance 0.8))
+MODEL_DIR:        results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3
+VARIANT:          pd:pooled  (marker results/pca_joint/var_pd_pooled__latest_combo_cv3.txt)
+EMBEDDINGS (11):
+    <repo>/data/all_genes_geneformer.pt
+    <repo>/data/all_genes_scgpt.pt
+    <repo>/data/all_genes_go.pt
+    <repo>/data/all_genes_go2vec.pt
+    <repo>/data/all_genes_kg_complex.pt
+    <repo>/data/all_genes_ppi_svd.pt
+    <repo>/data/all_genes_ppi_raw.pt
+    <repo>/data/all_genes_mashup.pt
+    <repo>/data/all_genes_esm1b.pt
+    <repo>/data/all_genes_prot_t5.pt
+    <repo>/data/all_genes_text_embed.pt
+Legacy PCA:       --pca_variance 0.8 --post_pca_variance 0.8  (only for a checkpoint without its own preprocessing_transform; every current one carries it)
+DATASETS (4):
+    Adamson:external data/pair_sgRNA_phenotypes.txt:Gamma:-1:tsv:K562
+    AdamsonGI:external data/Simpson2023_TableS3_GI_scores.xlsx:Gamma.GI:-1:xlsx:K562
+    Corn:external data/41586_2025_8815_MOESM5_ESM.csv:sens.score:-1:csv:OTHER
+    Gilbert:external data/mmc5.xlsx:K562_avg:-1:xlsx:K562
+EVAL_CV_TYPES:    cv1 cv2 cv3
+FT_MODES:         LP_last Full Scratch
+FT_EPOCHS:        100  (patience=10)
+FT_LR:            1e-4   FT_BATCH_SIZE=256   FT_WD=0.0
+SPLIT:            train=0.8  val=0.1  seed=42
+SLDB_FILTER:      true
+PER_HEAD:         true
+
+Array task 0 -> cv_type cv1
+
+============================================================
+  Running eval_finetuning with --cv_type cv1
+============================================================
+Loaded 5 fold checkpoints (folds [0, 1, 2, 3, 4]) from results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/checkpoints
+  per-head checkpoint: 1 head(s) -> every dataset scored by ANY (pooled)
+
+Loading RAW embeddings (11 modalities; per-fold preprocessing transforms will be pulled from each checkpoint).
+  raw shapes: [(19397, 1152), (19397, 512), (19397, 200), (19397, 128), (19397, 512), (19397, 256), (19397, 1024), (19397, 500), (19397, 1280), (19397, 1024), (19397, 1024)]  genes: 19,397
+SynLethDB positives loaded: 22,166 pairs
+SynLethDB screened negatives loaded: 112,246 pairs (overlap = SL or non-SL: 128,870 pairs)
+
+==============================================================================
+Dataset: Adamson
+==============================================================================
+  file    : <repo>/external data/pair_sgRNA_phenotypes.txt
+  column  : Gamma
+  sign    : -1 (target = sign * raw_score)
+  head    : ANY (pooled) (idx 0) [pooled checkpoint; DATASETS names K562, unused]
+  Custom gene corrections: 86 mappings loaded from <repo>/SLMGAE-in-pytorch/gene_corrections_config.py
+  Non-coding genes: 65 listed in gene_corrections_config (informational; not applied)
+  HGNC loaded: 44981 current symbols, 59786 aliases/previous symbols, 44373 Entrez IDs
+  coverage: raw=1,259,699  both_mapped=1,142,052  both_in_model=1,142,052  kept=146,583  sldb_overlap=4,794 (3.27%)
+  SynLethDB: positives=612 (0.42%)  screened negatives=4,182 (2.85%)  (shares of kept pairs; per-fold training overlap: sl_comparison/external_transfer.py sldb_overlap.csv)
+  split(cv1): train=105,539  val=11,727  test=29,317
+  [fold 0] loading checkpoint fold_0_best.pt
+    zero-shot OLS: a=-0.0070  c=+0.1288  (a < 0: the calibrated row reverses the raw logit's ranking)
+    Scratch: fresh init (torch seed 7961); OLS on its own logits a=-0.0056 c=+0.1572
+  [fold 1] loading checkpoint fold_1_best.pt
+    zero-shot OLS: a=-0.0027  c=+0.1385  (a < 0: the calibrated row reverses the raw logit's ranking)
+    Scratch: fresh init (torch seed 7962); OLS on its own logits a=-0.0016 c=+0.1569
+  [fold 2] loading checkpoint fold_2_best.pt
+    zero-shot OLS: a=-0.0034  c=+0.1367  (a < 0: the calibrated row reverses the raw logit's ranking)
+    Scratch: fresh init (torch seed 7963); OLS on its own logits a=-0.0031 c=+0.1585
+  [fold 3] loading checkpoint fold_3_best.pt
+    zero-shot OLS: a=-0.0036  c=+0.1368  (a < 0: the calibrated row reverses the raw logit's ranking)
+    Scratch: fresh init (torch seed 7964); OLS on its own logits a=-0.0005 c=+0.1495
+  [fold 4] loading checkpoint fold_4_best.pt
+    zero-shot OLS: a=-0.0050  c=+0.1353  (a < 0: the calibrated row reverses the raw logit's ranking)
+    Scratch: fresh init (torch seed 7965); OLS on its own logits a=-0.0018 c=+0.1511
+  SL probabilities: 146,583 pairs x heads ['ANY'] -> Adamson_sl_probabilities.csv (largest logit 12.3)
+
+================================================================================
+RESULTS: Adamson
+================================================================================
+
+Filter: unfiltered  (N = 29,317 test pairs)
+  Mode          Agg               Spearman          Pearson               R²      AUROC@top1%       AUPR@top1%      AUROC@bot1%       AUPR@bot1%
+  ----------------------------------------------------------------------------------------------------------------------------------------------
+  Zero-shot OLS mean±std     +0.0919±0.026    +0.0944±0.023    +0.0092±0.005    +0.5755±0.055    +0.0143±0.005    +0.4739±0.036    +0.0096±0.001
+  Zero-shot OLS ensemble           +0.1213          +0.1244          +0.0122          +0.6053          +0.0149          +0.4633          +0.0092
+  Zero-shot raw mean±std     -0.0919±0.026    -0.0944±0.023         +nan±nan    +0.4245±0.055    +0.0084±0.001    +0.5261±0.036    +0.0113±0.001
+  Zero-shot raw ensemble           -0.1137          -0.1175             +nan          +0.3942          +0.0079          +0.5264          +0.0113
+  LP_last       mean±std     +0.6906±0.013    +0.6903±0.012    +0.4765±0.017    +0.8769±0.075    +0.1495±0.093    +0.1821±0.029    +0.0056±0.000
+  LP_last       ensemble           +0.8516          +0.8409          +0.6341          +0.9427          +0.2395          +0.1073          +0.0053
+  Full          mean±std     +0.9873±0.000    +0.9878±0.000    +0.9753±0.001    +0.9982±0.000    +0.8928±0.006    +0.0019±0.000    +0.0050±0.000
+  Full          ensemble           +0.9881          +0.9887          +0.9771          +0.9984          +0.9052          +0.0015          +0.0050
+  Scratch       mean±std     +0.9865±0.000    +0.9869±0.000    +0.9338±0.006    +0.9981±0.000    +0.8913±0.008    +0.0019±0.000    +0.0050±0.000
+  Scratch       ensemble           +0.9872          +0.9877          +0.9353          +0.9982          +0.9010          +0.0016          +0.0050
+
+Filter: sldb_filtered  (N = 28,375 test pairs)
+  Mode          Agg               Spearman          Pearson               R²      AUROC@top1%       AUPR@top1%      AUROC@bot1%       AUPR@bot1%
+  ----------------------------------------------------------------------------------------------------------------------------------------------
+  Zero-shot OLS mean±std     +0.0823±0.026    +0.0850±0.023    +0.0071±0.004    +0.5762±0.057    +0.0145±0.006    +0.4767±0.037    +0.0097±0.001
+  Zero-shot OLS ensemble           +0.1091          +0.1129          +0.0102          +0.6073          +0.0151          +0.4659          +0.0093
+  Zero-shot raw mean±std     -0.0823±0.026    -0.0850±0.023         +nan±nan    +0.4238±0.057    +0.0083±0.001    +0.5233±0.037    +0.0112±0.001
+  Zero-shot raw ensemble           -0.1015          -0.1059             +nan          +0.3919          +0.0079          +0.5227          +0.0112
+  LP_last       mean±std     +0.6834±0.013    +0.6858±0.013    +0.4702±0.017    +0.8812±0.075    +0.1615±0.102    +0.1854±0.031    +0.0057±0.000
+  LP_last       ensemble           +0.8479          +0.8391          +0.6280          +0.9469          +0.2637          +0.1097          +0.0053
+  Full          mean±std     +0.9872±0.000    +0.9879±0.000    +0.9754±0.001    +0.9982±0.000    +0.8981±0.005    +0.0017±0.000    +0.0050±0.000
+  Full          ensemble           +0.9881          +0.9888          +0.9773          +0.9984          +0.9103          +0.0014          +0.0050
+  Scratch       mean±std     +0.9864±0.000    +0.9870±0.000    +0.9326±0.006    +0.9981±0.000    +0.8968±0.007    +0.0019±0.000    +0.0050±0.000
+  Scratch       ensemble           +0.9872          +0.9878          +0.9342          +0.9983          +0.9063          +0.0015          +0.0050
+
+  Note: @top1% metrics are the SL-aligned headline (higher = better ranking of SL-like pairs).
+        @bot1% metrics are diagnostic — a model that ranks with the target typically scores < 0.5 there.
+        Zero-shot OLS = raw up to sign(a_ols) on the rank metrics: a fold with a < 0 reverses the raw ranking.
+
+==============================================================================
+Dataset: AdamsonGI
+==============================================================================
+  file    : <repo>/external data/Simpson2023_TableS3_GI_scores.xlsx
+  column  : Gamma.GI
+  sign    : -1 (target = sign * raw_score)
+  head    : ANY (pooled) (idx 0) [pooled checkpoint; DATASETS names K562, unused]
+  coverage: raw=143,354  both_mapped=143,354  both_in_model=143,354  kept=143,354  sldb_overlap=4,705 (3.28%)
+  SynLethDB: positives=612 (0.43%)  screened negatives=4,093 (2.86%)  (shares of kept pairs; per-fold training overlap: sl_comparison/external_transfer.py sldb_overlap.csv)
+  split(cv1): train=103,215  val=11,468  test=28,671
+  [fold 0] loading checkpoint fold_0_best.pt
+    zero-shot OLS: a=+0.0220  c=+0.0402
+    Scratch: fresh init (torch seed 7961); OLS on its own logits a=+0.0123 c=-0.0386
+  [fold 1] loading checkpoint fold_1_best.pt
+    zero-shot OLS: a=+0.0269  c=+0.0628
+    Scratch: fresh init (torch seed 7962); OLS on its own logits a=-0.0071 c=+0.0323
+  [fold 2] loading checkpoint fold_2_best.pt
+    zero-shot OLS: a=+0.0197  c=+0.0403
+    Scratch: fresh init (torch seed 7963); OLS on its own logits a=-0.0005 c=-0.0123
+  [fold 3] loading checkpoint fold_3_best.pt
+    zero-shot OLS: a=+0.0216  c=+0.0429
+    Scratch: fresh init (torch seed 7964); OLS on its own logits a=-0.0010 c=-0.0081
+  [fold 4] loading checkpoint fold_4_best.pt
+    zero-shot OLS: a=+0.0298  c=+0.0517
+    Scratch: fresh init (torch seed 7965); OLS on its own logits a=-0.0105 c=+0.0154
+  SL probabilities: 143,354 pairs x heads ['ANY'] -> AdamsonGI_sl_probabilities.csv (largest logit 12.3)
+
+================================================================================
+RESULTS: AdamsonGI
+================================================================================
+
+Filter: unfiltered  (N = 28,671 test pairs)
+  Mode          Agg               Spearman          Pearson               R²      AUROC@top1%       AUPR@top1%      AUROC@bot1%       AUPR@bot1%
+  ----------------------------------------------------------------------------------------------------------------------------------------------
+  Zero-shot OLS mean±std     +0.0522±0.007    +0.0519±0.008    +0.0027±0.001    +0.5821±0.031    +0.0131±0.002    +0.4841±0.028    +0.0095±0.001
+  Zero-shot OLS ensemble           +0.0681          +0.0670          +0.0037          +0.6203          +0.0143          +0.4855          +0.0094
+  Zero-shot raw mean±std     +0.0522±0.007    +0.0519±0.008         +nan±nan    +0.5821±0.031    +0.0131±0.002    +0.4841±0.028    +0.0095±0.001
+  Zero-shot raw ensemble           +0.0678          +0.0660             +nan          +0.6198          +0.0141          +0.4862          +0.0094
+  LP_last       mean±std     +0.2137±0.010    +0.2340±0.008    +0.0546±0.004    +0.7369±0.004    +0.0480±0.003    +0.3591±0.016    +0.0076±0.000
+  LP_last       ensemble           +0.2834          +0.3051          +0.0790          +0.7920          +0.0677          +0.3182          +0.0073
+  Full          mean±std     +0.4523±0.007    +0.5343±0.008    +0.2853±0.008    +0.8793±0.008    +0.3592±0.019    +0.2157±0.013    +0.0061±0.000
+  Full          ensemble           +0.4691          +0.5535          +0.3048          +0.8901          +0.3834          +0.2085          +0.0059
+  Scratch       mean±std     +0.4489±0.008    +0.5265±0.004    +0.2753±0.004    +0.8750±0.007    +0.3398±0.004    +0.2204±0.016    +0.0061±0.000
+  Scratch       ensemble           +0.4651          +0.5463          +0.2926          +0.8826          +0.3711          +0.2139          +0.0060
+
+Filter: sldb_filtered  (N = 27,730 test pairs)
+  Mode          Agg               Spearman          Pearson               R²      AUROC@top1%       AUPR@top1%      AUROC@bot1%       AUPR@bot1%
+  ----------------------------------------------------------------------------------------------------------------------------------------------
+  Zero-shot OLS mean±std     +0.0504±0.007    +0.0518±0.008    +0.0027±0.001    +0.5823±0.031    +0.0132±0.002    +0.4848±0.025    +0.0096±0.001
+  Zero-shot OLS ensemble           +0.0662          +0.0671          +0.0037          +0.6218          +0.0144          +0.4864          +0.0094
+  Zero-shot raw mean±std     +0.0504±0.007    +0.0518±0.008         +nan±nan    +0.5823±0.031    +0.0132±0.002    +0.4848±0.025    +0.0096±0.001
+  Zero-shot raw ensemble           +0.0659          +0.0660             +nan          +0.6213          +0.0142          +0.4877          +0.0094
+  LP_last       mean±std     +0.2100±0.010    +0.2312±0.008    +0.0533±0.004    +0.7374±0.006    +0.0484±0.002    +0.3488±0.015    +0.0075±0.000
+  LP_last       ensemble           +0.2789          +0.3018          +0.0777          +0.7929          +0.0677          +0.3058          +0.0071
+  Full          mean±std     +0.4459±0.007    +0.5330±0.007    +0.2839±0.008    +0.8833±0.008    +0.3576±0.019    +0.2030±0.010    +0.0059±0.000
+  Full          ensemble           +0.4627          +0.5525          +0.3035          +0.8937          +0.3824          +0.1971          +0.0058
+  Scratch       mean±std     +0.4428±0.008    +0.5253±0.004    +0.2740±0.005    +0.8783±0.007    +0.3399±0.005    +0.2053±0.015    +0.0059±0.000
+  Scratch       ensemble           +0.4593          +0.5456          +0.2915          +0.8858          +0.3719          +0.1979          +0.0058
+
+  Note: @top1% metrics are the SL-aligned headline (higher = better ranking of SL-like pairs).
+        @bot1% metrics are diagnostic — a model that ranks with the target typically scores < 0.5 there.
+        Zero-shot OLS = raw up to sign(a_ols) on the rank metrics: a fold with a < 0 reverses the raw ranking.
+
+==============================================================================
+Dataset: Corn
+==============================================================================
+  file    : <repo>/external data/41586_2025_8815_MOESM5_ESM.csv
+  column  : sens.score
+  sign    : -1 (target = sign * raw_score)
+  head    : ANY (pooled) (idx 0) [pooled checkpoint; DATASETS names OTHER, unused]
+  coverage: raw=149,787  both_mapped=149,787  both_in_model=149,787  kept=149,787  sldb_overlap=1,251 (0.84%)
+  SynLethDB: positives=240 (0.16%)  screened negatives=1,011 (0.67%)  (shares of kept pairs; per-fold training overlap: sl_comparison/external_transfer.py sldb_overlap.csv)
+  split(cv1): train=107,847  val=11,983  test=29,957
+  [fold 0] loading checkpoint fold_0_best.pt
+    zero-shot OLS: a=+0.0076  c=+0.2126
+    Scratch: fresh init (torch seed 7961); OLS on its own logits a=-0.0023 c=+0.1976
+  [fold 1] loading checkpoint fold_1_best.pt
+    zero-shot OLS: a=+0.0077  c=+0.2123
+    Scratch: fresh init (torch seed 7962); OLS on its own logits a=+0.0043 c=+0.1657
+  [fold 2] loading checkpoint fold_2_best.pt
+    zero-shot OLS: a=+0.0006  c=+0.1946
+    Scratch: fresh init (torch seed 7963); OLS on its own logits a=-0.0044 c=+0.2104
+  [fold 3] loading checkpoint fold_3_best.pt
+    zero-shot OLS: a=+0.0089  c=+0.2166
+    Scratch: fresh init (torch seed 7964); OLS on its own logits a=+0.0060 c=+0.1577
+  [fold 4] loading checkpoint fold_4_best.pt
+    zero-shot OLS: a=+0.0063  c=+0.2063
+    Scratch: fresh init (torch seed 7965); OLS on its own logits a=+0.0068 c=+0.1743
+  SL probabilities: 149,787 pairs x heads ['ANY'] -> Corn_sl_probabilities.csv (largest logit 8.7)
+
+================================================================================
+RESULTS: Corn
+================================================================================
+
+Filter: unfiltered  (N = 29,957 test pairs)
+  Mode          Agg               Spearman          Pearson               R²      AUROC@top1%       AUPR@top1%      AUROC@bot1%       AUPR@bot1%
+  ----------------------------------------------------------------------------------------------------------------------------------------------
+  Zero-shot OLS mean±std     +0.0384±0.010    +0.0361±0.016    +0.0014±0.001    +0.5607±0.013    +0.0125±0.001         +nan±nan         +nan±nan
+  Zero-shot OLS ensemble           +0.0555          +0.0558          +0.0020          +0.5800          +0.0136             +nan             +nan
+  Zero-shot raw mean±std     +0.0384±0.010    +0.0361±0.016         +nan±nan    +0.5607±0.013    +0.0125±0.001         +nan±nan         +nan±nan
+  Zero-shot raw ensemble           +0.0533          +0.0496             +nan          +0.5828          +0.0137             +nan             +nan
+  LP_last       mean±std     +0.2490±0.018    +0.3260±0.014    +0.1063±0.009    +0.8257±0.023    +0.0647±0.015         +nan±nan         +nan±nan
+  LP_last       ensemble           +0.3217          +0.4204          +0.1477          +0.8916          +0.1047             +nan             +nan
+  Full          mean±std     +0.4649±0.004    +0.5803±0.004    +0.3365±0.005    +0.9443±0.002    +0.2109±0.018         +nan±nan         +nan±nan
+  Full          ensemble           +0.4729          +0.5927          +0.3503          +0.9486          +0.2324             +nan             +nan
+  Scratch       mean±std     +0.4596±0.004    +0.5792±0.006    +0.3258±0.006    +0.9455±0.003    +0.2145±0.012         +nan±nan         +nan±nan
+  Scratch       ensemble           +0.4696          +0.5905          +0.3404          +0.9489          +0.2313             +nan             +nan
+
+Filter: sldb_filtered  (N = 29,707 test pairs)
+  Mode          Agg               Spearman          Pearson               R²      AUROC@top1%       AUPR@top1%      AUROC@bot1%       AUPR@bot1%
+  ----------------------------------------------------------------------------------------------------------------------------------------------
+  Zero-shot OLS mean±std     +0.0387±0.010    +0.0370±0.016    +0.0015±0.001    +0.5627±0.015    +0.0126±0.001         +nan±nan         +nan±nan
+  Zero-shot OLS ensemble           +0.0560          +0.0570          +0.0022          +0.5829          +0.0137             +nan             +nan
+  Zero-shot raw mean±std     +0.0387±0.010    +0.0370±0.016         +nan±nan    +0.5627±0.015    +0.0126±0.001         +nan±nan         +nan±nan
+  Zero-shot raw ensemble           +0.0538          +0.0508             +nan          +0.5862          +0.0137             +nan             +nan
+  LP_last       mean±std     +0.2478±0.018    +0.3254±0.014    +0.1059±0.009    +0.8261±0.023    +0.0662±0.016         +nan±nan         +nan±nan
+  LP_last       ensemble           +0.3207          +0.4202          +0.1475          +0.8927          +0.1059             +nan             +nan
+  Full          mean±std     +0.4640±0.004    +0.5803±0.004    +0.3365±0.005    +0.9451±0.002    +0.2194±0.018         +nan±nan         +nan±nan
+  Full          ensemble           +0.4720          +0.5926          +0.3502          +0.9494          +0.2419             +nan             +nan
+  Scratch       mean±std     +0.4587±0.004    +0.5798±0.006    +0.3263±0.006    +0.9465±0.003    +0.2251±0.012         +nan±nan         +nan±nan
+  Scratch       ensemble           +0.4689          +0.5911          +0.3410          +0.9499          +0.2429             +nan             +nan
+
+  Note: @top1% metrics are the SL-aligned headline (higher = better ranking of SL-like pairs).
+        @bot1% metrics are diagnostic — a model that ranks with the target typically scores < 0.5 there.
+        Zero-shot OLS = raw up to sign(a_ols) on the rank metrics: a fold with a < 0 reverses the raw ranking.
+
+==============================================================================
+Dataset: Gilbert
+==============================================================================
+  file    : <repo>/external data/mmc5.xlsx
+  column  : K562_avg
+  sign    : -1 (target = sign * raw_score)
+  head    : ANY (pooled) (idx 0) [pooled checkpoint; DATASETS names K562, unused]
+  coverage: raw=100,128  both_mapped=100,128  both_in_model=99,681  kept=99,681  sldb_overlap=87,113 (87.39%)
+  SynLethDB: positives=6,021 (6.04%)  screened negatives=81,092 (81.35%)  (shares of kept pairs; per-fold training overlap: sl_comparison/external_transfer.py sldb_overlap.csv)
+  split(cv1): train=71,771  val=7,974  test=19,936
+  [fold 0] loading checkpoint fold_0_best.pt
+    zero-shot OLS: a=+0.0991  c=+0.2789
+    Scratch: fresh init (torch seed 7961); OLS on its own logits a=-0.0017 c=-0.0208
+  [fold 1] loading checkpoint fold_1_best.pt
+    zero-shot OLS: a=+0.0624  c=+0.1945
+    Scratch: fresh init (torch seed 7962); OLS on its own logits a=+0.0064 c=-0.0600
+  [fold 2] loading checkpoint fold_2_best.pt
+    zero-shot OLS: a=+0.0886  c=+0.3147
+    Scratch: fresh init (torch seed 7963); OLS on its own logits a=-0.0119 c=+0.0206
+  [fold 3] loading checkpoint fold_3_best.pt
+    zero-shot OLS: a=+0.0677  c=+0.1971
+    Scratch: fresh init (torch seed 7964); OLS on its own logits a=-0.0049 c=+0.0014
+  [fold 4] loading checkpoint fold_4_best.pt
+    zero-shot OLS: a=+0.0788  c=+0.2175
+    Scratch: fresh init (torch seed 7965); OLS on its own logits a=+0.0049 c=-0.0368
+  SL probabilities: 99,681 pairs x heads ['ANY'] -> Gilbert_sl_probabilities.csv (largest logit 8.2)
+
+================================================================================
+RESULTS: Gilbert
+================================================================================
+
+Filter: unfiltered  (N = 19,936 test pairs)
+  Mode          Agg               Spearman          Pearson               R²      AUROC@top1%       AUPR@top1%      AUROC@bot1%       AUPR@bot1%
+  ----------------------------------------------------------------------------------------------------------------------------------------------
+  Zero-shot OLS mean±std     +0.0947±0.013    +0.1001±0.017    +0.0099±0.003    +0.7465±0.025    +0.0253±0.004    +0.5830±0.007    +0.0130±0.001
+  Zero-shot OLS ensemble           +0.1246          +0.1289          +0.0144          +0.8096          +0.0312          +0.6040          +0.0138
+  Zero-shot raw mean±std     +0.0947±0.013    +0.1001±0.017         +nan±nan    +0.7465±0.025    +0.0253±0.004    +0.5830±0.007    +0.0130±0.001
+  Zero-shot raw ensemble           +0.1243          +0.1258             +nan          +0.8105          +0.0308          +0.6061          +0.0137
+  LP_last       mean±std     +0.2549±0.015    +0.2807±0.017    +0.0786±0.009    +0.7814±0.020    +0.0510±0.011    +0.4183±0.019    +0.0088±0.001
+  LP_last       ensemble           +0.3421          +0.3672          +0.1129          +0.8434          +0.0766          +0.3838          +0.0081
+  Full          mean±std     +0.5292±0.003    +0.5600±0.005    +0.3129±0.007    +0.8677±0.005    +0.2330±0.012    +0.2078±0.007    +0.0060±0.000
+  Full          ensemble           +0.5445          +0.5785          +0.3345          +0.8787          +0.2558          +0.2005          +0.0059
+  Scratch       mean±std     +0.5154±0.008    +0.5415±0.023    +0.2914±0.024    +0.8400±0.036    +0.2001±0.078    +0.2162±0.004    +0.0060±0.000
+  Scratch       ensemble           +0.5405          +0.5733          +0.3231          +0.8684          +0.2481          +0.2062          +0.0058
+
+Filter: sldb_filtered  (N = 2,533 test pairs)
+  Mode          Agg               Spearman          Pearson               R²      AUROC@top1%       AUPR@top1%      AUROC@bot1%       AUPR@bot1%
+  ----------------------------------------------------------------------------------------------------------------------------------------------
+  Zero-shot OLS mean±std     +0.0363±0.025    +0.0341±0.038    -0.0222±0.016    +0.5933±0.032    +0.0161±0.004    +0.4420±0.057    +0.0102±0.002
+  Zero-shot OLS ensemble           +0.0430          +0.0377          -0.0140          +0.6172          +0.0147          +0.4266          +0.0104
+  Zero-shot raw mean±std     +0.0363±0.025    +0.0341±0.038         +nan±nan    +0.5933±0.032    +0.0161±0.004    +0.4420±0.057    +0.0102±0.002
+  Zero-shot raw ensemble           +0.0408          +0.0321             +nan          +0.6144          +0.0150          +0.4298          +0.0105
+  LP_last       mean±std     +0.2329±0.004    +0.2562±0.013    +0.0646±0.008    +0.7696±0.028    +0.0883±0.057    +0.4196±0.066    +0.0088±0.001
+  LP_last       ensemble           +0.3138          +0.3329          +0.0979          +0.8246          +0.0960          +0.3832          +0.0080
+  Full          mean±std     +0.5349±0.004    +0.5979±0.006    +0.3566±0.007    +0.9056±0.012    +0.3809±0.024    +0.0847±0.002    +0.0055±0.000
+  Full          ensemble           +0.5477          +0.6144          +0.3771          +0.9143          +0.4061          +0.0820          +0.0055
+  Scratch       mean±std     +0.5225±0.008    +0.5738±0.023    +0.3274±0.025    +0.8740±0.045    +0.2649±0.161    +0.0926±0.009    +0.0056±0.000
+  Scratch       ensemble           +0.5415          +0.6043          +0.3586          +0.9095          +0.3233          +0.0907          +0.0055
+
+  Note: @top1% metrics are the SL-aligned headline (higher = better ranking of SL-like pairs).
+        @bot1% metrics are diagnostic — a model that ranks with the target typically scores < 0.5 there.
+        Zero-shot OLS = raw up to sign(a_ols) on the rank metrics: a fold with a < 0 reverses the raw ranking.
+
+==============================================================================
+Done. Outputs under: results/pca_joint/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3/eval_finetuning_cv1
+==============================================================================
+  config_used.json
+  gene_coverage.csv
+  zero_shot_metrics.csv  /  zero_shot_summary.csv
+  finetuned_metrics.csv  /  finetuned_summary.csv
+  {dataset}_predictions.csv  /  {dataset}_finetuned_predictions_{mode}.csv
+  {dataset}_sl_probabilities.csv  (every pair x every head)
+  {dataset}_finetuned_allpairs_{mode}.csv  (every pair, with split)
+  finetuned_models/{dataset}_{mode}_fold{k}.pt
+
+Completed all CV types at: Mon Nov 16 20:02:50 EST 2026  (exit status 0)

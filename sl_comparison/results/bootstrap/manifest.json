@@ -1,0 +1,234 @@
+{
+  "script": "sl_comparison/bootstrap_ci.py",
+  "argv": [
+    "--pca_arm",
+    "none",
+    "--out_dir",
+    "sl_comparison/results/bootstrap",
+    "--skip_missing"
+  ],
+  "pca_arm": "none",
+  "n_boot": 1000,
+  "seed": 42,
+  "alpha": 0.05,
+  "ci": "percentile",
+  "resample_tiers": "test pairs with replacement; one resample set per (cv, fold), shared by every model",
+  "caveat": "pairs are resampled as independent units; pairs share genes, so these CIs cover test-pair sampling only (not gene-level or training variability)",
+  "versions": {
+    "python": "3.12.11",
+    "numpy": "2.5.4",
+    "sklearn": "1.6.1"
+  },
+  "started": "2026-11-16T20:24:17",
+  "tiers": {
+    "results_dir": "<repo>/sl_comparison/results",
+    "shared_results_dir": "<repo>/sl_comparison/results",
+    "folds_dir": "<repo>/sl_comparison/folds",
+    "rows": [
+      {
+        "model": "BilinearProbe",
+        "cv": "cv1",
+        "pred_dir": "<repo>/siamese_sl/results/bilinear_probe_cv1"
+      },
+      {
+        "model": "DegreePrior",
+        "cv": "cv1",
+        "pred_dir": "in-memory degree_baseline.degree_matrix"
+      },
+      {
+        "model": "ELISL",
+        "cv": "cv1",
+        "pred_dir": "<repo>/ELISL/results/elisl_cv1"
+      },
+      {
+        "model": "NSF4SL",
+        "cv": "cv1",
+        "pred_dir": "<repo>/NSF4SL/results/nsf4sl_cv1"
+      },
+      {
+        "model": "SLGNN",
+        "cv": "cv1",
+        "pred_dir": "<repo>/SLGNN/results/slgnn_cv1"
+      },
+      {
+        "model": "SLMGAE",
+        "cv": "cv1",
+        "pred_dir": "<repo>/SLMGAE-in-pytorch/results/slmgae_shared_cv1"
+      },
+      {
+        "model": "siamese_sl",
+        "cv": "cv1",
+        "pred_dir": "<repo>/siamese_sl/results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_raw_esm2_esm1b_prot_t5_text_embed_cv1"
+      },
+      {
+        "model": "siamese_sl_allmod",
+        "cv": "cv1",
+        "pred_dir": "<repo>/siamese_sl/results/allmod__all_modalities_cv1"
+      },
+      {
+        "model": "siamese_sl_allmod_pd_pooled",
+        "cv": "cv1",
+        "pred_dir": "<repo>/siamese_sl/results/allmod__var_pd_pooled__all_modalities_cv1"
+      },
+      {
+        "model": "siamese_sl_nocell",
+        "cv": "cv1",
+        "pred_dir": "<repo>/siamese_sl/results/cellline_ablation_cv1"
+      },
+      {
+        "model": "siamese_sl_pd_pooled",
+        "cv": "cv1",
+        "pred_dir": "<repo>/siamese_sl/results/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_raw_esm2_esm1b_prot_t5_text_embed_cv1"
+      },
+      {
+        "model": "BilinearProbe",
+        "cv": "cv2",
+        "pred_dir": "<repo>/siamese_sl/results/bilinear_probe_cv2"
+      },
+      {
+        "model": "DegreePrior",
+        "cv": "cv2",
+        "pred_dir": "in-memory degree_baseline.degree_matrix"
+      },
+      {
+        "model": "ELISL",
+        "cv": "cv2",
+        "pred_dir": "<repo>/ELISL/results/elisl_cv2"
+      },
+      {
+        "model": "NSF4SL",
+        "cv": "cv2",
+        "pred_dir": "<repo>/NSF4SL/results/nsf4sl_cv2"
+      },
+      {
+        "model": "SLGNN",
+        "cv": "cv2",
+        "pred_dir": "<repo>/SLGNN/results/slgnn_cv2"
+      },
+      {
+        "model": "SLMGAE",
+        "cv": "cv2",
+        "pred_dir": "<repo>/SLMGAE-in-pytorch/results/slmgae_shared_cv2"
+      },
+      {
+        "model": "siamese_sl",
+        "cv": "cv2",
+        "pred_dir": "<repo>/siamese_sl/results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_node2vec_ppi_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv2"
+      },
+      {
+        "model": "siamese_sl_allmod",
+        "cv": "cv2",
+        "pred_dir": "<repo>/siamese_sl/results/allmod__all_modalities_cv2"
+      },
+      {
+        "model": "siamese_sl_allmod_pd_pooled",
+        "cv": "cv2",
+        "pred_dir": "<repo>/siamese_sl/results/allmod__var_pd_pooled__all_modalities_cv2"
+      },
+      {
+        "model": "siamese_sl_nocell",
+        "cv": "cv2",
+        "pred_dir": "<repo>/siamese_sl/results/cellline_ablation_cv2"
+      },
+      {
+        "model": "siamese_sl_pd_pooled",
+        "cv": "cv2",
+        "pred_dir": "<repo>/siamese_sl/results/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_node2vec_ppi_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv2"
+      },
+      {
+        "model": "BilinearProbe",
+        "cv": "cv3",
+        "pred_dir": "<repo>/siamese_sl/results/bilinear_probe_cv3"
+      },
+      {
+        "model": "DegreePrior",
+        "cv": "cv3",
+        "pred_dir": "in-memory degree_baseline.degree_matrix"
+      },
+      {
+        "model": "ELISL",
+        "cv": "cv3",
+        "pred_dir": "<repo>/ELISL/results/elisl_cv3"
+      },
+      {
+        "model": "NSF4SL",
+        "cv": "cv3",
+        "pred_dir": "<repo>/NSF4SL/results/nsf4sl_cv3"
+      },
+      {
+        "model": "SLGNN",
+        "cv": "cv3",
+        "pred_dir": "<repo>/SLGNN/results/slgnn_cv3"
+      },
+      {
+        "model": "SLMGAE",
+        "cv": "cv3",
+        "pred_dir": "<repo>/SLMGAE-in-pytorch/results/slmgae_shared_cv3"
+      },
+      {
+        "model": "siamese_sl",
+        "cv": "cv3",
+        "pred_dir": "<repo>/siamese_sl/results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3"
+      },
+      {
+        "model": "siamese_sl_allmod",
+        "cv": "cv3",
+        "pred_dir": "<repo>/siamese_sl/results/allmod__all_modalities_cv3"
+      },
+      {
+        "model": "siamese_sl_allmod_pd_pooled",
+        "cv": "cv3",
+        "pred_dir": "<repo>/siamese_sl/results/allmod__var_pd_pooled__all_modalities_cv3"
+      },
+      {
+        "model": "siamese_sl_nocell",
+        "cv": "cv3",
+        "pred_dir": "<repo>/siamese_sl/results/cellline_ablation_cv3"
+      },
+      {
+        "model": "siamese_sl_pd_pooled",
+        "cv": "cv3",
+        "pred_dir": "<repo>/siamese_sl/results/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3"
+      }
+    ],
+    "point_check": "every fold and mean point equals the row JSON within atol 1e-09 and sklearn/auprg on the same vectors"
+  },
+  "external": {
+    "external_dir": "<repo>/sl_comparison/results/external_transfer",
+    "model_cv": "cv3",
+    "siamese": {
+      "siamese_sl_pd_pooled": "<repo>/siamese_sl/results/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3",
+      "siamese_sl": "<repo>/siamese_sl/results/best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3"
+    },
+    "baselines": {
+      "SLMGAE": "<repo>/SLMGAE-in-pytorch/results/slmgae_shared_cv3",
+      "SLGNN": "<repo>/SLGNN/results/slgnn_cv3",
+      "NSF4SL": "<repo>/NSF4SL/results/nsf4sl_cv3"
+    },
+    "degree_prior": true,
+    "screens": [
+      "Adamson",
+      "AdamsonGI",
+      "Corn",
+      "Gilbert"
+    ],
+    "splits": [
+      "cv1",
+      "cv2",
+      "cv3"
+    ],
+    "row_sets": [
+      "matched",
+      "all_sldb_filtered",
+      "matched_incl_sldb",
+      "matched_in_sldb"
+    ],
+    "sldb_agreement": {
+      "sl_path": "<repo>/data/SL_SynLethDB_experimental.txt",
+      "rows": 40,
+      "published": true
+    },
+    "resample": "rows of each (screen, split, row_set), shared by every fold model and every model on those rows"
+  },
+  "finished": "2026-11-16T20:49:23"
+}

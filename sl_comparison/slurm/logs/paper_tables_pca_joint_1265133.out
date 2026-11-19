@@ -1,0 +1,81 @@
+  python: <home>/pytorch/bin/python3
+  PCA arm: joint (PCA on the concatenation of all modalities (variance 0.8)): siamese_sl/results/pca_joint/, sl_comparison/results/pca_joint/
+==================================================
+Paper tables: PCA arm joint (PCA on the concatenation of all modalities (variance 0.8))
+Start: Tue Nov 17 10:11:26 EST 2026 | Job: 1265133 | Node: gpu3
+  run token: 20261113T113339-1225758
+  output: sl_comparison/results/pca_joint/paper_tables/
+==================================================
+  variants: pd:pooled pd:per_head | selection: pd:pooled | pcavar0.8 | BESTCAT_EXTRA_VARIANTS=1
+  code manifest: <repo>/sl_comparison/slurm/logs/code_20261113T113339-1225758_20261113T113540.sha256
+paper tables -> sl_comparison/results/pca_joint/paper_tables
+  tab_tiers        ok (27 rows)
+  tab_solo         ok (114 rows)
+  tab_loco         ok (42 rows)
+  tab_cellline     ok (21 rows)
+  tab_external     ok (252 rows)
+  tab_external_ft  ok (240 rows)
+  tab_sldb_agreement ok (20 rows)
+  3 absent by design; see README.md
+PAPER COMPLETE
+
+--- bootstrap CIs -> sl_comparison/results/pca_joint/bootstrap/ (Tue Nov 17 10:12:01 EST 2026) ---
+=== tiers (PCA arm joint) ===
+  cv1/fold_0: 10 rows, n=25,775 (4,434 pos), B=1000  [21.5s]
+  cv1/fold_1: 10 rows, n=25,774 (4,433 pos), B=1000  [20.1s]
+  cv1/fold_2: 10 rows, n=25,774 (4,433 pos), B=1000  [20.8s]
+  cv1/fold_3: 10 rows, n=25,774 (4,433 pos), B=1000  [20.3s]
+  cv1/fold_4: 10 rows, n=25,773 (4,433 pos), B=1000  [19.3s]
+  cv2/fold_0: 10 rows, n=45,753 (6,025 pos), B=1000  [34.4s]
+  cv2/fold_1: 10 rows, n=48,630 (10,384 pos), B=1000  [65.7s]
+  cv2/fold_2: 10 rows, n=50,538 (9,728 pos), B=1000  [41.6s]
+  cv2/fold_3: 10 rows, n=41,812 (7,218 pos), B=1000  [42.5s]
+  cv2/fold_4: 10 rows, n=45,250 (6,517 pos), B=1000  [39.3s]
+  cv3/fold_0: 10 rows, n=5,006 (422 pos), B=1000  [11.4s]
+  cv3/fold_1: 10 rows, n=5,689 (1,502 pos), B=1000  [14.6s]
+  cv3/fold_2: 10 rows, n=6,142 (1,307 pos), B=1000  [11.3s]
+  cv3/fold_3: 10 rows, n=4,111 (711 pos), B=1000  [8.1s]
+  cv3/fold_4: 10 rows, n=4,809 (518 pos), B=1000  [8.1s]
+wrote sl_comparison/results/pca_joint/bootstrap/ci_tiers.csv (1260 rows) and sl_comparison/results/pca_joint/bootstrap/ci_tiers_diffs.csv (2142 rows)
+=== external (PCA arm joint) ===
+  Adamson/cv1: 37 score sources over 4 row set(s)  [91.7s]
+  Adamson/cv2: 37 score sources over 4 row set(s)  [163.9s]
+  Adamson/cv3: 37 score sources over 4 row set(s)  [11.4s]
+  AdamsonGI/cv1: 37 score sources over 4 row set(s)  [83.7s]
+  AdamsonGI/cv2: 37 score sources over 4 row set(s)  [168.9s]
+  AdamsonGI/cv3: 37 score sources over 4 row set(s)  [12.2s]
+  Corn/cv1: 37 score sources over 4 row set(s)  [92.8s]
+  Corn/cv2: 37 score sources over 4 row set(s)  [179.4s]
+  Corn/cv3: 37 score sources over 4 row set(s)  [12.8s]
+  Gilbert/cv1: 37 score sources over 4 row set(s)  [40.8s]
+  Gilbert/cv2: 37 score sources over 4 row set(s)  [75.9s]
+  Gilbert/cv3: 37 score sources over 4 row set(s)  [5.5s]
+wrote sl_comparison/results/pca_joint/bootstrap/ci_external.csv (2664 rows) and sl_comparison/results/pca_joint/bootstrap/ci_external_diffs.csv (2736 rows)
+wrote sl_comparison/results/pca_joint/bootstrap/manifest.json
+
+--- paper tables again, with the CI columns (Tue Nov 17 10:35:53 EST 2026) ---
+paper tables -> sl_comparison/results/pca_joint/paper_tables
+  tab_tiers        ok (27 rows)
+  tab_solo         ok (114 rows)
+  tab_loco         ok (42 rows)
+  tab_cellline     ok (21 rows)
+  tab_external     ok (252 rows)
+  tab_external_ft  ok (240 rows)
+  tab_sldb_agreement ok (20 rows)
+  3 absent by design; see README.md
+PAPER COMPLETE
+
+==================================================
+Written to sl_comparison/results/pca_joint/paper_tables/:
+  README.md
+  numbers.json
+  tab_cellline.csv
+  tab_external.csv
+  tab_external_ft.csv
+  tab_loco.csv
+  tab_sldb_agreement.csv
+  tab_solo.csv
+  tab_tiers.csv
+verdict: PAPER COMPLETE
+Completed at: Tue Nov 17 10:36:27 EST 2026
+==================================================

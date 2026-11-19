@@ -7,10 +7,14 @@ as the canonical internal representation. Gene symbols are used only at
 I/O boundaries (user-facing CLI, external data files keyed by symbol).
 
 Gene name correction pipeline (applied when reading symbols from any source):
-  1. Custom corrections (from ../code/gene_corrections_config.py, manually verified)
+  1. Custom corrections (the tracked ../SLMGAE-in-pytorch/gene_corrections_config.py;
+     a legacy ../code/ copy only when that file is absent; manually verified).
+     A correction whose target HGNC does not know is skipped when HGNC knows
+     the input itself (TCL6 -> TCL6f4 would leave TCL6 with no Entrez ID)
   2. Re-normalize correction through HGNC (in case correction target is stale)
   3. HGNC current symbol check (already correct, return as-is)
-  4. HGNC alias/previous symbol lookup (old name -> current name)
+  4. HGNC alias/previous symbol lookup (old name -> current name; a gene's
+     previous symbol wins over another gene's alias of the same name)
   5. Return as-is (uppercased) if no match found
   6. Map corrected symbol -> Entrez Gene ID
 
@@ -28,17 +32,19 @@ Usage:
 
     # Symbol -> Entrez ID (normalize first, then map)
     mapper.symbol_to_entrez("BRCA1")      # -> "672"
-    mapper.symbol_to_entrez("SEPT1")      # -> "55832"  (normalizes to SEPTIN1 first)
+    mapper.symbol_to_entrez("SEPT1")      # -> "1731"  (normalizes to SEPTIN1 first)
 
     # Entrez ID -> Symbol (reverse lookup)
     mapper.entrez_to_symbol("672")        # -> "BRCA1"
 
     # Batch: normalize symbols and convert to Entrez IDs
-    mapper.symbols_to_entrez_list(["BRCA1", "SEPT1"])  # -> ["672", "55832"]
+    ids, unmapped = mapper.symbols_to_entrez_list(["BRCA1", "SEPT1"])
+    # -> (["672", "1731"], [])  unmapped symbols give None in ids unless
+    #    drop_unmapped=True
 
     # Convert a dict keyed by symbols to Entrez IDs
     mapper.symbols_to_entrez_dict({"BRCA1": vec1, "SEPT1": vec2})
-    # -> {"672": vec1, "55832": vec2}
+    # -> {"672": vec1, "1731": vec2}
 """
 
 import os
@@ -50,19 +56,31 @@ from typing import Dict, List, Optional, Set, Tuple
 HGNC_URL = ("https://storage.googleapis.com/public-download-files/"
             "hgnc/tsv/tsv/hgnc_complete_set.txt")
 
-# Import custom gene corrections from the SLMGAE code directory.
-# On the server: siamese_sl/../code/ = SLMGAE-pytorch/code/
+# Import custom gene corrections from the tracked
+# SLMGAE-in-pytorch/gene_corrections_config.py. A legacy untracked
+# SLMGAE-pytorch/code/ copy (removed from git) is used only when the tracked
+# file is absent, and is never put on sys.path otherwise: it must not shadow
+# the maintained file (e.g. its old HIST4H4 -> H4C1 mapping). data_loader.py
+# may already have put SLMGAE-in-pytorch/ on sys.path; that is the same file.
 _CODE_DIR = Path(__file__).parent.parent / "code"
-if str(_CODE_DIR) not in sys.path:
-    sys.path.insert(0, str(_CODE_DIR))
+_SLMGAE_DIR = Path(__file__).parent.parent / "SLMGAE-in-pytorch"
+_GC_DIR = next((d for d in (_SLMGAE_DIR, _CODE_DIR)
+                if (d / "gene_corrections_config.py").is_file()), None)
+if _GC_DIR is not None and str(_GC_DIR) not in sys.path:
+    sys.path.insert(0, str(_GC_DIR))
 
 try:
     from gene_corrections_config import GENE_CORRECTIONS, NON_CODING_GENES
+    import gene_corrections_config as _gcc
+    GENE_CORRECTIONS_FILE: Optional[str] = _gcc.__file__
 except ImportError:
     # Graceful fallback if gene_corrections_config.py is not found.
     # HGNC-based normalization still works; only custom corrections are skipped.
     GENE_CORRECTIONS: Dict[str, str] = {}
     NON_CODING_GENES: set = set()
+    GENE_CORRECTIONS_FILE = None
+    print("  WARNING: gene_corrections_config.py not found; custom gene "
+          "corrections are OFF (HGNC normalization only)")
 
 
 class GeneNameMapper:
@@ -70,10 +88,12 @@ class GeneNameMapper:
 
     Correction priority for symbol normalization:
       1. Custom corrections (gene_corrections_config.py) — manually verified
-         against UniProt, handles edge cases like MAR-02 -> MARCHF2
+         against UniProt, handles edge cases like MAR-02 -> MARCHF2 (skipped
+         when HGNC does not know the target but knows the input itself)
       2. Re-normalize correction through HGNC (SEPT1 -> SEPTIN1)
       3. HGNC current symbols — gene is already correct, return as-is
       4. HGNC previous/alias symbols — old name mapped to current name
+         (a previous symbol outranks another gene's alias: SARS -> SARS1)
       5. Unknown — return uppercased input unchanged
 
     Entrez ID mapping:
@@ -110,10 +130,13 @@ class GeneNameMapper:
         self._non_coding = {g.upper() for g in NON_CODING_GENES}
         if self._custom_corrections:
             print(f"  Custom gene corrections: "
-                  f"{len(self._custom_corrections)} mappings loaded")
+                  f"{len(self._custom_corrections)} mappings loaded from "
+                  f"{GENE_CORRECTIONS_FILE}")
         if self._non_coding:
-            print(f"  Non-coding genes: "
-                  f"{len(self._non_coding)} known (will get NaN embeddings)")
+            # Informational only: nothing masks these genes; a gene is NaN
+            # only where a generator has no data for it.
+            print(f"  Non-coding genes: {len(self._non_coding)} listed in "
+                  f"gene_corrections_config (informational; not applied)")
 
         # 2. Load HGNC database (download if not cached)
         hgnc_path = os.path.join(self._cache_dir, "hgnc_complete_set.txt")
@@ -145,6 +168,9 @@ class GeneNameMapper:
         Builds:
           - _current_symbols: set of all current approved symbols (uppercased)
           - _alias_to_current: dict mapping old/alias symbols to current symbols
+            (a key claimed as one gene's prev_symbol and another's
+            alias_symbol goes to the prev_symbol gene; within one field the
+            last row wins)
           - _symbol_to_entrez: dict mapping current symbol to Entrez Gene ID
           - _entrez_to_symbol: dict mapping Entrez Gene ID to current symbol
 
@@ -157,6 +183,12 @@ class GeneNameMapper:
         n_genes = 0
         n_aliases = 0
         n_entrez = 0
+        # Tier each alias key came from (0 = prev_symbol, 1 = alias_symbol).
+        # A former approved symbol outranks another gene's loose alias: SARS
+        # is SARS1's prev_symbol but only an alias of SARS2, and without the
+        # tiers whichever row came later won (SARS -> SARS2, MDR1 -> TBC1D9,
+        # TAZ -> WWTR1). Within one tier the last row still wins, as before.
+        alias_rank: Dict[str, int] = {}
 
         with open(hgnc_path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter="\t")
@@ -188,7 +220,7 @@ class GeneNameMapper:
                     n_entrez += 1
 
                 # Parse pipe-separated, possibly quoted previous symbols
-                for field in ("prev_symbol", "alias_symbol"):
+                for rank, field in enumerate(("prev_symbol", "alias_symbol")):
                     raw = row.get(field, "")
                     if not raw:
                         continue
@@ -200,9 +232,14 @@ class GeneNameMapper:
                         alias_upper = alias.upper()
                         # Don't overwrite if this alias is itself a
                         # current approved symbol for a different gene
-                        if alias_upper not in self._current_symbols:
-                            self._alias_to_current[alias_upper] = symbol_upper
-                            n_aliases += 1
+                        if alias_upper in self._current_symbols:
+                            continue
+                        # A prev_symbol claim is never replaced by an alias
+                        if alias_rank.get(alias_upper, rank) < rank:
+                            continue
+                        self._alias_to_current[alias_upper] = symbol_upper
+                        alias_rank[alias_upper] = rank
+                        n_aliases += 1
 
         print(f"  HGNC loaded: {n_genes} current symbols, "
               f"{n_aliases} aliases/previous symbols, "
@@ -216,7 +253,8 @@ class GeneNameMapper:
         """Normalize a single gene name to its current HGNC symbol.
 
         Applies corrections in order:
-          1. Custom corrections (gene_corrections_config.py)
+          1. Custom corrections (gene_corrections_config.py); skipped when
+             HGNC does not know the target but does know the input itself
           2. Re-normalize correction through HGNC
           3. HGNC current symbol (already correct)
           4. HGNC alias/previous symbol
@@ -239,7 +277,12 @@ class GeneNameMapper:
                 return corrected
             if corrected in self._alias_to_current:
                 return self._alias_to_current[corrected]
-            return corrected
+            # A target HGNC does not know (TCL6 -> TCL6F4, a UniProt name)
+            # has no Entrez ID, so it must not override an input HGNC
+            # resolves itself. Without HGNC loaded the correction still wins.
+            if (upper not in self._current_symbols
+                    and upper not in self._alias_to_current):
+                return corrected
         # 3. Already a current HGNC symbol — no change needed
         if upper in self._current_symbols:
             return upper
@@ -326,7 +369,11 @@ class GeneNameMapper:
         """Convert dict keys from gene symbols to Entrez IDs.
 
         Each symbol key is normalized first, then mapped to Entrez ID.
-        Keys that cannot be mapped are dropped with a warning.
+        Keys that cannot be mapped are dropped with a warning. When two keys
+        reach the same Entrez ID, a key that needed no renaming (already the
+        current symbol) beats one reached through an alias or correction,
+        e.g. "ATM" beats its alias "ATD" whichever comes first; otherwise the
+        first key wins.
 
         Args:
             d: Dict mapping gene_symbol -> value.
@@ -337,6 +384,7 @@ class GeneNameMapper:
         """
         self._ensure_loaded()
         result = {}
+        direct: Dict[str, bool] = {}  # eid -> kept key needed no renaming
         mapped = 0
         unmapped = 0
         collisions = 0
@@ -346,10 +394,15 @@ class GeneNameMapper:
             if eid is None:
                 unmapped += 1
                 continue
+            is_direct = self.gene_name_normalize(gene) == gene.upper()
             if eid in result:
                 collisions += 1
+                if is_direct and not direct[eid]:
+                    result[eid] = value
+                    direct[eid] = True
                 continue
             result[eid] = value
+            direct[eid] = is_direct
             mapped += 1
 
         if report and (unmapped > 0 or collisions > 0):

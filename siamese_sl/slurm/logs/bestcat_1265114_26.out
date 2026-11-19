@@ -1,0 +1,15 @@
+============================================================================
+Job: bestcat_emb | ID: 1266874 | Node: gpu3
+Array task: 26 (of job 1265114)
+PCA arm: none (no PCA) | results: results/
+Start: Sat Nov 14 10:04:37 EST 2026
+NVIDIA L40, 46068 MiB, 1835 MiB
+NVIDIA L40, 46068 MiB, 609 MiB
+NVIDIA L40, 46068 MiB, 3 MiB
+NVIDIA L40, 46068 MiB, 611 MiB
+============================================================================
+
+Task 26: seqvec (protein_seq) / cv3  [PCA arm none: --no_post_pca; dir tag pcavar0.8]
+  Embedding: <repo>/data/all_genes_seqvec.pt
+
+SKIP: all_genes_seqvec.pt not found in <repo>/data

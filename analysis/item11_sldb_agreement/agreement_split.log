@@ -1,0 +1,61 @@
+Adamson    all_pairs            any  n=  4794 SL=  612 [  2.6s]
+Adamson    all_pairs_genes_txt  any  n=  4794 SL=  612 [  2.5s]
+Adamson    test_genes_txt       cv1  n=   942 SL=  111 [  0.6s]
+Adamson    test_genes_txt       cv2  n=  1535 SL=  194 [  0.7s]
+Adamson    test_genes_txt       cv3  n=   141 SL=   14 [  0.1s]
+AdamsonGI  all_pairs            any  n=  4705 SL=  612 [  2.2s]
+AdamsonGI  all_pairs_genes_txt  any  n=  4705 SL=  612 [  2.2s]
+AdamsonGI  test_genes_txt       cv1  n=   941 SL=  119 [  0.7s]
+AdamsonGI  test_genes_txt       cv2  n=  1496 SL=  335 [  0.9s]
+AdamsonGI  test_genes_txt       cv3  n=   140 SL=   52 [  0.1s]
+Corn       all_pairs            any  n=  1251 SL=  240 [  0.4s]
+Corn       all_pairs_genes_txt  any  n=  1251 SL=  240 [  0.4s]
+Corn       test_genes_txt       cv1  n=   250 SL=   50 [  0.1s]
+Corn       test_genes_txt       cv2  n=   424 SL=   96 [  0.2s]
+Corn       test_genes_txt       cv3  n=    43 SL=    9 [  0.1s]
+Gilbert    all_pairs            any  n= 87113 SL= 6021 [ 43.0s]
+Gilbert    all_pairs_genes_txt  any  n= 87113 SL= 6021 [ 43.1s]
+Gilbert    test_genes_txt       cv1  n= 17403 SL= 1211 [  5.9s]
+Gilbert    test_genes_txt       cv2  n= 30296 SL= 2368 [ 11.8s]
+Gilbert    test_genes_txt       cv3  n=  3187 SL=  276 [  1.0s]
+{
+ "sha256 pos == folds/meta.json": true,
+ "sha256 neg == folds/meta.json": true,
+ "sha256 pos_sources == folds/meta.json": true,
+ "sha256 neg_sources == folds/meta.json": true,
+ "sha256 cell_line_vocab == folds/meta.json": true,
+ "rows defined by (first SLeuth variant, as published)": "siamese_sl_pd_pooled = siamese_sl/results/var_pd_pooled__best_cat_geneformer_scgpt_go_go2vec_kg_complex_ppi_svd_ppi_raw_mashup_esm1b_prot_t5_text_embed_cv3",
+ "flag == pos|neg  Adamson/all_pairs/any": true,
+ "flag == pos|neg  Adamson/all_pairs_genes_txt/any": true,
+ "flag == pos|neg  Adamson/test_genes_txt/cv1": true,
+ "flag == pos|neg  Adamson/test_genes_txt/cv2": true,
+ "flag == pos|neg  Adamson/test_genes_txt/cv3": true,
+ "flag == pos|neg  AdamsonGI/all_pairs/any": true,
+ "flag == pos|neg  AdamsonGI/all_pairs_genes_txt/any": true,
+ "flag == pos|neg  AdamsonGI/test_genes_txt/cv1": true,
+ "flag == pos|neg  AdamsonGI/test_genes_txt/cv2": true,
+ "flag == pos|neg  AdamsonGI/test_genes_txt/cv3": true,
+ "flag == pos|neg  Corn/all_pairs/any": true,
+ "flag == pos|neg  Corn/all_pairs_genes_txt/any": true,
+ "flag == pos|neg  Corn/test_genes_txt/cv1": true,
+ "flag == pos|neg  Corn/test_genes_txt/cv2": true,
+ "flag == pos|neg  Corn/test_genes_txt/cv3": true,
+ "flag == pos|neg  Gilbert/all_pairs/any": true,
+ "flag == pos|neg  Gilbert/all_pairs_genes_txt/any": true,
+ "flag == pos|neg  Gilbert/test_genes_txt/cv1": true,
+ "flag == pos|neg  Gilbert/test_genes_txt/cv2": true,
+ "flag == pos|neg  Gilbert/test_genes_txt/cv3": true,
+ "sign(Spearman) == sign(AUROC-0.5) on every resample (max |p| diff)": 0.0,
+ "max abs diff of subset 'all' vs published (points + CIs)": 1.1102230246251565e-16,
+ "n_labelled / n_pos equal published": true,
+ "runtime_s": 120.2,
+ "versions": {
+  "python": "3.12.11",
+  "numpy": "2.5.5",
+  "pandas": "3.0.6"
+ },
+ "n_boot": 1000,
+ "seed": 42,
+ "alpha": 0.05
+}
+exit 0
